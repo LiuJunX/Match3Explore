@@ -38,3 +38,15 @@ You MUST follow these rules and guidelines in every interaction.
 
 - **Commit Messages**: Specific and imperative (e.g., "Add shuffle mechanics").
 - **Atomic Commits**: Group related changes into separate commits (e.g., config files separate from feature logic). Never mix unrelated changes.
+
+## 6. Autonomous Workflow
+
+When the user requests a feature implementation or bug fix, you MUST follow this loop:
+
+1.  **Plan**: Analyze requirements and define the necessary changes.
+2.  **Test First/Concurrent**: Create or update Unit Tests (`Match3.Tests`) that cover the new logic.
+3.  **Implement**: Write the code in `Match3.Core`.
+4.  **Verify**: Run `dotnet test`.
+    - **IF PASS**: Proceed to user notification.
+    - **IF FAIL**: Analyze error, Fix code, Repeat step 4. **DO NOT** ask the user for help unless you are stuck after multiple attempts.
+5.  **Deliver**: Present the verified solution to the user.
