@@ -62,9 +62,10 @@ sealed class Program
 
         Console.WriteLine($"Using Seed: {seed}");
         var rng = new DefaultRandom(seed);
-        var board = new GameBoard(8, 8, 6, rng);
+        // Deprecated: var board = new GameBoard(8, 8, 6, rng);
         var view = new ConsoleView();
-        var controller = new Match3Controller(board, view);
+        // Updated to use the new Match3Controller constructor (width, height, tileCount, rng, view)
+        var controller = new Match3Controller(8, 8, 6, rng, view);
         Console.WriteLine("Enter swap as: x1 y1 x2 y2, or 'q' to quit");
         while (true)
         {
