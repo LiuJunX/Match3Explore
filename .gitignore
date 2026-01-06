@@ -1,0 +1,24 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Bb]in/
+[Oo]bj/
+
+# NuGet
+*.lock.json
+project.lock.json
+project.nuget.cache
+
+# VS Code / Trae
+.vscode/
+.history/
+*.code-workspace
+
+# OS generated files
+.DS_Store
+Thumbs.db
