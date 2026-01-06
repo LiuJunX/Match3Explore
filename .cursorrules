@@ -19,6 +19,12 @@ You MUST follow these rules and guidelines in every interaction.
 
 ## 3. Design Patterns
 
+- **Strict Model-Driven Animation**: 
+  - The **Model** (`Match3.Core`) MUST be the single source of truth for **ALL** spatial and temporal state.
+  - The Model MUST expose precise, real-time coordinates (e.g., `Vector2` positions) for every element.
+  - The Model MUST implement a `Tick(float deltaTime)` or `Update(float deltaTime)` method to advance the simulation (gravity, movement interpolation, animations).
+  - The **View** MUST be a "dumb" renderer. It simply draws elements at the coordinates provided by the Model.
+  - **PROHIBITED**: The View MUST NOT perform any interpolation, physics calculations, or independent timing logic (e.g., CSS transitions, `Task.Delay` for movement).
 - **Separation of Logic and View**: `Match3Controller` handles logic; `IGameView` handles rendering.
 - **Dependency Injection**: Pass dependencies via constructors.
 

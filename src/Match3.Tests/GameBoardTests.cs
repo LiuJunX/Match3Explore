@@ -34,11 +34,11 @@ public class GameBoardTests
         // Arrange
         var state = CreateAndClearState(5, 5);
         // R R R G B
-        state.Set(0, 0, TileType.Red);
-        state.Set(1, 0, TileType.Red);
-        state.Set(2, 0, TileType.Red);
-        state.Set(3, 0, TileType.Green);
-        state.Set(4, 0, TileType.Blue);
+        state.SetTile(0, 0, new Tile(TileType.Red, 0, 0));
+        state.SetTile(1, 0, new Tile(TileType.Red, 1, 0));
+        state.SetTile(2, 0, new Tile(TileType.Red, 2, 0));
+        state.SetTile(3, 0, new Tile(TileType.Green, 3, 0));
+        state.SetTile(4, 0, new Tile(TileType.Blue, 4, 0));
 
         // Act
         var matches = GameRules.FindMatches(in state);
@@ -58,10 +58,10 @@ public class GameBoardTests
         // R
         // R
         // R
-        state.Set(0, 0, TileType.Red);
-        state.Set(0, 1, TileType.Red);
-        state.Set(0, 2, TileType.Red);
-        state.Set(0, 3, TileType.Green);
+        state.SetTile(0, 0, new Tile(TileType.Red, 0, 0));
+        state.SetTile(0, 1, new Tile(TileType.Red, 0, 1));
+        state.SetTile(0, 2, new Tile(TileType.Red, 0, 2));
+        state.SetTile(0, 3, new Tile(TileType.Green, 0, 3));
 
         // Act
         var matches = GameRules.FindMatches(in state);
@@ -80,15 +80,15 @@ public class GameBoardTests
         var state = CreateAndClearState(5, 5);
         var p1 = new Position(0, 0);
         var p2 = new Position(1, 0);
-        state.Set(p1.X, p1.Y, TileType.Red);
-        state.Set(p2.X, p2.Y, TileType.Blue);
+        state.SetTile(p1.X, p1.Y, new Tile(TileType.Red, p1.X, p1.Y));
+        state.SetTile(p2.X, p2.Y, new Tile(TileType.Blue, p2.X, p2.Y));
 
         // Act
         GameRules.Swap(ref state, p1, p2);
 
         // Assert
-        Assert.Equal(TileType.Blue, state.Get(p1.X, p1.Y));
-        Assert.Equal(TileType.Red, state.Get(p2.X, p2.Y));
+        Assert.Equal(TileType.Blue, state.GetType(p1.X, p1.Y));
+        Assert.Equal(TileType.Red, state.GetType(p2.X, p2.Y));
     }
 
     [Fact]
@@ -99,28 +99,17 @@ public class GameBoardTests
         // Col 0:
         // (4) .
         // (3) .
-        // (2) R  <- This should fall to 4 (Bottom is height-1 ?? No, height-1 is bottom in most arrays if 0 is top)
-        // Wait, let's check coordinate system.
-        // In GameBoard.cs/GameRules.cs:
-        // ApplyGravity: for (var y = _height - 1; y >= 0; y--) ... writeY = _height - 1
-        // So y=Height-1 is the BOTTOM.
-        // y=0 is TOP.
+        // (2) R  <- This should fall to 4
         
-        // In this test:
-        // We set (0, 2) to Red. 
-        // 0, 1, 2, 3, 4 (Height=5)
-        // 2 is middle.
-        // It should fall to 4.
-        
-        state.Set(0, 2, TileType.Red);
+        state.SetTile(0, 2, new Tile(TileType.Red, 0, 2));
 
         // Act
         GameRules.ApplyGravity(ref state);
 
         // Assert
         // The tile at (0,2) should fall to (0,4) (bottom)
-        Assert.Equal(TileType.Red, state.Get(0, 4));
-        Assert.Equal(TileType.None, state.Get(0, 2));
+        Assert.Equal(TileType.Red, state.GetType(0, 4));
+        Assert.Equal(TileType.None, state.GetType(0, 2));
     }
 
     private GameState CreateAndClearState(int width, int height)
@@ -130,7 +119,7 @@ public class GameBoardTests
         {
             for (int x = 0; x < width; x++)
             {
-                state.Set(x, y, TileType.None);
+                state.SetTile(x, y, new Tile(TileType.None, x, y));
             }
         }
         return state;

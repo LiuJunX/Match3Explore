@@ -1,6 +1,7 @@
 using System;
 using Match3.Core;
 using Match3.Core.AI;
+using Match3.Core.Structs;
 using Xunit;
 
 namespace Match3.Tests;
@@ -34,7 +35,7 @@ public class Match3EnvironmentTests
         bool areDifferent = false;
         for (int i = 0; i < state1.Grid.Length; i++)
         {
-            if (state1.Grid[i] != state2.Grid[i])
+            if (state1.Grid[i].Type != state2.Grid[i].Type || state1.Grid[i].Position != state2.Grid[i].Position)
             {
                 areDifferent = true;
                 break;

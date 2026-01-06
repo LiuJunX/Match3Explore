@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Match3.Core.Structs;
 
 namespace Match3.Core.Logic;
@@ -16,7 +17,7 @@ public static class GameRules
         {
             for (int x = 0; x < state.Width; x++)
             {
-                state.Set(x, y, GenerateNonMatchingTile(ref state, x, y));
+                state.SetTile(x, y, new Tile(GenerateNonMatchingTile(ref state, x, y), x, y));
             }
         }
     }
@@ -36,11 +37,11 @@ public static class GameRules
     {
         if (x >= 2)
         {
-            if (state.Get(x - 1, y) == t && state.Get(x - 2, y) == t) return true;
+            if (state.GetType(x - 1, y) == t && state.GetType(x - 2, y) == t) return true;
         }
         if (y >= 2)
         {
-            if (state.Get(x, y - 1) == t && state.Get(x, y - 2) == t) return true;
+            if (state.GetType(x, y - 1) == t && state.GetType(x, y - 2) == t) return true;
         }
         return false;
     }
@@ -92,7 +93,7 @@ public static class GameRules
             // Clear
             foreach (var p in matches)
             {
-                state.Set(p.X, p.Y, TileType.None);
+                state.SetTile(p.X, p.Y, new Tile(TileType.None, p.X, p.Y));
             }
 
             // Gravity & Refill
@@ -125,8 +126,8 @@ public static class GameRules
             int run = 1;
             for (int x = 1; x < w; x++)
             {
-                var curr = state.Get(x, y);
-                var prev = state.Get(x - 1, y);
+                var curr = state.GetType(x, y);
+                var prev = state.GetType(x - 1, y);
                 if (curr != TileType.None && curr == prev)
                 {
                     run++;
@@ -152,8 +153,8 @@ public static class GameRules
             int run = 1;
             for (int y = 1; y < h; y++)
             {
-                var curr = state.Get(x, y);
-                var prev = state.Get(x, y - 1);
+                var curr = state.GetType(x, y);
+                var prev = state.GetType(x, y - 1);
                 if (curr != TileType.None && curr == prev)
                 {
                     run++;
@@ -190,13 +191,13 @@ public static class GameRules
             int writeY = state.Height - 1;
             for (int y = state.Height - 1; y >= 0; y--)
             {
-                var t = state.Get(x, y);
-                if (t != TileType.None)
+                var t = state.GetTile(x, y);
+                if (t.Type != TileType.None)
                 {
                     if (writeY != y)
                     {
-                        state.Set(x, writeY, t);
-                        state.Set(x, y, TileType.None);
+                        state.SetTile(x, writeY, t);
+                        state.SetTile(x, y, new Tile(TileType.None, x, y));
                         moves.Add(new TileMove(new Position(x, y), new Position(x, writeY)));
                     }
                     writeY--;
@@ -215,10 +216,11 @@ public static class GameRules
             // Iterate from bottom up to assign "closest" spawn tile to deepest empty slot
             for (int y = state.Height - 1; y >= 0; y--)
             {
-                if (state.Get(x, y) == TileType.None)
+                if (state.GetType(x, y) == TileType.None)
                 {
                     var t = GenerateNonMatchingTile(ref state, x, y);
-                    state.Set(x, y, t);
+                    var tile = new Tile(t, new Vector2(x, nextSpawnY));
+                    state.SetTile(x, y, tile);
                     newTiles.Add(new TileMove(new Position(x, nextSpawnY), new Position(x, y)));
                     nextSpawnY--;
                 }

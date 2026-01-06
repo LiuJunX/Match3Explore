@@ -12,7 +12,7 @@ public struct GameState
     /// The 1D array representing the 2D grid.
     /// Index = y * Width + x
     /// </summary>
-    public TileType[] Grid;
+    public Tile[] Grid;
 
     public int Width;
     public int Height;
@@ -30,7 +30,7 @@ public struct GameState
         Width = width;
         Height = height;
         TileTypesCount = tileTypesCount;
-        Grid = new TileType[width * height];
+        Grid = new Tile[width * height];
         Score = 0;
         MoveCount = 0;
         Random = random;
@@ -47,9 +47,11 @@ public struct GameState
         return clone;
     }
 
-    public TileType Get(int x, int y) => Grid[y * Width + x];
+    public Tile GetTile(int x, int y) => Grid[y * Width + x];
     
-    public void Set(int x, int y, TileType type) => Grid[y * Width + x] = type;
+    public void SetTile(int x, int y, Tile tile) => Grid[y * Width + x] = tile;
+    
+    public TileType GetType(int x, int y) => Grid[y * Width + x].Type;
 
     public int Index(int x, int y) => y * Width + x;
 }
