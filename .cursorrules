@@ -50,3 +50,18 @@ When the user requests a feature implementation or bug fix, you MUST follow this
     - **IF PASS**: Proceed to user notification.
     - **IF FAIL**: Analyze error, Fix code, Repeat step 4. **DO NOT** ask the user for help unless you are stuck after multiple attempts.
 5.  **Deliver**: Present the verified solution to the user.
+
+## 7. Documentation Maintenance
+
+- **ARCHITECTURE.md**: You MUST check and update `ARCHITECTURE.md` whenever you:
+  - Add new projects or major components.
+  - Change core algorithms (e.g., matching logic, gravity).
+  - Modify public interfaces (`IGameView`, `IRandom`).
+- **Keep it Sync**: Documentation must reflect the *current* state of the code, not future plans.
+
+## 8. Randomness & Determinism
+
+- **Core Logic**: All random number generation in `Match3.Core` MUST use the `Match3.Core.IRandom` interface.
+- **Prohibited**: Do NOT use `System.Random`, `Guid.NewGuid()`, or `DateTime` based randomness directly in game logic.
+- **Goal**: Ensure the game state is fully deterministic and replayable given a specific seed.
+- **Implementation**: Inject `IRandom` into classes that need randomness (e.g., `GameBoard`).

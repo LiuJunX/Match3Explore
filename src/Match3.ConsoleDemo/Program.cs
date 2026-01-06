@@ -48,9 +48,20 @@ sealed class ConsoleView : IGameView
 }
 sealed class Program
 {
-    static void Main()
+    static void Main(string[] args)
     {
-        var rng = new DefaultRandom();
+        int seed = Environment.TickCount;
+        if (args.Length > 0 && int.TryParse(args[0], out var s))
+        {
+            seed = s;
+        }
+        else
+        {
+            Console.WriteLine("You can provide a seed as the first argument.");
+        }
+
+        Console.WriteLine($"Using Seed: {seed}");
+        var rng = new DefaultRandom(seed);
         var board = new GameBoard(8, 8, 6, rng);
         var view = new ConsoleView();
         var controller = new Match3Controller(board, view);
