@@ -37,3 +37,4 @@ You MUST follow these rules and guidelines in every interaction.
 ## 5. Git
 
 - **Commit Messages**: Specific and imperative (e.g., "Add shuffle mechanics").
+- **Atomic Commits**: Group related changes into separate commits (e.g., config files separate from feature logic). Never mix unrelated changes.
