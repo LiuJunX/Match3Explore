@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Match3.Core;
+using Match3.Core.Config;
 using Match3.Core.Structs;
 using Match3.Core.Logic;
 using Xunit;
@@ -14,7 +15,9 @@ public class Match3ControllerTests
         // Arrange
         var rng = new TestRandomGenerator(); 
         var view = new MockGameView();
-        var controller = new Match3Controller(4, 4, 5, rng, view);
+        var logger = new ConsoleGameLogger();
+        var config = new Match3Config(4, 4, 5);
+        var controller = new Match3Controller(config, rng, view, new ClassicMatchFinder(), new StandardMatchProcessor(), new StandardGravitySystem(new StandardTileGenerator()), new PowerUpHandler(), new StandardTileGenerator(), logger);
 
         // Setup a specific board state
         // Row 0: R R G R  (Swap G<->R at x=2,3 to make R R R R)
@@ -83,7 +86,9 @@ public class Match3ControllerTests
         // Arrange
         var rng = new TestRandomGenerator();
         var view = new MockGameView();
-        var controller = new Match3Controller(4, 4, 5, rng, view);
+        var logger = new ConsoleGameLogger();
+        var config = new Match3Config(4, 4, 5);
+        var controller = new Match3Controller(config, rng, view, new ClassicMatchFinder(), new StandardMatchProcessor(), new StandardGravitySystem(new StandardTileGenerator()), new PowerUpHandler(), new StandardTileGenerator(), logger);
 
         // Clear
         for(int y=0; y<4; y++) for(int x=0; x<4; x++) controller.DebugSetTile(new Position(x, y), TileType.None);

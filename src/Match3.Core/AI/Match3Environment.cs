@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Match3.Core.Structs;
 using Match3.Core.Logic;
+using Match3.Core.Interfaces;
 
 namespace Match3.Core.AI;
 
@@ -17,21 +18,45 @@ public class Match3Environment : IGameEnvironment<GameState, Move>
     private readonly int _maxMoves;
     private int _stepsTaken;
 
+    private readonly IMatchFinder _matchFinder;
+    private readonly IMatchProcessor _matchProcessor;
+    private readonly IGravitySystem _gravitySystem;
+    private readonly IPowerUpHandler _powerUpHandler;
+    private readonly ITileGenerator _tileGenerator;
+
     public Match3Environment(int width, int height, int tileTypesCount, int maxMoves = 100)
     {
         _width = width;
         _height = height;
         _tileTypesCount = tileTypesCount;
         _maxMoves = maxMoves;
+
+        _tileGenerator = new StandardTileGenerator();
+        _matchFinder = new ClassicMatchFinder();
+        _matchProcessor = new StandardMatchProcessor();
+        _gravitySystem = new StandardGravitySystem(_tileGenerator);
+        _powerUpHandler = new PowerUpHandler();
     }
 
     public GameState Reset(int? seed = null)
     {
         var rng = new DefaultRandom(seed);
         _state = new GameState(_width, _height, _tileTypesCount, rng);
-        GameRules.Initialize(ref _state);
+        InitializeBoard();
         _stepsTaken = 0;
         return _state; // Returns a copy because GameState is a struct
+    }
+
+    private void InitializeBoard()
+    {
+        for (int y = 0; y < _state.Height; y++)
+        {
+            for (int x = 0; x < _state.Width; x++)
+            {
+                var type = _tileGenerator.GenerateNonMatchingTile(ref _state, x, y);
+                _state.SetTile(x, y, new Tile(_state.NextTileId++, type, x, y));
+            }
+        }
     }
 
     public StepResult<GameState> Step(Move move)
@@ -47,15 +72,14 @@ public class Match3Environment : IGameEnvironment<GameState, Move>
         _stepsTaken++;
         bool isDone = _stepsTaken >= _maxMoves;
 
-        // Validate logic is now inside GameRules or handled here
-        if (!GameRules.IsValidMove(in _state, move.From, move.To))
+        if (!IsValidMove(move.From, move.To))
         {
              return new StepResult<GameState>(_state, -10.0, isDone, new Dictionary<string, object> { { "Error", "InvalidMove" } });
         }
 
         int cascades;
         int points;
-        bool success = GameRules.ApplyMove(ref _state, move.From, move.To, out cascades, out points);
+        bool success = ApplyMove(ref _state, move.From, move.To, out cascades, out points);
 
         if (!success)
         {
@@ -80,5 +104,78 @@ public class Match3Environment : IGameEnvironment<GameState, Move>
     {
         return _state;
     }
-}
 
+    private bool IsValidMove(Position from, Position to)
+    {
+        if (from.X < 0 || from.X >= _state.Width || from.Y < 0 || from.Y >= _state.Height) return false;
+        if (to.X < 0 || to.X >= _state.Width || to.Y < 0 || to.Y >= _state.Height) return false;
+        if (Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y) != 1) return false;
+        return true;
+    }
+
+    private void Swap(ref GameState state, Position a, Position b)
+    {
+        var idxA = state.Index(a.X, a.Y);
+        var idxB = state.Index(b.X, b.Y);
+        var temp = state.Grid[idxA];
+        state.Grid[idxA] = state.Grid[idxB];
+        state.Grid[idxB] = temp;
+    }
+
+    private bool ApplyMove(ref GameState state, Position from, Position to, out int cascades, out int totalPoints)
+    {
+        cascades = 0;
+        totalPoints = 0;
+
+        // 1. Swap
+        Swap(ref state, from, to);
+
+        // 2. Check Special
+        var tFrom = state.GetTile(from.X, from.Y); // Now at 'from' (swapped)
+        var tTo = state.GetTile(to.X, to.Y); // Now at 'to'
+
+        bool isBombCombo = (tFrom.Bomb != BombType.None || tFrom.Type == TileType.Rainbow) && 
+                           (tTo.Bomb != BombType.None || tTo.Type == TileType.Rainbow);
+        
+        bool isColorMix = !isBombCombo && (tFrom.Type == TileType.Rainbow || tTo.Type == TileType.Rainbow);
+
+        if (isBombCombo || isColorMix)
+        {
+             _powerUpHandler.ProcessSpecialMove(ref state, from, to, out int comboPoints);
+             totalPoints += comboPoints;
+        }
+        else
+        {
+            if (!_matchFinder.HasMatches(in state))
+            {
+                Swap(ref state, from, to); // Revert
+                return false;
+            }
+        }
+
+        // 3. Process Cascades
+        state.MoveCount++;
+        
+        bool firstIteration = true;
+        while (true)
+        {
+            var groups = _matchFinder.FindMatchGroups(in state, firstIteration ? to : null);
+            
+            if (groups.Count == 0) break;
+
+            cascades++;
+            firstIteration = false;
+            
+            int points = _matchProcessor.ProcessMatches(ref state, groups);
+            
+            if (cascades > 1) points *= cascades;
+            totalPoints += points;
+
+            _gravitySystem.ApplyGravity(ref state);
+            _gravitySystem.Refill(ref state);
+        }
+
+        state.Score += totalPoints;
+        return true;
+    }
+}

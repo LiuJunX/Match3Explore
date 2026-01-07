@@ -1,0 +1,54 @@
+@using Match3.Core
+@using Match3.Core.Structs
+@using Match3.Web.Services
+@using System.Numerics
+
+@if (GameService.Controller != null)
+{
+    <div class="board-wrapper">
+        <div class="board-container" 
+             style="width: @(GameService.Width * Match3GameService.CellSize)px; height: @(GameService.Height * Match3GameService.CellSize)px;"
+             @onpointerup="HandlePointerUp">
+            <!-- Background Grid -->
+            @for (int y = 0; y < GameService.Height; y++)
+            {
+                @for (int x = 0; x < GameService.Width; x++)
+                {
+                    var px = x;
+                    var py = y;
+                    <div class="cell-bg" 
+                         style="left: @(x * Match3GameService.CellSize)px; top: @(y * Match3GameService.CellSize)px;"
+                         @onpointerdown="e => HandlePointerDown(e, px, py)">
+                    </div>
+                }
+            }
+
+            <!-- Active Tiles -->
+            @foreach (var tile in GameService.Controller.State.Grid)
+            {
+                if (tile.Type != TileType.None)
+                {
+                    var isSelected = GameService.Controller.SelectedPosition.IsValid && 
+                                   Math.Abs(tile.Position.X - GameService.Controller.SelectedPosition.X) < 0.1f && 
+                                   Math.Abs(tile.Position.Y - GameService.Controller.SelectedPosition.Y) < 0.1f;
+                    
+                    <div @key="tile.Id" class="tile @(isSelected ? "selected" : "")" 
+                         style="transform: translate(@(tile.Position.X * Match3GameService.CellSize)px, @(tile.Position.Y * Match3GameService.CellSize)px);"
+                         @onpointerdown="e => HandlePointerDown(e, (int)Math.Round(tile.Position.X), (int)Math.Round(tile.Position.Y))">
+                         <div class="tile-inner">
+                            <span class="tile-base">@GetTileBaseIcon(tile)</span>
+                            @if (HasBombOverlay(tile))
+                            {
+                                <span class="tile-overlay">@GetBombOverlayIcon(tile)</span>
+                            }
+                         </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="loading">Loading Board...</div>
+}

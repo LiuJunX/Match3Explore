@@ -1,0 +1,26 @@
+@using Match3.Web.Services
+@inject Match3GameService GameService
+@implements IDisposable
+
+<div class="stats">
+    <div class="stat-box">
+        <span class="stat-label">Matches</span>
+        <span class="stat-value" data-testid="matches-count">@GameService.LastMatchesCount</span>
+    </div>
+    <div class="stat-box">
+        <span class="stat-label">Status</span>
+        <span class="stat-value status-text" data-testid="status-message">@(GameService.Controller?.StatusMessage ?? "Loading...")</span>
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        GameService.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        GameService.OnChange -= StateHasChanged;
+    }
+}

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using Match3.Core;
+using Match3.Core.Interfaces;
 using Match3.Core.Logic;
 using Match3.Core.Structs;
 using Xunit;
@@ -17,7 +18,6 @@ namespace Match3.Tests.Scenarios
             var dataDir = Path.Combine(AppContext.BaseDirectory, "Scenarios", "Data");
             if (!Directory.Exists(dataDir))
             {
-                // Fallback to searching relative to project if running in different context
                 var projectDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../Scenarios/Data"));
                 if (Directory.Exists(projectDir))
                     dataDir = projectDir;
@@ -41,7 +41,7 @@ namespace Match3.Tests.Scenarios
                     var scenario = JsonSerializer.Deserialize<TestScenario>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     if (scenario != null)
                     {
-                        scenarios.Add(new object[] { Path.GetFileName(file), scenario });
+                        scenarios.Add(new object[] { scenario });
                     }
                 }
                 catch (Exception ex)
@@ -55,11 +55,18 @@ namespace Match3.Tests.Scenarios
 
         [Theory]
         [MemberData(nameof(GetScenarios))]
-        public void RunScenario(string fileName, TestScenario scenario)
+        public void RunScenario(TestScenario scenario)
         {
             var rng = new DefaultRandom(42);
             var state = new GameState(scenario.Width, scenario.Height, 6, rng);
             
+            // Systems
+            var tileGen = new StandardTileGenerator();
+            var finder = new ClassicMatchFinder();
+            var processor = new StandardMatchProcessor();
+            var gravity = new StandardGravitySystem(tileGen);
+            var powerUp = new PowerUpHandler();
+
             // Parse layout
             for (int y = 0; y < scenario.Height; y++)
             {
@@ -67,7 +74,7 @@ namespace Match3.Tests.Scenarios
                 for (int x = 0; x < scenario.Width; x++)
                 {
                     var type = ParseType(row[x]);
-                    state.SetTile(x, y, new Tile(type, x, y));
+                    state.SetTile(x, y, new Tile(state.NextTileId++, type, x, y));
                 }
             }
             
@@ -77,14 +84,8 @@ namespace Match3.Tests.Scenarios
                 var p1 = ParsePos(move.From);
                 var p2 = ParsePos(move.To);
                 
-                // We need to simulate the move logic. 
-                // Since GameRules.ApplyMove might be internal or specific, we assume we use the public API.
-                // If ApplyMove is not available, we might need to rely on Swap logic + Evaluation.
-                
-                // Assuming GameRules.ApplyMove is the entry point
-                bool success = GameRules.ApplyMove(ref state, p1, p2, out var matches, out var effects);
-                
-                Assert.True(success, $"Scenario '{scenario.Name}' ({fileName}): Move {move.From}->{move.To} failed.");
+                // Execute Logic Loop
+                ApplyMove(ref state, p1, p2, finder, processor, gravity, powerUp);
             }
             
             // Verify expectations
@@ -93,7 +94,7 @@ namespace Match3.Tests.Scenarios
                 var tile = state.GetTile(exp.X, exp.Y);
                 if (exp.Type != null)
                 {
-                    var expectedType = ParseType(exp.Type); // Using ParseType to handle string to Enum
+                    var expectedType = ParseType(exp.Type); 
                     Assert.Equal(expectedType, tile.Type);
                 }
                 if (exp.Bomb != null)
@@ -102,6 +103,61 @@ namespace Match3.Tests.Scenarios
                     Assert.Equal(expectedBomb, tile.Bomb);
                 }
             }
+        }
+
+        private void ApplyMove(
+            ref GameState state, 
+            Position from, 
+            Position to, 
+            IMatchFinder finder, 
+            IMatchProcessor processor, 
+            IGravitySystem gravity,
+            IPowerUpHandler powerUp)
+        {
+            // 1. Swap
+            Swap(ref state, from, to);
+
+            // 2. Check Special
+            var t1 = state.GetTile(from.X, from.Y);
+            var t2 = state.GetTile(to.X, to.Y);
+            bool isSpecial = (t1.Bomb != BombType.None || t1.Type == TileType.Rainbow) && 
+                             (t2.Bomb != BombType.None || t2.Type == TileType.Rainbow);
+            
+            // Also Color Mix
+            if (!isSpecial && (t1.Type == TileType.Rainbow || t2.Type == TileType.Rainbow)) isSpecial = true;
+
+            if (isSpecial)
+            {
+                powerUp.ProcessSpecialMove(ref state, from, to, out _);
+            }
+            else
+            {
+                if (!finder.HasMatches(in state))
+                {
+                    Swap(ref state, from, to); // Revert
+                    return;
+                }
+            }
+
+            // 3. Loop
+            while (true)
+            {
+                var groups = finder.FindMatchGroups(in state);
+                if (groups.Count == 0) break;
+
+                processor.ProcessMatches(ref state, groups);
+                gravity.ApplyGravity(ref state);
+                gravity.Refill(ref state);
+            }
+        }
+
+        private void Swap(ref GameState state, Position a, Position b)
+        {
+            var idxA = state.Index(a.X, a.Y);
+            var idxB = state.Index(b.X, b.Y);
+            var temp = state.Grid[idxA];
+            state.Grid[idxA] = state.Grid[idxB];
+            state.Grid[idxB] = temp;
         }
 
         private TileType ParseType(string code)

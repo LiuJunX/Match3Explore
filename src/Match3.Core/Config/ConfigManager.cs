@@ -20,9 +20,15 @@ public class ConfigManager
             throw new FileNotFoundException("Config file not found", path);
         }
 
-        // Use FileStream to read
         using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
-        using (var reader = new BinaryReader(fs))
+        {
+            Load(fs);
+        }
+    }
+
+    public void Load(Stream stream)
+    {
+        using (var reader = new BinaryReader(stream))
         {
             // 1. Header Check
             var magic = reader.ReadChars(4);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using Match3.Core.Config;
+using Match3.Core.Logic;
 
 namespace Match3.ConfigTool
 {
@@ -10,15 +11,16 @@ namespace Match3.ConfigTool
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Starting Config Build Process...");
+            var logger = new ConsoleGameLogger();
+            logger.LogInfo("Starting Config Build Process...");
 
             // 1. Fetch Data (Mock Feishu)
             var json = FeishuMock.FetchItemsSheet();
-            Console.WriteLine("Fetched data from Feishu (Mock).");
+            logger.LogInfo("Fetched data from Feishu (Mock).");
 
             // 2. Parse Data
             var items = ParseItems(json);
-            Console.WriteLine($"Parsed {items.Count} items.");
+            logger.LogInfo($"Parsed {items.Count} items.");
 
             // 3. Serialize to Binary
             string outputPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.bin");
@@ -26,7 +28,7 @@ namespace Match3.ConfigTool
             string gameConfigPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../../../../config.bin"));
             
             Serialize(items, gameConfigPath);
-            Console.WriteLine($"Config written to: {gameConfigPath}");
+            logger.LogInfo($"Config written to: {gameConfigPath}");
         }
 
         static List<ItemConfig> ParseItems(string json)

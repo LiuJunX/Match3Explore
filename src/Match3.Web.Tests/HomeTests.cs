@@ -4,11 +4,18 @@ using Match3.Web.Components.Pages;
 using Microsoft.Extensions.DependencyInjection;
 using Match3.Core;
 using Match3.Core.Structs;
+using Match3.Web.Services;
 
 namespace Match3.Web.Tests;
 
 public class HomeTests : TestContext
 {
+    public HomeTests()
+    {
+        Services.AddLogging();
+        Services.AddScoped<Match3GameService>();
+    }
+
     [Fact]
     public void GameBoard_Should_Render_Correctly()
     {

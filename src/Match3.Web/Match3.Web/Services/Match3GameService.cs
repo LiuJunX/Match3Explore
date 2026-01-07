@@ -3,12 +3,17 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Match3.Core;
+using Match3.Core.Config;
+using Match3.Core.Interfaces;
+using Match3.Core.Logic;
 using Match3.Core.Structs;
+using Microsoft.Extensions.Logging;
 
 namespace Match3.Web.Services;
 
 public class Match3GameService : IDisposable
 {
+    private readonly ILogger<Match3GameService> _appLogger;
     private Match3Controller? _controller;
     private bool _isAutoPlaying;
     private float _gameSpeed = 1.0f;
@@ -16,6 +21,11 @@ public class Match3GameService : IDisposable
     private CancellationTokenSource? _loopCts;
 
     public event Action? OnChange;
+
+    public Match3GameService(ILogger<Match3GameService> appLogger)
+    {
+        _appLogger = appLogger;
+    }
 
     public Match3Controller? Controller => _controller;
     public bool IsAutoPlaying => _isAutoPlaying;
@@ -37,7 +47,27 @@ public class Match3GameService : IDisposable
         var rng = new DefaultRandom(Environment.TickCount);
         var view = new ServiceGameView(this);
         
-        _controller = new Match3Controller(Width, Height, 6, rng, view);
+        var tileGenerator = new StandardTileGenerator();
+        var gravitySystem = new StandardGravitySystem(tileGenerator);
+        var matchFinder = new ClassicMatchFinder();
+        var matchProcessor = new StandardMatchProcessor();
+        var powerUpHandler = new PowerUpHandler();
+
+        var gameLogger = new MicrosoftGameLogger(_appLogger);
+        var config = new Match3Config(Width, Height, 6);
+
+        _controller = new Match3Controller(
+            config,
+            rng, 
+            view,
+            matchFinder,
+            matchProcessor,
+            gravitySystem,
+            powerUpHandler,
+            tileGenerator,
+            gameLogger
+        );
+        
         LastMatchesCount = 0;
         _isAutoPlaying = false;
         

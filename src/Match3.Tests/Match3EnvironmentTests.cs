@@ -73,36 +73,6 @@ public class Match3EnvironmentTests
     }
 
     [Fact]
-    public void Step_ValidMatch_ShouldIncreaseScoreAndChangeBoard()
-    {
-        // We need a specific seed where we know a move is possible.
-        // Or we can cheat by modifying the board if we had access, but we don't.
-        // So we will try random moves until we find a valid one, or rely on a known seed.
-        // Let's rely on a known seed. I'll search for a seed or just try brute force in test.
-        
-        var env = new Match3Environment(8, 8, 5);
-        var initialState = env.Reset(42);
-        
-        // Let's find a valid move by brute force
-        Move? validMove = null;
-        for (int x = 0; x < 8; x++)
-        {
-            for (int y = 0; y < 8; y++)
-            {
-                // Try right
-                if (x + 1 < 8)
-                {
-                    // We can't easily check if it's valid without simulating logic or calling internal methods.
-                    // But we can just call Step. If Reward > 0, it was valid.
-                    // Wait, Step modifies state. So we need to Reset after each attempt if we want to test "from initial".
-                    // This is inefficient.
-                    // Better approach: Let's trust that eventually we find one.
-                }
-            }
-        }
-    }
-
-    [Fact]
     public void Simulation_ShouldFinish_WhenMaxMovesReached()
     {
         int maxMoves = 10;

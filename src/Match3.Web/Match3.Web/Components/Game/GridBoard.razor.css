@@ -1,0 +1,76 @@
+.board-wrapper {
+    background: #bbada0;
+    padding: 10px;
+    border-radius: 6px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.board-container {
+    position: relative;
+    background-color: #bbada0;
+}
+
+.cell-bg {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    background-color: rgba(238, 228, 218, 0.35);
+    border-radius: 4px;
+    margin: 3px; /* Half gap */
+    touch-action: none;
+}
+
+.tile {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    background-color: #eee4da; /* Default tile color */
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin: 3px; /* Half gap */
+    /* IMPORTANT: No transition here, fully controlled by Model */
+    z-index: 10;
+    touch-action: none; /* Prevent browser scrolling/zooming/native drag */
+}
+
+.tile.selected {
+    box-shadow: 0 0 0 3px #3b82f6, 0 4px 6px rgba(0,0,0,0.2);
+    z-index: 20;
+    filter: brightness(1.1);
+}
+
+.tile-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tile-base {
+    font-size: 2rem;
+    line-height: 1;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
+    z-index: 1;
+}
+
+.tile-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5rem;
+    z-index: 2;
+    /* Make the overlay visible on top of dark colors */
+    text-shadow: 
+        -1px -1px 0 #fff,  
+         1px -1px 0 #fff,
+        -1px  1px 0 #fff,
+         1px  1px 0 #fff;
+}
