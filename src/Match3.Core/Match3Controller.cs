@@ -34,12 +34,111 @@ public sealed class Match3Controller
 
     public GameState State => _state; // Expose state for View
     public bool IsIdle => _currentState == ControllerState.Idle;
+    public Position SelectedPosition { get; private set; } = Position.Invalid;
+    public string StatusMessage { get; private set; } = "Ready";
 
     public Match3Controller(int width, int height, int tileTypesCount, IRandom rng, IGameView view)
     {
         _view = view;
         _state = new GameState(width, height, tileTypesCount, rng);
         GameRules.Initialize(ref _state);
+    }
+
+    /// <summary>
+    /// Handles a tap/click interaction on a specific tile.
+    /// </summary>
+    public void OnTap(Position p)
+    {
+        if (!IsIdle) return;
+        if (!IsValidPosition(p)) return;
+
+        if (SelectedPosition == Position.Invalid)
+        {
+            // Select first tile
+            SelectedPosition = p;
+            StatusMessage = "Select destination";
+        }
+        else
+        {
+            if (SelectedPosition == p)
+            {
+                // Deselect
+                SelectedPosition = Position.Invalid;
+                StatusMessage = "Selection Cleared";
+            }
+            else
+            {
+                // Try swap
+                bool success = TrySwapInternal(SelectedPosition, p);
+                if (success)
+                {
+                     SelectedPosition = Position.Invalid;
+                     StatusMessage = "Swapping...";
+                }
+                else
+                {
+                    // If neighbors but invalid move -> Invalid Move
+                    // If not neighbors -> Select new tile
+                    if (IsNeighbor(SelectedPosition, p))
+                    {
+                        StatusMessage = "Invalid Move";
+                        SelectedPosition = Position.Invalid;
+                    }
+                    else
+                    {
+                        SelectedPosition = p;
+                        StatusMessage = "Select destination";
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handles a swipe interaction originating from a specific tile.
+    /// </summary>
+    public void OnSwipe(Position from, Direction direction)
+    {
+        if (!IsIdle) return;
+        if (!IsValidPosition(from)) return;
+
+        Position to = GetNeighbor(from, direction);
+        if (!IsValidPosition(to)) return;
+
+        // Swipe overrides selection
+        SelectedPosition = Position.Invalid;
+
+        bool success = TrySwapInternal(from, to);
+        if (success)
+        {
+            StatusMessage = "Swapping...";
+        }
+        else
+        {
+            StatusMessage = "Invalid Move";
+        }
+    }
+
+    private bool IsValidPosition(Position p)
+    {
+        return p.X >= 0 && p.X < _state.Width && p.Y >= 0 && p.Y < _state.Height;
+    }
+
+    private bool IsNeighbor(Position a, Position b)
+    {
+        return Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y) == 1;
+    }
+
+    private Position GetNeighbor(Position p, Direction dir)
+    {
+        return dir switch
+        {
+            Direction.Up => new Position(p.X, p.Y - 1),
+            Direction.Down => new Position(p.X, p.Y + 1),
+            Direction.Left => new Position(p.X - 1, p.Y),
+            Direction.Right => new Position(p.X + 1, p.Y),
+            _ => p
+        };
     }
 
     /// <summary>
@@ -149,7 +248,7 @@ public sealed class Match3Controller
         return allStable;
     }
 
-    public bool TrySwap(Position a, Position b)
+    private bool TrySwapInternal(Position a, Position b)
     {
         if (_currentState != ControllerState.Idle) return false;
         

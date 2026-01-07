@@ -1,3 +1,5 @@
+using System;
+
 namespace Match3.Core;
 
 /// <summary>
@@ -24,5 +26,29 @@ public readonly struct Position
     {
         X = x;
         Y = y;
+    }
+
+    public static Position Invalid => new Position(-1, -1);
+
+    public bool IsValid => X >= 0 && Y >= 0;
+
+    public override bool Equals(object? obj)
+    {
+        return obj is Position other && X == other.X && Y == other.Y;
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(X, Y);
+    }
+
+    public static bool operator ==(Position left, Position right)
+    {
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(Position left, Position right)
+    {
+        return !(left == right);
     }
 }

@@ -17,7 +17,7 @@
             </div>
             <div class="stat-box">
                 <span class="stat-label">Status</span>
-                <span class="stat-value status-text" data-testid="status-message">@StatusMessage</span>
+                <span class="stat-value status-text" data-testid="status-message">@Controller.StatusMessage</span>
             </div>
         </div>
     </div>
@@ -25,7 +25,9 @@
     @if (Controller != null)
     {
         <div class="board-wrapper">
-            <div class="board-container" style="width: @(Width * CellSize)px; height: @(Height * CellSize)px;">
+            <div class="board-container" 
+                 style="width: @(Width * CellSize)px; height: @(Height * CellSize)px;"
+                 @onpointerup="HandlePointerUp">
                 <!-- Background Grid -->
                 @for (int y = 0; y < Height; y++)
                 {
@@ -45,9 +47,9 @@
                 {
                     if (tile.Type != TileType.None)
                     {
-                        var isSelected = SelectedX != -1 && 
-                                       Math.Abs(tile.Position.X - SelectedX) < 0.1f && 
-                                       Math.Abs(tile.Position.Y - SelectedY) < 0.1f;
+                        var isSelected = Controller.SelectedPosition.IsValid && 
+                                       Math.Abs(tile.Position.X - Controller.SelectedPosition.X) < 0.1f && 
+                                       Math.Abs(tile.Position.Y - Controller.SelectedPosition.Y) < 0.1f;
                         
                         <div class="tile @(isSelected ? "selected" : "")" 
                              style="transform: translate(@(tile.Position.X * CellSize)px, @(tile.Position.Y * CellSize)px);"
@@ -218,10 +220,8 @@
     private int Height = 8;
     private const int CellSize = 66; // 60px + 6px gap
     
-    private int SelectedX = -1;
-    private int SelectedY = -1;
     private int LastMatchesCount = 0;
-    private string StatusMessage = "Ready";
+    // StatusMessage delegated to Controller
     
     private bool _disposed = false;
     private const int TargetFps = 60;
@@ -249,10 +249,7 @@
         var rng = new DefaultRandom(Environment.TickCount);
         var view = new BlazorGameView(this);
         Controller = new Match3Controller(Width, Height, 6, rng, view);
-        StatusMessage = "Ready";
         LastMatchesCount = 0;
-        SelectedX = -1;
-        SelectedY = -1;
         
         // Start Game Loop
         _ = GameLoopAsync();
@@ -318,84 +315,29 @@
 
     private void HandleSwipe(double dx, double dy)
     {
-        if (Controller == null || !Controller.IsIdle) return;
+        if (Controller == null) return;
 
         // Determine main direction
-        int targetX = _dragSourceX;
-        int targetY = _dragSourceY;
-
+        Direction direction;
         if (Math.Abs(dx) > Math.Abs(dy))
         {
             // Horizontal
-            if (dx > 0) targetX++; else targetX--;
+            direction = dx > 0 ? Direction.Right : Direction.Left;
         }
         else
         {
             // Vertical
-            if (dy > 0) targetY++; else targetY--;
+            direction = dy > 0 ? Direction.Down : Direction.Up;
         }
 
-        // Boundary check
-        if (targetX >= 0 && targetX < Width && targetY >= 0 && targetY < Height)
-        {
-            var p1 = new Position(_dragSourceX, _dragSourceY);
-            var p2 = new Position(targetX, targetY);
-            
-            // "Drag" overrides "Selection", so clear selection
-            SelectedX = -1;
-            SelectedY = -1;
-            
-            bool allowed = Controller.TrySwap(p1, p2);
-            if (!allowed)
-            {
-                StatusMessage = "Invalid Move";
-            }
-            else
-            {
-                StatusMessage = "Swapping...";
-            }
-        }
+        var p1 = new Position(_dragSourceX, _dragSourceY);
+        Controller.OnSwipe(p1, direction);
     }
 
     private void OnTileClick(int x, int y)
     {
-        if (Controller == null || !Controller.IsIdle) return;
-
-        if (SelectedX == -1)
-        {
-            SelectedX = x;
-            SelectedY = y;
-            StatusMessage = "Select destination";
-        }
-        else
-        {
-            if (SelectedX == x && SelectedY == y)
-            {
-                SelectedX = -1;
-                SelectedY = -1;
-                StatusMessage = "Selection Cleared";
-                return;
-            }
-
-            var p1 = new Position(SelectedX, SelectedY);
-            var p2 = new Position(x, y);
-            
-            bool allowed = Controller.TrySwap(p1, p2);
-            if (!allowed)
-            {
-                 StatusMessage = "Invalid Move";
-                 // Simple feedback, maybe shake later
-                 SelectedX = -1;
-                 SelectedY = -1;
-            }
-            else
-            {
-                // Selection clears on successful swap start
-                SelectedX = -1;
-                SelectedY = -1;
-                StatusMessage = "Swapping...";
-            }
-        }
+        if (Controller == null) return;
+        Controller.OnTap(new Position(x, y));
     }
 
     private string GetTileContent(Tile t) 
@@ -440,13 +382,13 @@
         
         public void ShowSwap(Position a, Position b, bool success)
         {
-             if (!success) _parent.StatusMessage = "Swap Failed!";
+             // Status managed by Controller
         }
         
         public void ShowMatches(IReadOnlyCollection<Position> matched)
         {
              _parent.LastMatchesCount = matched.Count;
-             _parent.StatusMessage = $"Boom! {matched.Count} matches!";
+             // Status managed by Controller
         }
         
         public void ShowGravity(IEnumerable<TileMove> moves) { }

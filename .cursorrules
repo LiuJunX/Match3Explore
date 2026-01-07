@@ -26,6 +26,9 @@ You MUST follow these rules and guidelines in every interaction.
   - The **View** MUST be a "dumb" renderer. It simply draws elements at the coordinates provided by the Model.
   - **PROHIBITED**: The View MUST NOT perform any interpolation, physics calculations, or independent timing logic (e.g., CSS transitions, `Task.Delay` for movement).
 - **Separation of Logic and View**: `Match3Controller` handles logic; `IGameView` handles rendering.
+  - **View Responsibilities**: Capture raw input, convert to simple intents (Click, Swipe Direction), render state.
+  - **Controller Responsibilities**: Manage selection state, validate moves, execute swaps, handle game flow.
+  - **PROHIBITED**: The View MUST NOT maintain game state (e.g., `SelectedX`, `SelectedY`) or implement game logic (e.g., `HandleSwipe` target calculation).
 - **Dependency Injection**: Pass dependencies via constructors.
 
 ## 4. Best Practices
