@@ -38,5 +38,10 @@ public enum TileType
     /// <summary>
     /// Orange color tile.
     /// </summary>
-    Orange
+    Orange,
+
+    /// <summary>
+    /// Special Rainbow tile (Color Bomb). Matches with any color.
+    /// </summary>
+    Rainbow
 }

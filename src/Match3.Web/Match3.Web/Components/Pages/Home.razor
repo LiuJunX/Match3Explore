@@ -52,7 +52,7 @@
                         <div class="tile @(isSelected ? "selected" : "")" 
                              style="transform: translate(@(tile.Position.X * CellSize)px, @(tile.Position.Y * CellSize)px);"
                              @onclick="() => OnTileClick((int)Math.Round(tile.Position.X), (int)Math.Round(tile.Position.Y))">
-                            <span class="tile-content">@GetTileIcon(tile.Type)</span>
+                            <span class="tile-content">@GetTileContent(tile)</span>
                         </div>
                     }
                 }
@@ -312,16 +312,37 @@
         }
     }
 
-    private string GetTileIcon(TileType t) => t switch
+    private string GetTileContent(Tile t) 
     {
-        TileType.Red => "🔴",
-        TileType.Green => "🟢",
-        TileType.Blue => "🔵",
-        TileType.Yellow => "🟡",
-        TileType.Purple => "🟣",
-        TileType.Orange => "🟠",
-        _ => ""
-    };
+        if (t.Type == TileType.Rainbow) return "🌈";
+        
+        string icon = t.Type switch
+        {
+            TileType.Red => "🔴",
+            TileType.Green => "🟢",
+            TileType.Blue => "🔵",
+            TileType.Yellow => "🟡",
+            TileType.Purple => "🟣",
+            TileType.Orange => "🟠",
+            _ => ""
+        };
+
+        if (t.Bomb != BombType.None)
+        {
+            // Overlay bomb icon or replace
+            return t.Bomb switch
+            {
+                BombType.Horizontal => icon + "↔️",
+                BombType.Vertical => icon + "↕️",
+                BombType.SmallCross => icon + "➕",
+                BombType.Square9x9 => icon + "💣",
+                BombType.Color => "🌈",
+                _ => icon
+            };
+        }
+        return icon;
+    }
+    
     
     class BlazorGameView : IGameView
     {

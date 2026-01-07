@@ -1,0 +1,28 @@
+using System.Collections.Generic;
+
+namespace Match3.Tests.Scenarios
+{
+    public class TestScenario
+    {
+        public string Name { get; set; } = "";
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public string[] Layout { get; set; } = System.Array.Empty<string>();
+        public List<ScenarioMove> Moves { get; set; } = new();
+        public List<ScenarioExpectation> Expectations { get; set; } = new();
+    }
+
+    public class ScenarioMove
+    {
+        public string From { get; set; } = "";
+        public string To { get; set; } = "";
+    }
+
+    public class ScenarioExpectation
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+        public string? Type { get; set; }
+        public string? Bomb { get; set; }
+    }
+}
