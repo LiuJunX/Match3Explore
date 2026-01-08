@@ -90,9 +90,23 @@ public partial class GridBoard : IDisposable
     {
         GameService.OnTap(x, y);
     }
-
+// 获取基础图块图标 (当前使用 Emoji)
     private string GetTileBaseIcon(Tile t) 
     {
+        // 优先显示炸弹图标（如果存在），不再使用 Overlay 叠加
+        if (t.Bomb != BombType.None)
+        {
+            return t.Bomb switch
+            {
+                BombType.Horizontal => "↔️",
+                BombType.Vertical => "↕️",
+                BombType.Ufo => "🛸",
+                BombType.Square3x3 => "💣",
+                BombType.Color => "🌈",
+                _ => ""
+            };
+        }
+
         if (t.Type == TileType.Rainbow) return "🌈";
         
         return t.Type switch
@@ -109,19 +123,12 @@ public partial class GridBoard : IDisposable
 
     private bool HasBombOverlay(Tile t)
     {
-        if (t.Type == TileType.Rainbow) return false; 
-        return t.Bomb != BombType.None && t.Bomb != BombType.Color;
+        // 所有炸弹都已移至 BaseIcon 显示，不再需要 Overlay
+        return false;
     }
 
     private string GetBombOverlayIcon(Tile t)
     {
-        return t.Bomb switch
-        {
-            BombType.Horizontal => "↔️",
-            BombType.Vertical => "↕️",
-            BombType.Ufo => "🛸",
-            BombType.Square3x3 => "💣",
-            _ => ""
-        };
+        return "";
     }
 }

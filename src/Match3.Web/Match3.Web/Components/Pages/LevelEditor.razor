@@ -1,19 +1,45 @@
 @page "/level-editor"
 @using Match3.Core
 @using Match3.Core.Config
+@using Match3.Core.Logic
+@using Match3.Core.Interfaces
+@using Match3.Core.Structs
 @using Match3.Web.Services
+@using Match3.Random
 @using System.Text.Json
+@using System.Threading
+@using System.IO
+@using System
 @inject NavigationManager Navigation
 @inject Match3GameService GameService
+@inject ILoggerFactory LoggerFactory
+@implements IDisposable
 @rendermode InteractiveServer
 
 <PageTitle>Level Editor</PageTitle>
 
 <div class="container mt-4">
+    <!-- Mode Switcher -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="btn-group w-100">
+                <button class="btn @(CurrentMode == EditorMode.Level ? "btn-primary" : "btn-outline-primary")" 
+                        @onclick="() => SwitchMode(EditorMode.Level)">
+                    Level Design
+                </button>
+                <button class="btn @(CurrentMode == EditorMode.Scenario ? "btn-primary" : "btn-outline-primary")" 
+                        @onclick="() => SwitchMode(EditorMode.Scenario)">
+                    Scenario Design (Test Case)
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
+        <!-- Sidebar Controls -->
         <div class="col-md-3">
             <div class="card mb-3">
-                <div class="card-header">Settings</div>
+                <div class="card-header">Grid Settings</div>
                 <div class="card-body">
                     <div class="mb-3">
                         <label class="form-label">Width</label>
@@ -25,35 +51,121 @@
                     </div>
                     <button class="btn btn-primary w-100 mb-2" @onclick="ResizeGrid">Resize Grid</button>
                     
-                    <div class="mb-3">
-                        <label class="form-label">Move Limit</label>
-                        <input type="number" class="form-control" @bind="CurrentLevel.MoveLimit" />
-                    </div>
+                    @if (CurrentMode == EditorMode.Level)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Move Limit</label>
+                            <input type="number" class="form-control" @bind="CurrentLevel.MoveLimit" />
+                        </div>
+                    }
                 </div>
             </div>
 
+            @if (CurrentMode == EditorMode.Scenario)
+            {
+                <div class="card mb-3">
+                    <div class="card-header">Scenario Info</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-control" @bind="CurrentScenario.Name" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="2" @bind="CurrentScenario.Description"></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Random Seed</label>
+                            <input type="number" class="form-control" @bind="CurrentScenario.Seed" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-header">Recording</div>
+                    <div class="card-body">
+                        @if (!IsRecording)
+                        {
+                            <button class="btn btn-success w-100 mb-2" @onclick="StartRecording">Start Recording</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-danger w-100 mb-2" @onclick="StopRecording">Stop Recording</button>
+                            <div class="alert alert-info small p-2">
+                                Playing... Click grid to swap.
+                            </div>
+                        }
+                        
+                        <h6>Moves: @CurrentScenario.Operations.Count</h6>
+                        <ul class="list-group list-group-flush small" style="max-height: 150px; overflow-y: auto;">
+                            @foreach (var move in CurrentScenario.Operations)
+                            {
+                                <li class="list-group-item p-1">
+                                    (@move.FromX, @move.FromY) -> (@move.ToX, @move.ToY)
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+
+                 <div class="card mb-3">
+                    <div class="card-header">Expected State</div>
+                    <div class="card-body">
+                        <button class="btn btn-warning w-100" @onclick="CaptureExpectedState" disabled="@(!IsRecording && SimulationController == null)">
+                            Capture Current Result
+                        </button>
+                        @if (CurrentScenario.ExpectedState.Grid.Length > 0)
+                        {
+                            <div class="mt-2 text-success small">State Captured!</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Common Tools (Palette) -->
             <div class="card mb-3">
-                <div class="card-header">Tools</div>
+                <div class="card-header">Palette</div>
                 <div class="card-body">
-                    <label class="form-label">Select Tile Type:</label>
                     <div class="d-flex flex-wrap gap-2">
                         @foreach (var type in Enum.GetValues<TileType>())
                         {
                             <button class="btn @(SelectedType == type ? "btn-outline-primary active" : "btn-outline-secondary") p-2" 
                                     style="width: 40px; height: 40px;"
                                     @onclick="() => SelectedType = type"
-                                    title="@type">
+                                    title="@type"
+                                    disabled="@IsRecording"> 
                                 <div style="width: 100%; height: 100%; background-color: @GetColor(type); border-radius: 4px;"></div>
+                            </button>
+                        }
+                    </div>
+                    <hr />
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var bomb in (BombType[])Enum.GetValues(typeof(BombType)))
+                        {
+                            <button class="btn @(SelectedBomb == bomb ? "btn-outline-danger active" : "btn-outline-secondary") p-2" 
+                                    style="height: 40px; min-width: 60px;"
+                                    @onclick="() => SelectedBomb = bomb"
+                                    title="@bomb"
+                                    disabled="@IsRecording">
+                                <span>@GetBombIcon(bomb)</span>
                             </button>
                         }
                     </div>
                 </div>
             </div>
 
+            <!-- Data Management -->
             <div class="card">
                 <div class="card-header">Data</div>
                 <div class="card-body">
-                    <button class="btn btn-info w-100 mb-2" @onclick="PlayLevel">Play This Level</button>
+                    @if (CurrentMode == EditorMode.Level)
+                    {
+                        <button class="btn btn-info w-100 mb-2" @onclick="PlayLevel">Play This Level</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-primary w-100 mb-2" @onclick="ExportTestJsonToDirectory">导出测试 JSON 到 Scenarios/Data</button>
+                    }
                     <button class="btn btn-success w-100 mb-2" @onclick="ExportJson">Export JSON</button>
                     <textarea class="form-control mb-2" rows="5" @bind="JsonOutput"></textarea>
                     <button class="btn btn-warning w-100" @onclick="ImportJson">Import JSON</button>
@@ -61,25 +173,47 @@
             </div>
         </div>
 
+        <!-- Main Grid Area -->
         <div class="col-md-9">
             <div class="d-flex justify-content-center bg-secondary p-4 rounded" style="min-height: 600px; overflow: auto;">
+                @{
+                    var currentConfig = ActiveLevelConfig;
+                    var width = currentConfig.Width;
+                    var height = currentConfig.Height;
+                }
                 <div class="position-relative" 
-                     style="width: @(CurrentLevel.Width * 60)px; height: @(CurrentLevel.Height * 60)px;"
+                     style="width: @(width * 60)px; height: @(height * 60)px;"
                      @onmouseleave="StopDrawing"
                      @onmouseup="StopDrawing">
-                    @for (int i = 0; i < CurrentLevel.Grid.Length; i++)
+                    @for (int i = 0; i < currentConfig.Grid.Length; i++)
                     {
                         var index = i;
-                        var x = i % CurrentLevel.Width;
-                        var y = i / CurrentLevel.Width;
+                        var x = i % width;
+                        var y = i / width;
+                        var displayType = GetTileType(index);
+                        var displayBomb = GetBomb(index);
+
                         <div class="position-absolute border border-dark" 
-                             style="left: @(x * 60)px; top: @(y * 60)px; width: 60px; height: 60px; background-color: @GetColor(CurrentLevel.Grid[i]); cursor: pointer; user-select: none;"
-                             @onmousedown="() => StartDrawing(index)"
+                             style="left: @(x * 60)px; top: @(y * 60)px; width: 60px; height: 60px; background-color: @GetColor(displayType); cursor: pointer; user-select: none;"
+                             @onmousedown="() => HandleGridClick(index)"
                              @onmouseenter="() => PaintTile(index)"
                              @ondragstart:preventDefault="true">
+                             
+                             <!-- Selection Highlight in Recording Mode -->
+                             @if (IsRecording && SimulationController?.SelectedPosition == new Position(x, y))
+                             {
+                                 <div class="position-absolute w-100 h-100 border border-3 border-white"></div>
+                             }
+
                             <div class="w-100 h-100 d-flex align-items-center justify-content-center text-white small" style="text-shadow: 1px 1px 2px black; pointer-events: none;">
-                                @(CurrentLevel.Grid[i] == TileType.None ? "" : CurrentLevel.Grid[i].ToString().Substring(0, 1))
+                                @(displayType == TileType.None ? "" : displayType.ToString().Substring(0, 1))
                             </div>
+                            @if (displayBomb != BombType.None)
+                            {
+                                <div class="position-absolute top-0 end-0 p-1" style="pointer-events:none;">
+                                    <span>@GetBombIcon(displayBomb)</span>
+                                </div>
+                            }
                         </div>
                     }
                 </div>
@@ -89,32 +223,107 @@
 </div>
 
 @code {
+    private enum EditorMode { Level, Scenario }
+    private EditorMode CurrentMode { get; set; } = EditorMode.Level;
+
+    // Level Mode Data
     private LevelConfig CurrentLevel { get; set; } = new LevelConfig();
+
+    // Scenario Mode Data
+    private ScenarioConfig CurrentScenario { get; set; } = new ScenarioConfig();
+    private bool IsRecording { get; set; }
+    private Match3Controller? SimulationController;
+    private CancellationTokenSource? _simLoopCts;
+
+    // Shared UI State
     private int EditorWidth { get; set; } = 8;
     private int EditorHeight { get; set; } = 8;
     private TileType SelectedType { get; set; } = TileType.Red;
+    private BombType SelectedBomb { get; set; } = BombType.None;
     private string JsonOutput { get; set; } = "";
     private bool IsDrawing { get; set; } = false;
 
+    private LevelConfig ActiveLevelConfig => CurrentMode == EditorMode.Level ? CurrentLevel : CurrentScenario.InitialState;
+    private BombType[] LevelBombs { get; set; } = new BombType[8 * 8];
+    private BombType[] ScenarioBombs { get; set; } = new BombType[8 * 8];
+    private BombType[] ActiveBombs => CurrentMode == EditorMode.Level ? LevelBombs : ScenarioBombs;
+
+    private void SwitchMode(EditorMode mode)
+    {
+        CurrentMode = mode;
+        // Sync dimensions when switching
+        if (mode == EditorMode.Scenario)
+        {
+            EditorWidth = CurrentScenario.InitialState.Width;
+            EditorHeight = CurrentScenario.InitialState.Height;
+        }
+        else
+        {
+            EditorWidth = CurrentLevel.Width;
+            EditorHeight = CurrentLevel.Height;
+        }
+        IsRecording = false;
+        StopLoop();
+    }
+
     private void ResizeGrid()
     {
-        var newLevel = new LevelConfig(EditorWidth, EditorHeight);
-        newLevel.MoveLimit = CurrentLevel.MoveLimit;
-        // Optional: Copy old data if possible, but for now just reset
-        CurrentLevel = newLevel;
+        if (CurrentMode == EditorMode.Level)
+        {
+            CurrentLevel = new LevelConfig(EditorWidth, EditorHeight) { MoveLimit = CurrentLevel.MoveLimit };
+            LevelBombs = new BombType[EditorWidth * EditorHeight];
+        }
+        else
+        {
+            // For Scenario, we resize the InitialState
+            // Note: This might invalidate operations, but that's user's responsibility
+            var newLevel = new LevelConfig(EditorWidth, EditorHeight);
+            CurrentScenario.InitialState = newLevel;
+            CurrentScenario.Operations.Clear();
+            CurrentScenario.ExpectedState = new LevelConfig(); // Clear expected
+            ScenarioBombs = new BombType[EditorWidth * EditorHeight];
+        }
+    }
+
+    private void HandleGridClick(int index)
+    {
+        if (IsRecording)
+        {
+            if (SimulationController != null)
+            {
+                var w = ActiveLevelConfig.Width;
+                var x = index % w;
+                var y = index / w;
+                SimulationController.OnTap(new Position(x, y));
+            }
+        }
+        else
+        {
+            // Drawing Mode
+            StartDrawing(index);
+        }
     }
 
     private void StartDrawing(int index)
     {
+        if (IsRecording) return;
         IsDrawing = true;
         PaintTile(index);
     }
 
     private void PaintTile(int index)
     {
-        if (IsDrawing && index >= 0 && index < CurrentLevel.Grid.Length)
+        if (IsDrawing && !IsRecording && index >= 0 && index < ActiveLevelConfig.Grid.Length)
         {
-            CurrentLevel.Grid[index] = SelectedType;
+            if (SelectedBomb == BombType.Color)
+            {
+                ActiveLevelConfig.Grid[index] = TileType.Rainbow;
+            }
+            else
+            {
+                ActiveLevelConfig.Grid[index] = SelectedType;
+            }
+            ActiveBombs[index] = SelectedBomb;
         }
     }
 
@@ -123,22 +332,417 @@
         IsDrawing = false;
     }
 
+    private TileType GetTileType(int index)
+    {
+        if (IsRecording && SimulationController != null)
+        {
+            var w = ActiveLevelConfig.Width;
+            var x = index % w;
+            var y = index / w;
+            // Access state safely
+            try 
+            {
+                return SimulationController.State.GetType(x, y);
+            }
+            catch { return TileType.None; }
+        }
+        return ActiveLevelConfig.Grid[index];
+    }
+    private BombType GetBomb(int index)
+    {
+        if (IsRecording && SimulationController != null)
+        {
+            var w = ActiveLevelConfig.Width;
+            var x = index % w;
+            var y = index / w;
+            try
+            {
+                return SimulationController.State.GetTile(x, y).Bomb;
+            }
+            catch { return BombType.None; }
+        }
+        return index >= 0 && index < ActiveBombs.Length ? ActiveBombs[index] : BombType.None;
+    }
+
+    // --- Recording Logic ---
+
+    private void StartRecording()
+    {
+        IsRecording = true;
+        CurrentScenario.Operations.Clear();
+        
+        // Initialize Controller with Current InitialState
+        // Use the seed from scenario for deterministic behavior
+        var seed = CurrentScenario.Seed;
+        var rng = new SeedManager(seed).GetRandom(RandomDomain.Main); 
+        
+        var view = new EditorGameView(this);
+        var tileGenerator = new StandardTileGenerator(new SeedManager(seed).GetRandom(RandomDomain.Refill));
+        var gravity = new StandardGravitySystem(tileGenerator);
+        var finder = new ClassicMatchFinder();
+        var processor = new StandardMatchProcessor();
+        var powerup = new PowerUpHandler();
+        var logger = new ConsoleGameLogger(); // Or a dummy logger
+        
+        var config = new Match3Config(ActiveLevelConfig.Width, ActiveLevelConfig.Height, 6);
+        
+        SimulationController = new Match3Controller(
+            config, rng, view, finder, processor, gravity, powerup, tileGenerator, logger, ActiveLevelConfig
+        );
+
+        // Apply initial bombs to simulation state
+        var bombs = ActiveBombs;
+        for (int i = 0; i < bombs.Length && i < ActiveLevelConfig.Grid.Length; i++)
+        {
+            if (bombs[i] != BombType.None)
+            {
+                var w = ActiveLevelConfig.Width;
+                var x = i % w;
+                var y = i / w;
+                var t = SimulationController.State.GetTile(x, y);
+                if (bombs[i] == BombType.Color)
+                {
+                    SimulationController.SetTileWithBomb(x, y, TileType.Rainbow, bombs[i]);
+                }
+                else
+                {
+                    SimulationController.SetTileWithBomb(x, y, t.Type, bombs[i]);
+                }
+            }
+        }
+
+        StartLoop();
+    }
+
+    private void StopRecording()
+    {
+        IsRecording = false;
+        StopLoop();
+        // Keep SimulationController alive so user can see final state and Capture it
+    }
+
+    private void CaptureExpectedState()
+    {
+        if (SimulationController == null) return;
+        
+        var state = SimulationController.State;
+        var expected = new LevelConfig(state.Width, state.Height);
+        
+        for (int i = 0; i < state.Grid.Length; i++)
+        {
+            expected.Grid[i] = state.Grid[i].Type;
+        }
+        
+        CurrentScenario.ExpectedState = expected;
+    }
+
+    public void RecordMove(Position a, Position b)
+    {
+        CurrentScenario.Operations.Add(new MoveOperation(a.X, a.Y, b.X, b.Y));
+        InvokeAsync(StateHasChanged);
+    }
+    
+    public void RequestUpdate()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void StartLoop()
+    {
+        StopLoop();
+        _simLoopCts = new CancellationTokenSource();
+        _ = SimulationLoop(_simLoopCts.Token);
+    }
+
+    private void StopLoop()
+    {
+        _simLoopCts?.Cancel();
+        _simLoopCts = null;
+    }
+
+    private async Task SimulationLoop(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            if (SimulationController != null)
+            {
+                SimulationController.Update(0.016f);
+                await InvokeAsync(StateHasChanged);
+            }
+            await Task.Delay(16, token);
+        }
+    }
+
+    private class EditorGameView : IGameView
+    {
+        private readonly LevelEditor _editor;
+        public EditorGameView(LevelEditor editor) => _editor = editor;
+        
+        public void RenderBoard(TileType[,] board) { _editor.RequestUpdate(); }
+        public void ShowSwap(Position a, Position b, bool success) 
+        {
+            if (success) _editor.RecordMove(a, b);
+            _editor.RequestUpdate();
+        }
+        public void ShowMatches(IReadOnlyCollection<Position> matched) { _editor.RequestUpdate(); }
+        public void ShowGravity(IEnumerable<TileMove> moves) { _editor.RequestUpdate(); }
+        public void ShowRefill(IEnumerable<TileMove> moves) { _editor.RequestUpdate(); }
+    }
+    
+    public void Dispose()
+    {
+        StopLoop();
+    }
+
+    // --- JSON Logic ---
+
+    private sealed class ExportScenario
+    {
+        public string Name { get; set; } = "";
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public string[] Layout { get; set; } = System.Array.Empty<string>();
+        public List<ExportMove> Moves { get; set; } = new();
+        public List<ExportExpectation> Expectations { get; set; } = new();
+    }
+
+    private sealed class ExportMove
+    {
+        public string From { get; set; } = "";
+        public string To { get; set; } = "";
+    }
+
+    private sealed class ExportExpectation
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+        public string? Type { get; set; }
+        public string? Bomb { get; set; }
+    }
+
+    private string ToCode(TileType t)
+    {
+        return t switch
+        {
+            TileType.None => "_",
+            TileType.Red => "R",
+            TileType.Green => "G",
+            TileType.Blue => "B",
+            TileType.Yellow => "Y",
+            TileType.Purple => "P",
+            TileType.Orange => "O",
+            TileType.Rainbow => "Rainbow",
+            _ => "_"
+        };
+    }
+
+    private void ExportTestJsonToDirectory()
+    {
+        if (CurrentMode != EditorMode.Scenario) return;
+
+        var width = CurrentScenario.InitialState.Width;
+        var height = CurrentScenario.InitialState.Height;
+        var grid = CurrentScenario.InitialState.Grid;
+
+        var layout = new string[height];
+        for (int y = 0; y < height; y++)
+        {
+            var rowCodes = new string[width];
+            for (int x = 0; x < width; x++)
+            {
+                rowCodes[x] = ToCode(grid[y * width + x]);
+            }
+            layout[y] = string.Join(", ", rowCodes);
+        }
+
+        var moves = new List<ExportMove>();
+        foreach (var op in CurrentScenario.Operations)
+        {
+            moves.Add(new ExportMove
+            {
+                From = $"{op.FromX},{op.FromY}",
+                To = $"{op.ToX},{op.ToY}"
+            });
+        }
+
+        var expectations = new List<ExportExpectation>();
+        if (CurrentScenario.ExpectedState != null && CurrentScenario.ExpectedState.Grid != null && CurrentScenario.ExpectedState.Grid.Length > 0)
+        {
+            var exW = CurrentScenario.ExpectedState.Width;
+            var exH = CurrentScenario.ExpectedState.Height;
+            var exGrid = CurrentScenario.ExpectedState.Grid;
+            for (int y = 0; y < exH; y++)
+            {
+                for (int x = 0; x < exW; x++)
+                {
+                    var expectedTypeCode = ToCode(exGrid[y * exW + x]);
+                    var initialTypeCode = ToCode(grid[y * width + x]);
+                    var bombCode = (SimulationController != null) 
+                        ? (SimulationController.State.GetTile(x, y).Bomb == BombType.None ? null : SimulationController.State.GetTile(x, y).Bomb.ToString())
+                        : null;
+                    if ((expectedTypeCode != initialTypeCode && expectedTypeCode != "_") || bombCode != null)
+                    {
+                        expectations.Add(new ExportExpectation
+                        {
+                            X = x,
+                            Y = y,
+                            Type = expectedTypeCode == "_" ? null : expectedTypeCode,
+                            Bomb = bombCode
+                        });
+                    }
+                }
+            }
+        }
+
+        var export = new ExportScenario
+        {
+            Name = CurrentScenario.Name ?? "",
+            Width = width,
+            Height = height,
+            Layout = layout,
+            Moves = moves,
+            Expectations = expectations
+        };
+
+        var options = new JsonSerializerOptions { WriteIndented = true };
+        var json = JsonSerializer.Serialize(export, options);
+        JsonOutput = json;
+
+        var targetDir = @"d:\GitWorkSpace\LiuJun\ThreeMatchTrea\src\Match3.Tests\Scenarios\Data";
+        Directory.CreateDirectory(targetDir);
+
+        string safeName = string.IsNullOrWhiteSpace(CurrentScenario.Name) ? "scenario" : CurrentScenario.Name;
+        foreach (var c in Path.GetInvalidFileNameChars())
+        {
+            safeName = safeName.Replace(c, '_');
+        }
+        var fileName = $"{safeName}_{DateTime.Now:yyyyMMdd_HHmmss}.json";
+        var path = Path.Combine(targetDir, fileName);
+        File.WriteAllText(path, json);
+    }
+
     private void ExportJson()
     {
         var options = new JsonSerializerOptions { WriteIndented = true };
-        JsonOutput = JsonSerializer.Serialize(CurrentLevel, options);
+        if (CurrentMode == EditorMode.Level)
+        {
+            JsonOutput = JsonSerializer.Serialize(CurrentLevel, options);
+        }
+        else
+        {
+            JsonOutput = JsonSerializer.Serialize(CurrentScenario, options);
+        }
+    }
+
+    private void ExportCSharp()
+    {
+        if (CurrentMode != EditorMode.Scenario) return;
+        
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("[Fact]");
+        sb.AppendLine($"public void Scenario_{CurrentScenario.Name.Replace(" ", "_")}()");
+        sb.AppendLine("{");
+        sb.AppendLine("    // Generated by LevelEditor");
+        sb.AppendLine("    var scenario = new ScenarioConfig");
+        sb.AppendLine("    {");
+        sb.AppendLine($"        Name = \"{CurrentScenario.Name}\",");
+        sb.AppendLine($"        Description = \"{CurrentScenario.Description}\",");
+        sb.AppendLine($"        Seed = {CurrentScenario.Seed},");
+        
+        // Initial State
+        sb.AppendLine("        InitialState = new LevelConfig");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            Width = {CurrentScenario.InitialState.Width},");
+        sb.AppendLine($"            Height = {CurrentScenario.InitialState.Height},");
+        sb.AppendLine("            Grid = new TileType[]");
+        sb.AppendLine("            {");
+        
+        var grid = CurrentScenario.InitialState.Grid;
+        var w = CurrentScenario.InitialState.Width;
+        for(int y=0; y<CurrentScenario.InitialState.Height; y++)
+        {
+            sb.Append("                ");
+            for(int x=0; x<w; x++)
+            {
+                sb.Append($"TileType.{grid[y*w + x]}, ");
+            }
+            sb.AppendLine();
+        }
+        sb.AppendLine("            }");
+        sb.AppendLine("        },"); // End InitialState
+
+        // Operations
+        sb.AppendLine("        Operations = new List<MoveOperation>");
+        sb.AppendLine("        {");
+        foreach(var op in CurrentScenario.Operations)
+        {
+            sb.AppendLine($"            new MoveOperation({op.FromX}, {op.FromY}, {op.ToX}, {op.ToY}),");
+        }
+        sb.AppendLine("        },");
+
+        // Expected State
+        if (CurrentScenario.ExpectedState != null && CurrentScenario.ExpectedState.Grid != null && CurrentScenario.ExpectedState.Grid.Length > 0)
+        {
+            sb.AppendLine("        ExpectedState = new LevelConfig");
+            sb.AppendLine("        {");
+            sb.AppendLine($"            Width = {CurrentScenario.ExpectedState.Width},");
+            sb.AppendLine($"            Height = {CurrentScenario.ExpectedState.Height},");
+            sb.AppendLine("            Grid = new TileType[]");
+            sb.AppendLine("            {");
+            
+            var exGrid = CurrentScenario.ExpectedState.Grid;
+            var exW = CurrentScenario.ExpectedState.Width;
+             for(int y=0; y<CurrentScenario.ExpectedState.Height; y++)
+            {
+                sb.Append("                ");
+                for(int x=0; x<exW; x++)
+                {
+                    sb.Append($"TileType.{exGrid[y*exW + x]}, ");
+                }
+                sb.AppendLine();
+            }
+            sb.AppendLine("            }");
+            sb.AppendLine("        }");
+        }
+        else
+        {
+             sb.AppendLine("        ExpectedState = new LevelConfig()");
+        }
+
+        sb.AppendLine("    };");
+        sb.AppendLine();
+        sb.AppendLine("    // RunScenario(scenario); // Assuming you have a helper method");
+        sb.AppendLine("}");
+
+        JsonOutput = sb.ToString();
     }
 
     private void ImportJson()
     {
         try
         {
-            if (!string.IsNullOrWhiteSpace(JsonOutput))
+            if (string.IsNullOrWhiteSpace(JsonOutput)) return;
+            
+            // Try to guess format or just try deserializing
+            // Simple heuristic: check if it has "Operations" property
+            if (JsonOutput.Contains("Operations"))
+            {
+                var loaded = JsonSerializer.Deserialize<ScenarioConfig>(JsonOutput);
+                if (loaded != null)
+                {
+                    CurrentScenario = loaded;
+                    CurrentMode = EditorMode.Scenario;
+                    EditorWidth = loaded.InitialState.Width;
+                    EditorHeight = loaded.InitialState.Height;
+                }
+            }
+            else
             {
                 var loaded = JsonSerializer.Deserialize<LevelConfig>(JsonOutput);
                 if (loaded != null)
                 {
                     CurrentLevel = loaded;
+                    CurrentMode = EditorMode.Level;
                     EditorWidth = loaded.Width;
                     EditorHeight = loaded.Height;
                 }
@@ -146,7 +750,6 @@
         }
         catch (Exception ex)
         {
-            // Simple error handling
             Console.WriteLine($"Error importing JSON: {ex.Message}");
         }
     }
@@ -166,7 +769,17 @@
         TileType.Purple => "#ff44ff",
         TileType.Orange => "#ffaa44",
         TileType.Rainbow => "linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet)",
-        TileType.None => "#eee4da", // Similar to grid background
+        TileType.None => "#eee4da",
         _ => "#cccccc"
+    };
+    private string GetBombIcon(BombType bomb) => bomb switch
+    {
+        BombType.None => "",
+        BombType.Horizontal => "↔️",
+        BombType.Vertical => "↕️",
+        BombType.Ufo => "🛸",
+        BombType.Square3x3 => "💣",
+        BombType.Color => "🌈",
+        _ => ""
     };
 }

@@ -460,6 +460,17 @@ public sealed class Match3Controller
     {
         _state.SetTile(p.X, p.Y, new Tile(_state.NextTileId++, t, p.X, p.Y));
     }
+    
+    public void SetTileWithBomb(int x, int y, TileType type, BombType bomb)
+    {
+        _state.SetTile(x, y, new Tile(_state.NextTileId++, type, x, y, bomb));
+    }
+    
+    public void SetBomb(int x, int y, BombType bomb)
+    {
+        var t = _state.GetTile(x, y);
+        _state.SetTile(x, y, new Tile(_state.NextTileId++, t.Type, x, y, bomb));
+    }
 
     public bool TryMakeRandomMove()
     {

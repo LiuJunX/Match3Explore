@@ -34,7 +34,8 @@ public class Match3Environment : IGameEnvironment<GameState, Move>
 
         _matchFinder = new ClassicMatchFinder();
         _matchProcessor = new StandardMatchProcessor();
-        _gravitySystem = new StandardGravitySystem(new StandardTileGenerator());
+        _tileGenerator = new StandardTileGenerator();
+        _gravitySystem = new StandardGravitySystem(_tileGenerator);
         _powerUpHandler = new PowerUpHandler();
     }
 
