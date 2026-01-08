@@ -147,10 +147,28 @@ public class PowerUpHandler : IPowerUpHandler
             case BombType.Vertical:
                 ExplodeCol(ref state, cx);
                 break;
-            case BombType.SmallCross:
-                ExplodeArea(ref state, cx, cy, 1);
+            case BombType.Ufo:
+                {
+                    var positions = new List<Position>();
+                    for (int i = 0; i < state.Grid.Length; i++)
+                    {
+                        int x = i % state.Width;
+                        int y = i / state.Width;
+                        if (x == cx && y == cy) continue;
+                        if (state.Grid[i].Type != TileType.None)
+                        {
+                            positions.Add(new Position(x, y));
+                        }
+                    }
+                    if (positions.Count > 0)
+                    {
+                        int idx = state.Random.Next(0, positions.Count);
+                        var p = positions[idx];
+                        state.SetTile(p.X, p.Y, new Tile(0, TileType.None, p.X, p.Y));
+                    }
+                }
                 break;
-            case BombType.Square9x9:
+            case BombType.Square3x3:
                 ExplodeArea(ref state, cx, cy, 1); // 3x3
                 break;
             case BombType.Color:

@@ -17,15 +17,9 @@ public enum BombType
     /// </summary>
     Vertical,
 
-    /// <summary>
-    /// Clears a small cross area (e.g., center and 1 step in each direction).
-    /// </summary>
-    SmallCross,
+    Ufo,
 
-    /// <summary>
-    /// Clears a large square area (9x9).
-    /// </summary>
-    Square9x9,
+    Square3x3,
 
     /// <summary>
     /// Matches with any color and clears all tiles of that color.

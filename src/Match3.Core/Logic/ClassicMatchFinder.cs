@@ -127,7 +127,7 @@ public class ClassicMatchFinder : IMatchFinder
             if (width == count || height == count)
                 group.SpawnBombType = BombType.Color;
             else
-                group.SpawnBombType = count == 5 ? BombType.SmallCross : BombType.Square9x9;
+                group.SpawnBombType = count == 5 ? BombType.Ufo : BombType.Square3x3;
         }
         else if (count == 4)
         {

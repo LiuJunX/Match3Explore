@@ -64,41 +64,119 @@ public class StandardMatchProcessor : IMatchProcessor
     
     private List<Position> GetExplosionRange(in GameState state, int cx, int cy, BombType type)
     {
-        var list = new List<Position>();
-        int w = state.Width;
-        int h = state.Height;
-
-        switch (type)
+        // 使用策略模式将爆炸范围计算封装到各个策略类中，便于后续扩展
+        IExplosionStrategy strategy = type switch
         {
-            case BombType.Horizontal:
-                for (int x = 0; x < w; x++) list.Add(new Position(x, cy));
-                break;
-            case BombType.Vertical:
-                for (int y = 0; y < h; y++) list.Add(new Position(cx, y));
-                break;
-            case BombType.SmallCross:
-                list.Add(new Position(cx, cy));
-                if (cx > 0) list.Add(new Position(cx - 1, cy));
-                if (cx < w - 1) list.Add(new Position(cx + 1, cy));
-                if (cy > 0) list.Add(new Position(cx, cy - 1));
-                if (cy < h - 1) list.Add(new Position(cx, cy + 1));
-                break;
-            case BombType.Square9x9:
-                for (int dy = -1; dy <= 1; dy++)
+            BombType.Horizontal => new HorizontalExplosionStrategy(),
+            BombType.Vertical => new VerticalExplosionStrategy(),
+            BombType.Ufo => new UfoExplosionStrategy(),
+            BombType.Square3x3 => new Square3x3ExplosionStrategy(),
+            BombType.Color => new ColorExplosionStrategy(),
+            _ => new NoneExplosionStrategy()
+        };
+        return strategy.GetRange(in state, cx, cy);
+    }
+
+    /// <summary>
+    /// 爆炸范围计算策略接口
+    /// </summary>
+    private interface IExplosionStrategy
+    {
+        List<Position> GetRange(in GameState state, int cx, int cy);
+    }
+
+    /// <summary>
+    /// 横向爆炸策略
+    /// </summary>
+    private sealed class HorizontalExplosionStrategy : IExplosionStrategy
+    {
+        public List<Position> GetRange(in GameState state, int cx, int cy)
+        {
+            var list = new List<Position>();
+            for (int x = 0; x < state.Width; x++)
+                list.Add(new Position(x, cy));
+            return list;
+        }
+    }
+
+    /// <summary>
+    /// 纵向爆炸策略
+    /// </summary>
+    private sealed class VerticalExplosionStrategy : IExplosionStrategy
+    {
+        public List<Position> GetRange(in GameState state, int cx, int cy)
+        {
+            var list = new List<Position>();
+            for (int y = 0; y < state.Height; y++)
+                list.Add(new Position(cx, y));
+            return list;
+        }
+    }
+
+    private sealed class UfoExplosionStrategy : IExplosionStrategy
+    {
+        public List<Position> GetRange(in GameState state, int cx, int cy)
+        {
+            var candidates = new List<Position>();
+            for (int y = 0; y < state.Height; y++)
+            {
+                for (int x = 0; x < state.Width; x++)
                 {
-                    for (int dx = -1; dx <= 1; dx++)
+                    if (x == cx && y == cy) continue;
+                    var t = state.GetTile(x, y);
+                    if (t.Type != TileType.None)
                     {
-                        int nx = cx + dx;
-                        int ny = cy + dy;
-                        if (nx >= 0 && nx < w && ny >= 0 && ny < h)
-                            list.Add(new Position(nx, ny));
+                        candidates.Add(new Position(x, y));
                     }
                 }
-                break;
-            case BombType.Color:
-                list.Add(new Position(cx, cy));
-                break;
+            }
+            if (candidates.Count == 0)
+            {
+                return new List<Position>();
+            }
+            int idx = state.Random.Next(0, candidates.Count);
+            return new List<Position> { candidates[idx] };
         }
-        return list;
+    }
+
+    private sealed class Square3x3ExplosionStrategy : IExplosionStrategy
+    {
+        public List<Position> GetRange(in GameState state, int cx, int cy)
+        {
+            var list = new List<Position>();
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    int nx = cx + dx;
+                    int ny = cy + dy;
+                    if (nx >= 0 && nx < state.Width && ny >= 0 && ny < state.Height)
+                        list.Add(new Position(nx, ny));
+                }
+            }
+            return list;
+        }
+    }
+
+    /// <summary>
+    /// 彩色炸弹爆炸策略（仅自身）
+    /// </summary>
+    private sealed class ColorExplosionStrategy : IExplosionStrategy
+    {
+        public List<Position> GetRange(in GameState state, int cx, int cy)
+        {
+            return new List<Position> { new(cx, cy) };
+        }
+    }
+
+    /// <summary>
+    /// 默认空爆炸策略
+    /// </summary>
+    private sealed class NoneExplosionStrategy : IExplosionStrategy
+    {
+        public List<Position> GetRange(in GameState state, int cx, int cy)
+        {
+            return new List<Position>();
+        }
     }
 }
