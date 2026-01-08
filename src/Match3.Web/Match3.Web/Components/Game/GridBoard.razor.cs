@@ -119,8 +119,8 @@ public partial class GridBoard : IDisposable
         {
             BombType.Horizontal => "↔️",
             BombType.Vertical => "↕️",
-            BombType.SmallCross => "➕",
-            BombType.Square9x9 => "💣",
+            BombType.Ufo => "🛸",
+            BombType.Square3x3 => "💣",
             _ => ""
         };
     }
