@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Match3.Core.Structs;
 using Match3.Core.Logic;
 using Match3.Core.Interfaces;
+using Match3.Core.Systems;
 using Match3.Random;
 
 namespace Match3.Core.AI;
@@ -33,10 +34,11 @@ public class Match3Environment : IGameEnvironment<GameState, Move>
         _maxMoves = maxMoves;
 
         _matchFinder = new ClassicMatchFinder();
-        _matchProcessor = new StandardMatchProcessor();
+        var scoreSystem = new StandardScoreSystem();
+        _matchProcessor = new StandardMatchProcessor(scoreSystem);
         _tileGenerator = new StandardTileGenerator();
         _gravitySystem = new StandardGravitySystem(_tileGenerator);
-        _powerUpHandler = new PowerUpHandler();
+        _powerUpHandler = new PowerUpHandler(scoreSystem);
     }
 
     public GameState Reset(int? seed = null)

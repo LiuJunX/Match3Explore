@@ -2,11 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using Match3.Random;
 using Match3.Core.Config;
 using Match3.Core.Interfaces;
 using Match3.Core.Logic;
 using Match3.Core.Structs;
-using Match3.Random;
+using Match3.Core.Utility.Pools;
 
 namespace Match3.Core;
 
@@ -26,6 +27,8 @@ public sealed class Match3Controller
     private readonly IPowerUpHandler _powerUpHandler;
     private readonly ITileGenerator _tileGenerator;
     private readonly IGameLogger _logger;
+    private readonly IScoreSystem _scoreSystem;
+    private readonly IInputSystem _inputSystem;
 
     // Animation constants
     private const float Epsilon = 0.01f;
@@ -58,6 +61,8 @@ public sealed class Match3Controller
         IPowerUpHandler powerUpHandler,
         ITileGenerator tileGenerator,
         IGameLogger logger,
+        IScoreSystem scoreSystem,
+        IInputSystem inputSystem,
         LevelConfig? levelConfig = null)
     {
         _config = config;
@@ -68,6 +73,8 @@ public sealed class Match3Controller
         _powerUpHandler = powerUpHandler;
         _tileGenerator = tileGenerator;
         _logger = logger;
+        _scoreSystem = scoreSystem;
+        _inputSystem = inputSystem;
 
         _state = new GameState(_config.Width, _config.Height, _config.TileTypesCount, rng);
         InitializeBoard(levelConfig);
@@ -115,7 +122,7 @@ public sealed class Match3Controller
 
     public void OnTap(Position p)
     {
-        if (!IsValidPosition(p)) return;
+        if (!_inputSystem.IsValidPosition(in _state, p)) return;
 
         // Interaction Check: Can only interact with Stable and Unlocked tiles
         if (!IsStable(p) || IsLocked(p)) 
@@ -164,11 +171,11 @@ public sealed class Match3Controller
 
     public void OnSwipe(Position from, Direction direction)
     {
-        if (!IsValidPosition(from)) return;
+        if (!_inputSystem.IsValidPosition(in _state, from)) return;
         if (!IsStable(from) || IsLocked(from)) return;
 
-        Position to = GetNeighbor(from, direction);
-        if (!IsValidPosition(to)) return;
+        Position to = _inputSystem.GetSwipeTarget(from, direction);
+        if (!_inputSystem.IsValidPosition(in _state, to)) return;
         if (!IsStable(to) || IsLocked(to)) return;
 
         SelectedPosition = Position.Invalid;
@@ -270,6 +277,10 @@ public sealed class Match3Controller
                         
                         _view.ShowSwap(posA, posB, false); // Visual feedback for revert
                     }
+
+                    // Release pooled lists
+                    ClassicMatchFinder.ReleaseGroups(matchesA);
+                    ClassicMatchFinder.ReleaseGroups(matchesB);
                 }
                 else
                 {
@@ -289,47 +300,70 @@ public sealed class Match3Controller
         var allGroups = _matchFinder.FindMatchGroups(in _state);
         
         // 2. Filter matches: Keep only those where ALL tiles are Stable and Not Locked
-        var validGroups = new List<MatchGroup>();
-        foreach (var group in allGroups)
+        var validGroups = Pools.ObtainList<MatchGroup>();
+        
+        try
         {
-            bool isGroupValid = true;
-            foreach (var p in group.Positions)
+            foreach (var group in allGroups)
             {
-                if (IsLocked(p) || !IsStable(p))
+                bool isGroupValid = true;
+                foreach (var p in group.Positions)
                 {
-                    isGroupValid = false;
-                    break;
+                    if (IsLocked(p) || !IsStable(p))
+                    {
+                        isGroupValid = false;
+                        break;
+                    }
+                }
+                if (isGroupValid)
+                {
+                    validGroups.Add(group);
                 }
             }
-            if (isGroupValid)
+
+            // 3. If no valid matches and no holes, nothing to do
+            // Note: We check !HasHoles() because if there are holes, we must apply gravity/refill
+            if (validGroups.Count == 0 && !HasHoles()) return;
+
+            // 4. Process Matches
+            if (validGroups.Count > 0)
             {
-                validGroups.Add(group);
+                var allPositions = Pools.ObtainHashSet<Position>();
+                try
+                {
+                    foreach(var g in validGroups) 
+                        foreach(var p in g.Positions) allPositions.Add(p);
+                    
+                    _view.ShowMatches(allPositions);
+
+                    int points = _matchProcessor.ProcessMatches(ref _state, validGroups);
+                    _state.Score += points;
+                }
+                finally
+                {
+                    Pools.Release(allPositions);
+                }
             }
-        }
 
-        // 3. If no valid matches and no holes, nothing to do
-        if (validGroups.Count == 0 && !HasHoles()) return;
-
-        // 4. Process Matches
-        if (validGroups.Count > 0)
-        {
-            var allPositions = new HashSet<Position>();
-            foreach(var g in validGroups) 
-                foreach(var p in g.Positions) allPositions.Add(p);
+            // 5. Apply Gravity
+            var gravityMoves = _gravitySystem.ApplyGravity(ref _state);
+            if (gravityMoves.Count > 0) _view.ShowGravity(gravityMoves);
+            Pools.Release(gravityMoves);
             
-            _view.ShowMatches(allPositions);
-
-            int points = _matchProcessor.ProcessMatches(ref _state, validGroups);
-            _state.Score += points;
+            // 6. Refill
+            var refillMoves = _gravitySystem.Refill(ref _state);
+            if (refillMoves.Count > 0) _view.ShowRefill(refillMoves);
+            Pools.Release(refillMoves);
         }
-
-        // 5. Apply Gravity
-        var gravityMoves = _gravitySystem.ApplyGravity(ref _state);
-        if (gravityMoves.Count > 0) _view.ShowGravity(gravityMoves);
-        
-        // 6. Refill
-        var refillMoves = _gravitySystem.Refill(ref _state);
-        if (refillMoves.Count > 0) _view.ShowRefill(refillMoves);
+        finally
+        {
+            // Release all groups back to pool. 
+            // Note: validGroups contains references to objects in allGroups, 
+            // so we only need to return objects in allGroups to the pool.
+            // validGroups is just a list container to be released.
+            ClassicMatchFinder.ReleaseGroups(allGroups);
+            Pools.Release(validGroups);
+        }
     }
 
     // Animation / Stability Helpers
@@ -404,26 +438,9 @@ public sealed class Match3Controller
 
     // Standard Helpers
 
-    private bool IsValidPosition(Position p)
-    {
-        return p.X >= 0 && p.X < _state.Width && p.Y >= 0 && p.Y < _state.Height;
-    }
-
     private bool IsNeighbor(Position a, Position b)
     {
         return Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y) == 1;
-    }
-
-    private Position GetNeighbor(Position p, Direction dir)
-    {
-        return dir switch
-        {
-            Direction.Up => new Position(p.X, p.Y - 1),
-            Direction.Down => new Position(p.X, p.Y + 1),
-            Direction.Left => new Position(p.X - 1, p.Y),
-            Direction.Right => new Position(p.X + 1, p.Y),
-            _ => p
-        };
     }
 
     private bool IsSpecialMove(Position a, Position b)
@@ -480,12 +497,12 @@ public sealed class Match3Controller
             {
                 var p = new Position(x, y);
                 var right = new Position(x + 1, y);
-                if (IsValidPosition(right))
+                if (_inputSystem.IsValidPosition(in _state, right))
                 {
                     if (CheckAndStartMove(p, right)) return true;
                 }
                 var down = new Position(x, y + 1);
-                if (IsValidPosition(down))
+                if (_inputSystem.IsValidPosition(in _state, down))
                 {
                     if (CheckAndStartMove(p, down)) return true;
                 }

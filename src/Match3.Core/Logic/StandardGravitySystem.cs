@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Match3.Core.Interfaces;
 using Match3.Core.Structs;
+using Match3.Core.Utility.Pools;
 
 namespace Match3.Core.Logic;
 
@@ -16,7 +17,7 @@ public class StandardGravitySystem : IGravitySystem
 
     public List<TileMove> ApplyGravity(ref GameState state)
     {
-        var moves = new List<TileMove>();
+        var moves = Pools.ObtainList<TileMove>();
         for (int x = 0; x < state.Width; x++)
         {
             int writeY = state.Height - 1;
@@ -40,7 +41,7 @@ public class StandardGravitySystem : IGravitySystem
 
     public List<TileMove> Refill(ref GameState state)
     {
-        var newTiles = new List<TileMove>();
+        var newTiles = Pools.ObtainList<TileMove>();
         for (int x = 0; x < state.Width; x++)
         {
             int nextSpawnY = -1;

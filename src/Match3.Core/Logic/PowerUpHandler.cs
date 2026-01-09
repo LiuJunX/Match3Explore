@@ -6,70 +6,100 @@ namespace Match3.Core.Logic;
 
 public class PowerUpHandler : IPowerUpHandler
 {
+    private readonly IScoreSystem _scoreSystem;
+
+    public PowerUpHandler(IScoreSystem scoreSystem)
+    {
+        _scoreSystem = scoreSystem;
+    }
+
     public void ProcessSpecialMove(ref GameState state, Position p1, Position p2, out int points)
     {
         points = 0;
         var t1 = state.GetTile(p1.X, p1.Y);
         var t2 = state.GetTile(p2.X, p2.Y);
 
+        // Calculate score before modifying state (tiles might be cleared)
+        points = _scoreSystem.CalculateSpecialMoveScore(t1.Type, t1.Bomb, t2.Type, t2.Bomb);
+
+        if (TryHandleRainbowCombo(ref state, t1, t2, p1, p2, out int rainbowPoints))
+        {
+            // Use calculated points, ignore legacy out param if needed, or consistency check
+            return;
+        }
+
+        if (TryHandleBombCombo(ref state, t1, t2, p1, p2, out int bombPoints))
+        {
+            return;
+        }
+        
+        // If no special move happened, reset points
+        points = 0;
+    }
+
+    private bool TryHandleRainbowCombo(ref GameState state, Tile t1, Tile t2, Position p1, Position p2, out int points)
+    {
+        points = 0; // Legacy param, ignored by caller in favor of IScoreSystem result
+        bool isT1Rainbow = t1.Type == TileType.Rainbow;
+        bool isT2Rainbow = t2.Type == TileType.Rainbow;
+
+        if (!isT1Rainbow && !isT2Rainbow) return false;
+
         // 1. Rainbow + Rainbow
-        if (t1.Type == TileType.Rainbow && t2.Type == TileType.Rainbow)
+        if (isT1Rainbow && isT2Rainbow)
         {
             ClearAll(ref state);
-            points += 5000;
-            return;
+            return true;
         }
 
         // 2. Rainbow + Any
-        if (t1.Type == TileType.Rainbow || t2.Type == TileType.Rainbow)
-        {
-            var colorTile = t1.Type == TileType.Rainbow ? t2 : t1;
-            
-            // If the other tile is not a valid color target (e.g. None), ignore
-            if (colorTile.Type == TileType.None || colorTile.Type == TileType.Rainbow) return;
+        var colorTile = isT1Rainbow ? t2 : t1;
+        
+        // If the other tile is not a valid color target (e.g. None), ignore
+        if (colorTile.Type == TileType.None || colorTile.Type == TileType.Rainbow) return false;
 
-            if (colorTile.Bomb != BombType.None)
-            {
-                // Rainbow + Bomb: Transform all of that color to that BombType
-                ReplaceColorWithBomb(ref state, colorTile.Type, colorTile.Bomb);
-                
-                // Then Explode all of them. Pass the bomb type to ensure they explode even if cleared by others.
-                ExplodeAllByType(ref state, colorTile.Type, colorTile.Bomb);
-            }
-            else
-            {
-                // Rainbow + Normal: Clear all of that color
-                ClearColor(ref state, colorTile.Type);
-            }
+        if (colorTile.Bomb != BombType.None)
+        {
+            // Rainbow + Bomb: Transform all of that color to that BombType
+            ReplaceColorWithBomb(ref state, colorTile.Type, colorTile.Bomb);
             
-            // Clear the Rainbow and the source tile (ensure they are gone)
-            state.SetTile(p1.X, p1.Y, new Tile(0, TileType.None, p1.X, p1.Y));
-            state.SetTile(p2.X, p2.Y, new Tile(0, TileType.None, p2.X, p2.Y));
-            
-            points += 2000;
-            return;
+            // Then Explode all of them. Pass the bomb type to ensure they explode even if cleared by others.
+            ExplodeAllByType(ref state, colorTile.Type, colorTile.Bomb);
         }
+        else
+        {
+            // Rainbow + Normal: Clear all of that color
+            ClearColor(ref state, colorTile.Type);
+        }
+        
+        // Clear the Rainbow and the source tile (ensure they are gone)
+        state.SetTile(p1.X, p1.Y, new Tile(0, TileType.None, p1.X, p1.Y));
+        state.SetTile(p2.X, p2.Y, new Tile(0, TileType.None, p2.X, p2.Y));
+        
+        return true;
+    }
+
+    private bool TryHandleBombCombo(ref GameState state, Tile t1, Tile t2, Position p1, Position p2, out int points)
+    {
+        points = 0;
+        if (t1.Bomb == BombType.None || t2.Bomb == BombType.None) return false;
 
         // 3. Bomb + Bomb
-        if (t1.Bomb != BombType.None && t2.Bomb != BombType.None)
+        if ((t1.Bomb == BombType.Horizontal || t1.Bomb == BombType.Vertical) &&
+            (t2.Bomb == BombType.Horizontal || t2.Bomb == BombType.Vertical))
         {
-             if ((t1.Bomb == BombType.Horizontal || t1.Bomb == BombType.Vertical) &&
-                 (t2.Bomb == BombType.Horizontal || t2.Bomb == BombType.Vertical))
-             {
-                 ExplodeRow(ref state, p2.Y);
-                 ExplodeCol(ref state, p2.X);
-             }
-             else
-             {
-                 ExplodeArea(ref state, p2.X, p2.Y, 2);
-             }
-             
-             state.SetTile(p1.X, p1.Y, new Tile(0, TileType.None, p1.X, p1.Y));
-             state.SetTile(p2.X, p2.Y, new Tile(0, TileType.None, p2.X, p2.Y));
-             
-             points += 1000;
-             return;
+            ExplodeRow(ref state, p2.Y);
+            ExplodeCol(ref state, p2.X);
         }
+        else
+        {
+            ExplodeArea(ref state, p2.X, p2.Y, 2);
+        }
+        
+        state.SetTile(p1.X, p1.Y, new Tile(0, TileType.None, p1.X, p1.Y));
+        state.SetTile(p2.X, p2.Y, new Tile(0, TileType.None, p2.X, p2.Y));
+        
+        return true;
     }
 
     private void ClearAll(ref GameState state)
