@@ -30,7 +30,34 @@ alwaysApply: true
 
 ## 6. Autonomous Workflow（面向助手）
 - 规划 → 测试 → 实现 → dotnet test → 通过交付；失败修复
+- 遇到复杂逻辑（>50行）时，主动拆分为小方法以降低认知负担
 
-## 7. Documentation Maintenance
-- 重大组件/算法/公共接口变更时更新 ARCHITECTURE.md，保持与代码一致
-- 新增/修改功能时更新相关文档（注释、README.md）
+## 7. Testing Strategy
+- 新增逻辑前优先编写测试（TDD-lite）
+- 修改核心逻辑（MatchFinder, Gravity）后必须运行 `dotnet test`
+- 保持测试用例的原子性和独立性
+
+## 8. Documentation Maintenance
+- **Docs-as-Code**: Documentation lives in `/docs`.
+- **Sync Rule**: Update `docs/01-architecture/overview.md` when changing core components.
+- **ADR Required**: Create a new ADR in `docs/04-adr` for major architectural decisions (e.g., adding a new dependency).
+- **API Docs**: All core interfaces (`Match3.Core/Interfaces`) MUST have XML comments.
+
+## 9. AI Context Guidelines (For AI Agents)
+### Core Services Whitelist
+- **Object Creation**: MUST use `Pools.Rent<T>()` for hot-path objects. PROHIBITED: `new T()` inside loops.
+- **Logging**: MUST use `IGameLogger.LogInfo<T>()` with templates. PROHIBITED: `Console.WriteLine` or `$"..."` interpolation.
+- **String Ops**: MUST use `ZString` for formatting. PROHIBITED: `StringBuilder` (unless pooled) or `+` operator.
+- **Randomness**: MUST use `Match3.Random` interfaces. PROHIBITED: `System.Random`.
+
+### Architecture Red Lines
+- **No UI in Core**: `Match3.Core` must NEVER reference `Match3.Web`.
+- **Stateless Logic**: Logic classes must remain stateless. State belongs in `Structs`.
+- **Reference**: See `docs/01-architecture/core-patterns.md` for detailed architectural constraints.
+
+## 10. Mandatory Modularization (Priority: ★★★★★)
+All new features MUST be implemented as independent Systems.
+1.  **Define Interface**: `I{Name}System` in `Match3.Core.Interfaces`.
+2.  **Implement System**: `{Name}System` in `Match3.Core.Systems`.
+3.  **Inject**: Pass via constructor to `Match3Controller`.
+4.  **No God Classes**: `Match3Controller` must only coordinate; it must not contain business logic.

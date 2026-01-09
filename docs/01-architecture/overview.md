@@ -1,6 +1,4 @@
-# ThreeMatchTrea Architecture
-
-This document describes the high-level architecture, design philosophy, and coding standards of the ThreeMatchTrea project.
+# Match3 Project Architecture Overview
 
 ## 1. Core Design Philosophy: AI-First & Data-Oriented
 
@@ -71,25 +69,3 @@ The system allows game designers to edit configuration data in **Feishu (Lark) S
 ### Components
 *   **Match3.ConfigTool**: Fetches and serializes data.
 *   **ConfigManager** (`Match3.Core`): Loads binary data into efficient structs (`ItemConfig`).
-
-## 5. Coding Standards & Best Practices
-
-### Code Style
-*   **Format**: 4 spaces indent, CRLF, Allman braces (start on new line).
-*   **Naming**: 
-    *   `_camelCase` for private fields.
-    *   `PascalCase` for public members/classes.
-    *   `IInterface` prefix for interfaces.
-*   **Namespaces**: Use file-scoped namespaces (e.g., `namespace Match3.Core;`).
-
-### Critical Rules
-1.  **Single Responsibility**: Split classes > 300 lines.
-2.  **Randomness**: **MUST** use `Match3.Core.Interfaces.IRandom`. NEVER use `System.Random` or `Guid` directly.
-3.  **Performance**: Pass `GameState` by `ref` or `in` to avoid struct copying.
-4.  **State Management**: Use explicit State classes where possible.
-5.  **CSS Isolation**: Use `.razor.css` files. No `<style>` tags in razor.
-
-### Future Development Guidelines
-1.  **Never add state to Logic classes.**
-2.  **Never add logic to State structs.**
-3.  **Always use `ref`** when passing `GameState` unless a snapshot is explicitly needed.
