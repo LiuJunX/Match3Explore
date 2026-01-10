@@ -30,6 +30,12 @@ public sealed class SeedManager
         return rng;
     }
 
+    /// <summary>
+    /// 强制为指定的随机域设置一个固定的种子值，后续对该域的随机数请求都会使用这个种子重新初始化随机流。
+    /// 如果该域之前已创建过随机流，则会被移除并在下次访问时重新生成。
+    /// </summary>
+    /// <param name="domain">要覆盖的随机域</param>
+    /// <param name="seed">固定的种子值</param>
     public void SetOverride(RandomDomain domain, int seed)
     {
         _overrides[domain] = seed;

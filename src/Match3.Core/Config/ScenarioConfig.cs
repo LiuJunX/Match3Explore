@@ -10,6 +10,15 @@ public class ScenarioConfig
     public LevelConfig InitialState { get; set; } = new LevelConfig();
     public List<MoveOperation> Operations { get; set; } = new();
     public LevelConfig ExpectedState { get; set; } = new LevelConfig();
+    public List<ScenarioAssertion> Assertions { get; set; } = new();
+}
+
+public class ScenarioAssertion
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+    public TileType? Type { get; set; }
+    public BombType? Bomb { get; set; }
 }
 
 public class MoveOperation

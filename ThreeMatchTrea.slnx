@@ -2,11 +2,11 @@
   <Folder Name="/src/">
     <Project Path="src/Match3.ConfigTool/Match3.ConfigTool.csproj" />
     <Project Path="src/Match3.Core/Match3.Core.csproj" />
+    <Project Path="src/Match3.Editor.Tests/Match3.Editor.Tests.csproj" />
+    <Project Path="src/Match3.Random.Tests/Match3.Random.Tests.csproj" />
     <Project Path="src/Match3.Random/Match3.Random.csproj" />
-    <Project Path="src/Match3.Tests/Match3.Tests.csproj" />
+    <Project Path="src/Match3.Core.Tests/Match3.Core.Tests.csproj" />
     <Project Path="src/Match3.Web.Tests/Match3.Web.Tests.csproj" />
-  </Folder>
-  <Folder Name="/src/Match3.Web/">
-    <Project Path="src/Match3.Web/Match3.Web/Match3.Web.csproj" />
+    <Project Path="src/Match3.Web/Match3.Web.csproj" />
   </Folder>
 </Solution>

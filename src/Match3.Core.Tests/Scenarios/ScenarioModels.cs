@@ -2,8 +2,18 @@ using System.Collections.Generic;
 
 namespace Match3.Tests.Scenarios
 {
+    public class ScenarioMetadata
+    {
+        public string? CreatedUtc { get; set; }
+        public string? UpdatedUtc { get; set; }
+        public string Author { get; set; } = "";
+        public string Version { get; set; } = "1";
+        public List<string> Tags { get; set; } = new();
+    }
+
     public class TestScenario
     {
+        public ScenarioMetadata? Metadata { get; set; }
         public string Name { get; set; } = "";
         public int Width { get; set; }
         public int Height { get; set; }

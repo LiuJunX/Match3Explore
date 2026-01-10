@@ -68,7 +68,7 @@ public class ConfigDrivenBoardTests
     private static LevelConfig LoadLevel(string fileName)
     {
         var root = GetSolutionRoot();
-        var path = Path.Combine(root, "src", "Match3.Tests", "TestData", "boards", fileName);
+        var path = Path.Combine(root, "src", "Match3.Core.Tests", "TestData", "boards", fileName);
         var json = File.ReadAllText(path);
         return JsonSerializer.Deserialize<LevelConfig>(json, new JsonSerializerOptions
         {

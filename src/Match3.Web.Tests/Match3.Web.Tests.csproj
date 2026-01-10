@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Match3.Web\Match3.Web\Match3.Web.csproj" />
+    <ProjectReference Include="..\Match3.Web\Match3.Web.csproj" />
     <ProjectReference Include="..\Match3.Core\Match3.Core.csproj" />
   </ItemGroup>
 

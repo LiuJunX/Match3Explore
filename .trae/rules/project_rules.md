@@ -7,6 +7,7 @@ alwaysApply: true
 - Match3.Core：纯业务逻辑，无 UI 依赖，定义接口与核心流程
 - Match3.Random：统一随机入口（IRandom、SeedManager、RandomDomain、RandomStreamFactory）
 - Match3.Web：应用装配与视图层（IGameView、输入意图）
+- Match3.Editor: Cross-platform editor logic and tools (No UI framework dependencies)
 - Match3.Tests：单元/场景测试（含编码规范）
 - Match3.ConsoleDemo：控制台演示 UI（若存在）
 
@@ -61,3 +62,15 @@ All new features MUST be implemented as independent Systems.
 2.  **Implement System**: `{Name}System` in `Match3.Core.Systems`.
 3.  **Inject**: Pass via constructor to `Match3Controller`.
 4.  **No God Classes**: `Match3Controller` must only coordinate; it must not contain business logic.
+
+## 11. Cross-Platform Portability (Priority: ★★★★★)
+Ensure all core logic and editor tools are portable to Unity and other platforms.
+1.  **Dependency Rule**: 
+    - Inner layers (Core/Editor Logic) MUST NOT depend on outer layers (Web/Unity/UI/IO).
+    - `Match3.Editor` MUST NOT reference `System.IO`, `System.Console`, `Microsoft.AspNetCore`, or `UnityEngine`.
+2.  **State Management**:
+    - UI MUST be stateless and serve only as a projection of the ViewModel.
+    - View layers (Razor/MonoBehaviour) MUST NOT hold business state (e.g., `LevelConfig`).
+3.  **Abstractions**:
+    - All side effects (File IO, Alerts, Clipboard, Time) MUST be accessed via interfaces (e.g., `IFileSystemService`, `IPlatformService`).
+

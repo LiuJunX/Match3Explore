@@ -1,0 +1,338 @@
+@page "/level-editor"
+@using Match3.Core
+@using Match3.Core.Config
+@using Match3.Core.Structs
+@using Match3.Core.Scenarios
+@using Match3.Editor.ViewModels
+@using Match3.Core.Systems
+@using Match3.Web.Services
+@inject NavigationManager Navigation
+@inject Match3GameService GameService
+@inject LevelEditorViewModel VM
+@implements IDisposable
+@rendermode InteractiveServer
+
+<PageTitle>Level Editor</PageTitle>
+
+<div class="d-flex flex-column vh-100 overflow-hidden" style="max-height: 100vh;">
+    <!-- Header -->
+    <header class="navbar navbar-dark bg-dark flex-shrink-0 px-3 py-2 shadow-sm justify-content-between">
+        <div class="d-flex align-items-center gap-3">
+            <span class="navbar-brand mb-0 h1 fs-5">Level Editor</span>
+            
+            <div class="btn-group btn-group-sm">
+                <button class="btn @(VM.CurrentMode == LevelEditorViewModel.EditorMode.Level ? "btn-light" : "btn-outline-light")" 
+                        @onclick="() => VM.SwitchMode(LevelEditorViewModel.EditorMode.Level)">
+                    Level Design
+                </button>
+                <button class="btn @(VM.CurrentMode == LevelEditorViewModel.EditorMode.Scenario ? "btn-light" : "btn-outline-light")" 
+                        @onclick="() => VM.SwitchMode(LevelEditorViewModel.EditorMode.Scenario)">
+                    Scenario / Test
+                </button>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            @if (VM.CurrentMode == LevelEditorViewModel.EditorMode.Level)
+            {
+                <button class="btn btn-sm btn-success" @onclick="PlayLevel">
+                    <i class="bi bi-play-fill"></i> Play Level
+                </button>
+            }
+            <button class="btn btn-sm btn-outline-info">AI Critic (TODO)</button>
+        </div>
+    </header>
+
+    <div class="flex-grow-1 d-flex overflow-hidden">
+        <!-- LEFT SIDEBAR: Configuration -->
+        <aside class="bg-light border-end d-flex flex-column" style="width: 320px; min-width: 320px; overflow-y: auto;">
+            <div class="p-3 border-bottom">
+                <h6 class="text-uppercase text-muted small fw-bold mb-3">Grid Settings</h6>
+                <div class="row g-2 align-items-end">
+                    <div class="col-4">
+                        <label class="form-label small mb-1">Width</label>
+                        <input type="number" class="form-control form-control-sm" @bind="VM.EditorWidth" min="3" max="12" />
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label small mb-1">Height</label>
+                        <input type="number" class="form-control form-control-sm" @bind="VM.EditorHeight" min="3" max="12" />
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-sm btn-secondary w-100" @onclick="VM.ResizeGrid">Apply</button>
+                    </div>
+                </div>
+                
+                @if (VM.CurrentMode == LevelEditorViewModel.EditorMode.Level)
+                {
+                    <div class="mt-2">
+                        <label class="form-label small mb-1">Move Limit</label>
+                        <input type="number" class="form-control form-control-sm" @bind="VM.CurrentLevel.MoveLimit" />
+                    </div>
+                }
+            </div>
+
+            <div class="flex-grow-1 p-3 overflow-auto">
+                 @if (VM.CurrentMode == LevelEditorViewModel.EditorMode.Level)
+                {
+                    <h6 class="text-uppercase text-muted small fw-bold mb-2">Level Info</h6>
+                     <button class="btn btn-sm btn-outline-secondary w-100 mb-2" @onclick="VM.GenerateRandomLevel">
+                        <i class="bi bi-shuffle"></i> Randomize
+                    </button>
+                }
+                else
+                {
+                    <h6 class="text-uppercase text-muted small fw-bold mb-2">Recording</h6>
+                    @if (!VM.IsRecording)
+                    {
+                        <button class="btn btn-success btn-sm w-100 mb-2" @onclick="VM.StartRecording">
+                            <i class="bi bi-record-circle"></i> Start Recording
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-danger btn-sm w-100 mb-2" @onclick="VM.StopRecording">
+                            <i class="bi bi-stop-circle"></i> Stop Recording
+                        </button>
+                        <div class="alert alert-info py-1 px-2 small mb-2 text-center">
+                            Recording... Click grid to swap.
+                        </div>
+                    }
+                    
+                    <div class="border rounded bg-white p-2 mb-3" style="height: 150px; overflow-y: auto;">
+                        <div class="small text-muted mb-1">Moves: @VM.CurrentScenario.Operations.Count</div>
+                        <ul class="list-unstyled small mb-0 font-monospace">
+                            @foreach (var move in VM.CurrentScenario.Operations)
+                            {
+                                <li>(@move.FromX, @move.FromY) &rarr; (@move.ToX, @move.ToY)</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </aside>
+
+        <!-- CENTER: Canvas -->
+        <main class="flex-grow-1 bg-secondary bg-opacity-10 d-flex flex-column position-relative overflow-hidden">
+            <!-- Toolbar Overlay -->
+            <div class="position-absolute top-0 start-50 translate-middle-x mt-3 bg-white shadow-sm rounded-pill px-3 py-1 d-flex gap-3 align-items-center z-index-10 border" style="z-index: 100;">
+                <div class="small fw-bold text-muted">
+                    @if(VM.IsRecording) { <span>🔴 RECORDING</span> }
+                    else if(VM.IsAssertionMode) { <span>🎯 VERIFYING</span> }
+                    else { <span>✏️ EDITING</span> }
+                </div>
+                <div class="vr"></div>
+                <div class="small text-muted">@VM.ActiveLevelConfig.Width x @VM.ActiveLevelConfig.Height</div>
+            </div>
+
+            <!-- Grid Container -->
+            <div class="flex-grow-1 d-flex align-items-center justify-content-center overflow-auto p-5">
+                @{
+                    var currentConfig = VM.ActiveLevelConfig;
+                    var width = currentConfig.Width;
+                    var height = currentConfig.Height;
+                    var tileSize = 60;
+                }
+                <div class="position-relative shadow-lg bg-white" 
+                     style="width: @(width * tileSize)px; height: @(height * tileSize)px; border: 10px solid #fff; border-radius: 4px;"
+                     @onmouseleave="StopDrawing"
+                     @onmouseup="StopDrawing">
+                    
+                    @for (int i = 0; i < currentConfig.Grid.Length; i++)
+                    {
+                        var index = i;
+                        var x = i % width;
+                        var y = i / width;
+                        var displayType = GetTileType(index);
+                        var displayBomb = GetBomb(index);
+                        var isSelected = VM.IsRecording && VM.SimulationController?.SelectedPosition == new Position(x, y);
+
+                        <div class="position-absolute border border-light" 
+                             style="left: @(x * tileSize)px; top: @(y * tileSize)px; width: @(tileSize)px; height: @(tileSize)px; background-color: @GetColor(displayType); cursor: pointer; transition: transform 0.1s;"
+                             @onmousedown="() => HandleGridClick(index)"
+                             @onmouseenter="() => PaintTile(index)"
+                             @ondragstart:preventDefault="true">
+                             
+                             @if (isSelected)
+                             {
+                                 <div class="position-absolute top-0 start-0 w-100 h-100 border border-3 border-white shadow-sm" style="z-index: 5;"></div>
+                             }
+                             
+                            <div class="w-100 h-100 d-flex align-items-center justify-content-center" style="pointer-events: none;">
+                            </div>
+                            
+                            @if (displayBomb != BombType.None)
+                            {
+                                <div class="position-absolute top-50 start-50 translate-middle fs-4" style="pointer-events:none; text-shadow: 0 0 5px rgba(255,255,255,0.8);">
+                                    @GetBombIcon(displayBomb)
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </main>
+
+        <!-- RIGHT SIDEBAR: Tools -->
+        <aside class="bg-light border-start d-flex flex-column" style="width: 280px; min-width: 280px; overflow-y: auto;">
+            <div class="p-3 border-bottom">
+                <h6 class="text-uppercase text-muted small fw-bold mb-3">Palette</h6>
+                <div class="d-grid gap-2" style="grid-template-columns: repeat(4, 1fr);">
+                    @foreach (var type in Enum.GetValues<TileType>())
+                    {
+                        <button class="btn p-0 border position-relative @(VM.SelectedType == type ? "border-primary border-3" : "")" 
+                                style="height: 48px; background-color: @GetColor(type); box-shadow: @(VM.SelectedType == type ? "inset 0 0 0 1px rgba(255,255,255,0.5)" : "none")"
+                                @onclick="() => VM.SelectedType = type"
+                                title="@type"
+                                disabled="@(VM.IsRecording && !VM.IsAssertionMode)">
+                            @if (VM.SelectedType == type) { <span class="position-absolute top-50 start-50 translate-middle text-white small">✓</span> }
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="p-3 border-bottom">
+                <h6 class="text-uppercase text-muted small fw-bold mb-3">Items / Bombs</h6>
+                <div class="d-grid gap-2" style="grid-template-columns: repeat(3, 1fr);">
+                    @foreach (var bomb in (BombType[])Enum.GetValues(typeof(BombType)))
+                    {
+                        <button class="btn btn-outline-secondary p-1 d-flex flex-column align-items-center justify-content-center @(VM.SelectedBomb == bomb ? "active" : "")" 
+                                style="height: 60px;"
+                                @onclick="() => VM.SelectedBomb = bomb"
+                                title="@bomb"
+                                disabled="@(VM.IsRecording && !VM.IsAssertionMode)">
+                            <span class="fs-4">@GetBombIcon(bomb)</span>
+                            <span style="font-size: 10px;">@bomb</span>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="flex-grow-1 p-3">
+                <h6 class="text-uppercase text-muted small fw-bold mb-3">Data IO</h6>
+                
+                <div class="btn-group w-100 mb-2">
+                    <button class="btn btn-success btn-sm" @onclick="VM.ExportJson">Export</button>
+                    <button class="btn btn-warning btn-sm" @onclick="VM.ImportJson">Import</button>
+                </div>
+                
+                <textarea class="form-control form-control-sm font-monospace small" rows="8" @bind="VM.JsonOutput" style="white-space: pre; overflow-x: auto;"></textarea>
+            </div>
+        </aside>
+    </div>
+</div>
+
+@code {
+    private bool IsDrawing { get; set; } = false;
+    private System.Threading.Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        VM.OnRequestRepaint += RequestUpdate;
+        _timer = new System.Threading.Timer(OnTimerTick, null, 16, 16);
+    }
+
+    private void OnTimerTick(object? state)
+    {
+        if (VM.IsRecording)
+        {
+            VM.UpdateSimulation(0.016f);
+        }
+    }
+
+    private void RequestUpdate()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleGridClick(int index)
+    {
+        VM.HandleGridClick(index);
+    }
+
+    private void StartDrawing(int index)
+    {
+        if (VM.IsRecording) return;
+        IsDrawing = true;
+        PaintTile(index);
+    }
+
+    private void PaintTile(int index)
+    {
+        if (IsDrawing && !VM.IsRecording)
+        {
+            VM.PaintTile(index);
+        }
+    }
+
+    private void StopDrawing()
+    {
+        IsDrawing = false;
+    }
+
+    private void PlayLevel()
+    {
+        GameService.StartNewGame(VM.CurrentLevel);
+        Navigation.NavigateTo("/");
+    }
+
+    private TileType GetTileType(int index)
+    {
+        if (VM.IsRecording && VM.SimulationController != null)
+        {
+            var w = VM.ActiveLevelConfig.Width;
+            try 
+            {
+                return VM.SimulationController.State.GetType(index % w, index / w);
+            }
+            catch { return TileType.None; }
+        }
+        return VM.ActiveLevelConfig.Grid[index];
+    }
+
+    private BombType GetBomb(int index)
+    {
+        if (VM.IsRecording && VM.SimulationController != null)
+        {
+            var w = VM.ActiveLevelConfig.Width;
+            try
+            {
+                return VM.SimulationController.State.GetTile(index % w, index / w).Bomb;
+            }
+            catch { return BombType.None; }
+        }
+        return index >= 0 && index < VM.ActiveBombs.Length ? VM.ActiveBombs[index] : BombType.None;
+    }
+
+    public void Dispose()
+    {
+        VM.OnRequestRepaint -= RequestUpdate;
+        _timer?.Dispose();
+    }
+
+    // --- Helpers ---
+    private string GetColor(TileType t)
+    {
+        return t switch
+        {
+            TileType.Red => "#dc3545",
+            TileType.Green => "#198754",
+            TileType.Blue => "#0d6efd",
+            TileType.Yellow => "#ffc107",
+            TileType.Purple => "#6f42c1",
+            TileType.Orange => "#fd7e14",
+            TileType.Rainbow => "linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet)",
+            TileType.None => "#f8f9fa",
+            _ => "#ccc"
+        };
+    }
+    private string GetBombIcon(BombType bomb) => bomb switch
+    {
+        BombType.None => "",
+        BombType.Horizontal => "↔️",
+        BombType.Vertical => "↕️",
+        BombType.Ufo => "🛸",
+        BombType.Square3x3 => "💣",
+        BombType.Color => "🌈",
+        _ => ""
+    };
+}

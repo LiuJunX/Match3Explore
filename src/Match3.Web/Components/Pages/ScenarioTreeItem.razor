@@ -1,0 +1,89 @@
+@using Match3.Web.Services
+@using Match3.Editor.ViewModels
+@using System.IO
+
+@* Recursively render folders *@
+<div class="scenario-tree-item">
+    <div class="d-flex align-items-center py-1 px-2 small tree-node @(IsSelected ? "bg-primary text-white" : "hover-bg-light")"
+         style="cursor: pointer;"
+         @onclick="ToggleExpand"
+         @oncontextmenu="OnContextMenu"
+         @oncontextmenu:preventDefault="true">
+        
+        @* Indentation *@
+        <div style="width: @(Level * 16)px; flex-shrink: 0;"></div>
+
+        @* Expand/Collapse Icon *@
+        <i class="bi @(IsExpanded ? "bi-caret-down-fill" : "bi-caret-right-fill") me-1 text-muted" 
+           style="font-size: 0.8em; visibility: @(Folder.Folders.Any() || Folder.Files.Any() ? "visible" : "hidden")"></i>
+
+        @* Folder Icon *@
+        <i class="bi bi-folder-fill text-warning me-2"></i>
+        
+        @* Name *@
+        <span class="text-truncate flex-grow-1 user-select-none">@Folder.Name</span>
+    </div>
+
+    @if (IsExpanded)
+    {
+        @foreach (var subFolder in Folder.Folders)
+        {
+            <ScenarioTreeItem Folder="subFolder" 
+                              Level="Level + 1"
+                              CurrentFilePath="@CurrentFilePath"
+                              ExpandedPaths="ExpandedPaths"
+                              OnSelectFile="OnSelectFile"
+                              OnContextMenuAction="OnContextMenuAction" />
+        }
+
+        @foreach (var file in Folder.Files)
+        {
+            <div class="d-flex align-items-center py-1 px-2 small tree-file @(CurrentFilePath == file.RelativePath ? "active-file bg-info bg-opacity-10 border-start border-3 border-info" : "hover-bg-light")"
+                 style="cursor: pointer; padding-left: @((Level + 1) * 16 + 20)px !important;"
+                 @onclick="() => OnSelectFile.InvokeAsync(file.RelativePath)"
+                 @oncontextmenu='(e) => OnContextMenuAction.InvokeAsync((e, "file", file.RelativePath))'
+                 @oncontextmenu:preventDefault="true">
+                
+                <i class="bi bi-file-earmark-text me-2 text-secondary"></i>
+                <div class="text-truncate flex-grow-1 user-select-none">
+                    @file.Name
+                    <span class="text-muted ms-2 opacity-50" style="font-size: 0.8em;">
+                        @file.Metadata.UpdatedUtc.ToLocalTime().ToString("MM/dd")
+                    </span>
+                </div>
+            </div>
+        }
+
+        @if (!Folder.Folders.Any() && !Folder.Files.Any())
+        {
+            <div class="text-muted fst-italic py-1 small" style="padding-left: @((Level + 1) * 16 + 20)px;">
+                (Empty - Right click to create)
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public ScenarioFolderNode Folder { get; set; } = null!;
+    [Parameter] public int Level { get; set; } = 0;
+    [Parameter] public string CurrentFilePath { get; set; } = "";
+    [Parameter] public HashSet<string> ExpandedPaths { get; set; } = new();
+    [Parameter] public EventCallback<string> OnSelectFile { get; set; }
+    [Parameter] public EventCallback<(MouseEventArgs, string, string)> OnContextMenuAction { get; set; }
+
+    private bool IsExpanded => ExpandedPaths.Contains(Folder.RelativePath);
+    private bool IsSelected => false; // Could extend for folder selection if needed
+
+    private void ToggleExpand()
+    {
+        if (IsExpanded)
+            ExpandedPaths.Remove(Folder.RelativePath);
+        else
+            ExpandedPaths.Add(Folder.RelativePath);
+    }
+
+    private async Task OnContextMenu(MouseEventArgs e)
+    {
+        await OnContextMenuAction.InvokeAsync((e, "folder", Folder.RelativePath));
+    }
+}

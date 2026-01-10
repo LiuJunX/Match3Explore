@@ -9,4 +9,4 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :%PORT%') do (
 )
 
 echo Starting Web Project with Hot Reload...
-dotnet watch --project src/Match3.Web/Match3.Web/Match3.Web.csproj
+dotnet watch --project src/Match3.Web/Match3.Web.csproj
