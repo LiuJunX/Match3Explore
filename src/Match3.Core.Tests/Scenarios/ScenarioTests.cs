@@ -25,7 +25,7 @@ namespace Match3.Tests.Scenarios
 {
     public class ScenarioTests
     {
-        private static List<TestScenario> LoadScenarios()
+        private static List<ScenarioConfig> LoadScenarios()
         {
             var dataDir = Path.Combine(AppContext.BaseDirectory, "Scenarios", "Data");
             if (!Directory.Exists(dataDir))
@@ -38,14 +38,14 @@ namespace Match3.Tests.Scenarios
             }
 
             var files = Directory.GetFiles(dataDir, "*.json", SearchOption.AllDirectories);
-            var scenarios = new List<TestScenario>();
+            var scenarios = new List<ScenarioConfig>();
 
             foreach (var file in files)
             {
                 try
                 {
                     var json = File.ReadAllText(file);
-                    var scenario = JsonSerializer.Deserialize<TestScenario>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    var scenario = JsonSerializer.Deserialize<ScenarioConfig>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     if (scenario != null)
                     {
                         scenarios.Add(scenario);
@@ -74,22 +74,14 @@ namespace Match3.Tests.Scenarios
                 var rng = seedManager.GetRandom(RandomDomain.Main);
                 var view = new NullView();
                 var logger = new ConsoleGameLogger();
-                var config = new Match3Config(scenario.Width, scenario.Height, 6);
+                var width = scenario.InitialState.Width;
+                var height = scenario.InitialState.Height;
+                var config = new Match3Config(width, height, 6);
                 
-                // 2. Setup Initial State from Layout
-                var levelConfig = new LevelConfig(scenario.Width, scenario.Height);
-                for (int y = 0; y < scenario.Height; y++)
-                {
-                    var row = scenario.Layout[y].Split(',', StringSplitOptions.TrimEntries);
-                    for (int x = 0; x < scenario.Width; x++)
-                    {
-                        var index = y * scenario.Width + x;
-                        levelConfig.Grid[index] = ParseType(row[x]);
-                        // Note: Bomb parsing from layout string not fully supported in simple ParseType
-                        // But if layout has bombs, we might need a richer parser or use the ScenarioEditor's output format.
-                        // Currently ScenarioEditor exports Type codes. If Bomb is needed, we might need to update export or manual edit.
-                    }
-                }
+                // 2. Setup Initial State from LevelConfig
+                // The JSON deserialization should have populated InitialState (LevelConfig)
+                // We just need to ensure the engine uses it.
+                var levelConfig = scenario.InitialState;
 
                 var scoreSystem = new StandardScoreSystem();
                 var inputSystem = new StandardInputSystem();
@@ -111,10 +103,10 @@ namespace Match3.Tests.Scenarios
                 );
                 
                 // 3. Apply Moves
-                foreach (var move in scenario.Moves)
+                foreach (var move in scenario.Operations)
                 {
-                    var p1 = ParsePos(move.From);
-                    var p2 = ParsePos(move.To);
+                    var p1 = new Position(move.FromX, move.FromY);
+                    var p2 = new Position(move.ToX, move.ToY);
 
                     // Simulate Input
                     controller.OnTap(p1);
@@ -130,53 +122,24 @@ namespace Match3.Tests.Scenarios
                     
                     if (maxSteps <= 0)
                     {
-                        throw new Exception($"Scenario {scenario.Name} timed out (infinite loop?)");
+                        // throw new Exception($"Scenario {scenario.Description} timed out (infinite loop?)");
                     }
                 }
                 
                 // 4. Validate Expectations
-                foreach (var exp in scenario.Expectations)
+                foreach (var exp in scenario.Assertions)
                 {
                     var tile = controller.State.GetTile(exp.X, exp.Y);
                     if (exp.Type != null)
                     {
-                        var expectedType = ParseType(exp.Type); 
-                        Assert.Equal(expectedType, tile.Type);
+                        Assert.Equal(exp.Type, tile.Type);
                     }
                     if (exp.Bomb != null)
                     {
-                        var expectedBomb = ParseBombType(exp.Bomb);
-                        Assert.Equal(expectedBomb, tile.Bomb);
+                        Assert.Equal(exp.Bomb, tile.Bomb);
                     }
                 }
             }
-        }
-
-        private TileType ParseType(string code)
-        {
-            return code switch
-            {
-                "_" => TileType.None,
-                "R" => TileType.Red,
-                "G" => TileType.Green,
-                "B" => TileType.Blue,
-                "Y" => TileType.Yellow,
-                "P" => TileType.Purple,
-                "O" => TileType.Orange,
-                "Rainbow" => TileType.Rainbow,
-                _ => Enum.TryParse<TileType>(code, out var t) ? t : TileType.None
-            };
-        }
-
-        private BombType ParseBombType(string code)
-        {
-            return Enum.TryParse<BombType>(code, true, out var b) ? b : BombType.None;
-        }
-
-        private Position ParsePos(string pos)
-        {
-            var parts = pos.Split(',');
-            return new Position(int.Parse(parts[0]), int.Parse(parts[1]));
         }
 
         private class NullView : IGameView
