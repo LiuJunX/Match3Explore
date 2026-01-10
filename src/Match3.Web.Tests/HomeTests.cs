@@ -3,18 +3,36 @@ using Xunit;
 using Match3.Web.Components.Pages;
 using Microsoft.Extensions.DependencyInjection;
 using Match3.Core;
-using Match3.Core.Structs;
+using Match3.Core.Models.Grid;
 using Match3.Web.Services;
 using Microsoft.AspNetCore.Components.Web;
 
+using System.IO;
+
 namespace Match3.Web.Tests;
 
-public class HomeTests : TestContext
+public class HomeTests : TestContext, IDisposable
 {
+    private readonly string _tempDir;
+
     public HomeTests()
     {
+        _tempDir = Path.Combine(Path.GetTempPath(), "Match3Tests_Home_" + Guid.NewGuid());
+        Directory.CreateDirectory(_tempDir);
+
         Services.AddLogging();
         Services.AddScoped<Match3GameService>();
+        Services.AddScoped<Match3.Editor.Interfaces.IJsonService, Match3.Web.Services.EditorAdapters.SystemTextJsonService>();
+        Services.AddScoped<ScenarioLibraryService>(_ => new ScenarioLibraryService(_tempDir));
+    }
+
+    public new void Dispose()
+    {
+        if (Directory.Exists(_tempDir))
+        {
+            try { Directory.Delete(_tempDir, true); } catch { }
+        }
+        base.Dispose();
     }
 
     [Fact]

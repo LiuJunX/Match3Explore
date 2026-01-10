@@ -18,6 +18,11 @@ namespace Match3.Web.Services.EditorAdapters
             await _js.InvokeVoidAsync("alert", message);
         }
 
+        public async Task ShowAlertAsync(string title, string message)
+        {
+            await _js.InvokeVoidAsync("alert", $"{title}\n{message}");
+        }
+
         public async Task<bool> ConfirmAsync(string title, string message)
         {
             // Browser confirm only takes message

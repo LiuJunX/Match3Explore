@@ -5,9 +5,16 @@ using System.Threading.Tasks;
 using Match3.Core;
 using Match3.Core.Config;
 using Match3.Core.Interfaces;
-using Match3.Core.Logic;
-using Match3.Core.Systems;
-using Match3.Core.Structs;
+using Match3.Core.Models.Enums;
+using Match3.Core.Models.Gameplay;
+using Match3.Core.Models.Grid;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Gravity;
+using Match3.Core.Systems.Input;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
+using Match3.Core.Utility;
 using Microsoft.Extensions.Logging;
 using Match3.Random;
 
@@ -16,7 +23,7 @@ namespace Match3.Web.Services;
 public class Match3GameService : IDisposable
 {
     private readonly ILogger<Match3GameService> _appLogger;
-    private Match3Controller? _controller;
+    private Match3Engine? _engine;
     private bool _isAutoPlaying;
     private float _gameSpeed = 1.0f;
     private bool _disposed;
@@ -29,7 +36,7 @@ public class Match3GameService : IDisposable
         _appLogger = appLogger;
     }
 
-    public Match3Controller? Controller => _controller;
+    public Match3Engine? Engine => _engine;
     public bool IsAutoPlaying => _isAutoPlaying;
     public float GameSpeed 
     { 
@@ -68,18 +75,18 @@ public class Match3GameService : IDisposable
         var gameLogger = new MicrosoftGameLogger(_appLogger);
         var config = new Match3Config(Width, Height, 6);
 
-        _controller = new Match3Controller(
+        _engine = new Match3Engine(
             config,
             rng, 
             view,
+            gameLogger,
+            inputSystem,
             matchFinder,
             matchProcessor,
             gravitySystem,
             powerUpHandler,
-            tileGenerator,
-            gameLogger,
             scoreSystem,
-            inputSystem,
+            tileGenerator,
             levelConfig
         );
         
@@ -114,13 +121,13 @@ public class Match3GameService : IDisposable
 
         while (!token.IsCancellationRequested && !_disposed)
         {
-            if (_controller != null)
+            if (_engine != null)
             {
-                _controller.Update((FrameMs / 1000.0f) * _gameSpeed);
+                _engine.Update((FrameMs / 1000.0f) * _gameSpeed);
 
-                if (_isAutoPlaying && _controller.IsIdle)
+                if (_isAutoPlaying && _engine.IsIdle)
                 {
-                    _controller.TryMakeRandomMove();
+                    _engine.TryMakeRandomMove();
                 }
 
                 NotifyStateChanged();
@@ -139,8 +146,8 @@ public class Match3GameService : IDisposable
         _isAutoPlaying = !_isAutoPlaying;
     }
     
-    public void OnTap(int x, int y) => _controller?.OnTap(new Position(x, y));
-    public void OnSwipe(Position from, Direction dir) => _controller?.OnSwipe(from, dir);
+    public void OnTap(int x, int y) => _engine?.OnTap(new Position(x, y));
+    public void OnSwipe(Position from, Direction dir) => _engine?.OnSwipe(from, dir);
 
     public void SetLastMatches(int count)
     {

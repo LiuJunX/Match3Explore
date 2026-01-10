@@ -1,9 +1,10 @@
 @using Match3.Core
-@using Match3.Core.Structs
+@using Match3.Core.Models.Grid
+@using Match3.Core.Models.Enums
 @using Match3.Web.Services
 @using System.Numerics
 
-@if (GameService.Controller != null)
+@if (GameService.Engine != null)
 {
     <div class="board-wrapper">
         <div class="board-container" 
@@ -24,13 +25,13 @@
             }
 
             <!-- Active Tiles -->
-            @foreach (var tile in GameService.Controller.State.Grid)
+            @foreach (var tile in GameService.Engine.State.Grid)
             {
                 if (tile.Type != TileType.None)
                 {
-                    var isSelected = GameService.Controller.SelectedPosition.IsValid && 
-                                   Math.Abs(tile.Position.X - GameService.Controller.SelectedPosition.X) < 0.1f && 
-                                   Math.Abs(tile.Position.Y - GameService.Controller.SelectedPosition.Y) < 0.1f;
+                    var isSelected = GameService.Engine.SelectedPosition.IsValid && 
+                                   Math.Abs(tile.Position.X - GameService.Engine.SelectedPosition.X) < 0.1f && 
+                                   Math.Abs(tile.Position.Y - GameService.Engine.SelectedPosition.Y) < 0.1f;
                     
                     <div @key="tile.Id" class="tile @(isSelected ? "selected" : "")" 
                          style="transform: translate(@(tile.Position.X * Match3GameService.CellSize)px, @(tile.Position.Y * Match3GameService.CellSize)px);"

@@ -5,9 +5,17 @@ using System.Text.Json;
 using Xunit;
 using Match3.Core;
 using Match3.Core.Config;
-using Match3.Core.Structs;
-using Match3.Core.Logic;
 using Match3.Core.Interfaces;
+using Match3.Core.Models.Enums;
+using Match3.Core.Models.Gameplay;
+using Match3.Core.Models.Grid;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Gravity;
+using Match3.Core.Systems.Input;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
+using Match3.Core.Utility;
 using Match3.Random;
 
 using Match3.Core.Systems;
@@ -76,7 +84,7 @@ public class ConfigDrivenBoardTests
         })!;
     }
 
-    private static Match3Controller BuildController(LevelConfig level)
+    private static Match3Engine BuildController(LevelConfig level)
     {
         var seedManager = new SeedManager(12345);
         var rng = seedManager.GetRandom(RandomDomain.Main);
@@ -85,19 +93,20 @@ public class ConfigDrivenBoardTests
         var config = new Match3Config(level.Width, level.Height, 6);
         var scoreSystem = new StandardScoreSystem();
         var inputSystem = new StandardInputSystem();
+        var tileGen = new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill));
         
-        return new Match3Controller(
+        return new Match3Engine(
             config,
             rng,
             view,
+            logger,
+            inputSystem,
             new ClassicMatchFinder(),
             new StandardMatchProcessor(scoreSystem),
-            new StandardGravitySystem(new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill))),
+            new StandardGravitySystem(tileGen),
             new PowerUpHandler(scoreSystem),
-            new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill)),
-            logger,
             scoreSystem,
-            inputSystem,
+            tileGen,
             level
         );
     }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using Match3.Core.Config;
-using Match3.Core.Logic;
+using Match3.Core.Utility;
 
 namespace Match3.ConfigTool
 {

@@ -12,6 +12,7 @@ namespace Match3.Web.Services;
 public sealed class ScenarioLibraryService
 {
     private readonly string _rootDir;
+    private readonly Dictionary<string, (DateTime LastWrite, ScenarioFileEntry Entry)> _entryCache = new();
 
     public ScenarioLibraryService(string rootDir)
     {
@@ -229,8 +230,19 @@ public sealed class ScenarioLibraryService
 
     private ScenarioFileEntry CreateFileEntryFromDisk(string fullPath)
     {
-        var rel = ToRelativePath(fullPath);
         var fileInfo = new FileInfo(fullPath);
+        var lastWrite = fileInfo.LastWriteTimeUtc;
+
+        // Check cache
+        if (_entryCache.TryGetValue(fullPath, out var cached))
+        {
+            if (cached.LastWrite == lastWrite)
+            {
+                return cached.Entry;
+            }
+        }
+
+        var rel = ToRelativePath(fullPath);
         ScenarioMetadata? metadata = null;
         string? name = null;
 
@@ -238,20 +250,23 @@ public sealed class ScenarioLibraryService
         {
             using var stream = File.OpenRead(fullPath);
             using var doc = JsonDocument.Parse(stream);
-            if (doc.RootElement.TryGetProperty("Name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String)
+            
+            // Case-insensitive property search
+            foreach (var prop in doc.RootElement.EnumerateObject())
             {
-                name = nameEl.GetString();
-            }
-            if (doc.RootElement.TryGetProperty("Metadata", out var metaEl) && metaEl.ValueKind == JsonValueKind.Object)
-            {
-                metadata = JsonSerializer.Deserialize<ScenarioMetadata>(metaEl.GetRawText(), new JsonSerializerOptions
+                if (prop.Name.Equals("Metadata", StringComparison.OrdinalIgnoreCase) && prop.Value.ValueKind == JsonValueKind.Object)
                 {
-                    PropertyNameCaseInsensitive = true
-                });
+                    metadata = JsonSerializer.Deserialize<ScenarioMetadata>(prop.Value.GetRawText(), new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                }
             }
         }
-        catch
+        catch (Exception)
         {
+            // If parsing fails, we'll fall back to default metadata.
+            // Consider logging this error if IGameLogger is available in future.
         }
 
         if (metadata == null)
@@ -268,7 +283,12 @@ public sealed class ScenarioLibraryService
             name = Path.GetFileNameWithoutExtension(fullPath);
         }
 
-        return new ScenarioFileEntry(rel, name, metadata, fileInfo.Length);
+        var entry = new ScenarioFileEntry(rel, name, metadata, fileInfo.Length);
+        
+        // Update cache
+        _entryCache[fullPath] = (lastWrite, entry);
+
+        return entry;
     }
 
     private bool Matches(ScenarioFileEntry entry, string? searchText, Regex? regex)

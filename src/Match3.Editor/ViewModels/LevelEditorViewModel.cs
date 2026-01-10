@@ -7,12 +7,20 @@ using System.Threading.Tasks;
 using Match3.Core;
 using Match3.Core.Config;
 using Match3.Core.Interfaces;
-using Match3.Core.Logic;
 using Match3.Core.Scenarios;
-using Match3.Core.Structs;
 using Match3.Core.Systems;
 using Match3.Editor.Interfaces;
 using Match3.Random;
+using Match3.Core.Models.Enums;
+using Match3.Core.Models.Gameplay;
+using Match3.Core.Models.Grid;
+using Match3.Core.Utility;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Gravity;
+using Match3.Core.Systems.Input;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
 
 namespace Match3.Editor.ViewModels
 {
@@ -34,10 +42,68 @@ namespace Match3.Editor.ViewModels
 
         // --- Data Models ---
         public LevelConfig CurrentLevel { get; set; } = new LevelConfig();
-        public ScenarioConfig CurrentScenario { get; set; } = new ScenarioConfig();
+        
+        private ScenarioConfig _currentScenario = new ScenarioConfig();
+        public ScenarioConfig CurrentScenario
+        {
+            get => _currentScenario;
+            set
+            {
+                _currentScenario = value;
+                OnPropertyChanged(nameof(CurrentScenario));
+                OnPropertyChanged(nameof(ScenarioDescription));
+                OnPropertyChanged(nameof(ActiveLevelConfig));
+            }
+        }
+
         public ScenarioMetadata CurrentScenarioMetadata { get; set; } = new ScenarioMetadata();
+
+        private string _scenarioName = "New Scenario";
+        public string ScenarioName
+        {
+            get => _scenarioName;
+            set
+            {
+                if (_scenarioName != value)
+                {
+                    _scenarioName = value;
+                    OnPropertyChanged(nameof(ScenarioName));
+                    IsDirty = true;
+                }
+            }
+        }
+
+        public void SetScenarioName(string name)
+        {
+            if (_scenarioName != name)
+            {
+                _scenarioName = name;
+                OnPropertyChanged(nameof(ScenarioName));
+            }
+        }
+
+        public string ScenarioDescription
+        {
+            get => CurrentScenario.Description;
+            set
+            {
+                if (CurrentScenario.Description != value)
+                {
+                    CurrentScenario.Description = value;
+                    OnPropertyChanged(nameof(ScenarioDescription));
+                    IsDirty = true;
+                }
+            }
+        }
         
         // --- Editor UI State ---
+        private bool _isDirty;
+        public bool IsDirty
+        {
+            get => _isDirty;
+            set { _isDirty = value; OnPropertyChanged(nameof(IsDirty)); }
+        }
+
         private int _editorWidth = 8;
         public int EditorWidth 
         { 
@@ -56,14 +122,36 @@ namespace Match3.Editor.ViewModels
         public TileType SelectedType
         {
             get => _selectedType;
-            set { _selectedType = value; OnPropertyChanged(nameof(SelectedType)); }
+            set 
+            { 
+                if (_selectedType != value)
+                {
+                    _selectedType = value; 
+                    OnPropertyChanged(nameof(SelectedType));
+                    // If a valid type is selected, deselect bomb (Mutual Exclusivity)
+                    if (value != TileType.None && value != TileType.Bomb)
+                    {
+                        SelectedBomb = BombType.None;
+                    }
+                }
+            }
         }
 
         private BombType _selectedBomb = BombType.None;
         public BombType SelectedBomb
         {
             get => _selectedBomb;
-            set { _selectedBomb = value; OnPropertyChanged(nameof(SelectedBomb)); }
+            set 
+            { 
+                if (_selectedBomb != value)
+                {
+                    _selectedBomb = value; 
+                    OnPropertyChanged(nameof(SelectedBomb));
+                    // If a bomb is selected, we conceptually "deselect" the tile type
+                    // We don't necessarily set it to None to avoid losing the last color choice,
+                    // but the UI should visually indicate bomb mode is active.
+                }
+            }
         }
 
         private string _jsonOutput = "";
@@ -88,22 +176,28 @@ namespace Match3.Editor.ViewModels
         }
 
         // --- File Browser State ---
-        public ScenarioFolderNode RootFolderNode { get; private set; }
+        public ScenarioFolderNode? RootFolderNode { get; private set; }
         public List<ScenarioFileEntry> SearchResults { get; private set; } = new List<ScenarioFileEntry>();
         public string CurrentFilePath { get; set; } = "";
         public HashSet<string> ExpandedPaths { get; } = new HashSet<string>();
 
+        public void SetRootFolder(ScenarioFolderNode root)
+        {
+            RootFolderNode = root;
+            OnPropertyChanged(nameof(RootFolderNode));
+        }
+
         // --- Computed Properties ---
         public LevelConfig ActiveLevelConfig => CurrentMode == EditorMode.Level ? CurrentLevel : CurrentScenario.InitialState;
-        public BombType[] LevelBombs { get; set; } = new BombType[8 * 8];
-        public BombType[] ScenarioBombs { get; set; } = new BombType[8 * 8];
-        public BombType[] ActiveBombs => CurrentMode == EditorMode.Level ? LevelBombs : ScenarioBombs;
+        
+        // Direct access to the bombs array in the config
+        public BombType[] ActiveBombs => ActiveLevelConfig.Bombs;
 
         // --- Simulation ---
-        public Match3Controller SimulationController { get; private set; }
+        public Match3Engine? SimulationController { get; private set; }
 
-        public event PropertyChangedEventHandler PropertyChanged;
-        public event Action OnRequestRepaint;
+        public event PropertyChangedEventHandler? PropertyChanged;
+        public event Action? OnRequestRepaint;
 
         public LevelEditorViewModel(
             IPlatformService platform, 
@@ -151,14 +245,24 @@ namespace Match3.Editor.ViewModels
             if (CurrentLevel.Grid == null || CurrentLevel.Grid.Length == 0)
             {
                 CurrentLevel = new LevelConfig(8, 8);
-                LevelBombs = new BombType[64];
                 GenerateRandomLevel();
+            }
+            // Ensure Bombs array exists (for legacy configs or manual instantiation)
+            if (CurrentLevel.Bombs == null || CurrentLevel.Bombs.Length != CurrentLevel.Grid.Length)
+            {
+                CurrentLevel.Bombs = new BombType[CurrentLevel.Grid.Length];
             }
         }
 
         public void GenerateRandomLevel()
         {
             var config = ActiveLevelConfig;
+            // Ensure bombs array matches grid
+            if (config.Bombs == null || config.Bombs.Length != config.Grid.Length)
+            {
+                config.Bombs = new BombType[config.Grid.Length];
+            }
+
             var rng = new SeedManager(Environment.TickCount).GetRandom(RandomDomain.Refill);
             var types = new[] { TileType.Red, TileType.Green, TileType.Blue, TileType.Yellow, TileType.Purple, TileType.Orange };
 
@@ -167,20 +271,19 @@ namespace Match3.Editor.ViewModels
                 config.Grid[i] = types[rng.Next(0, types.Length)];
             }
             
-            if (CurrentMode == EditorMode.Level) Array.Clear(LevelBombs, 0, LevelBombs.Length);
-            else Array.Clear(ScenarioBombs, 0, ScenarioBombs.Length);
+            // Clear bombs
+            Array.Clear(config.Bombs, 0, config.Bombs.Length);
             
             RequestRepaint();
+            IsDirty = true;
         }
 
         public void ResizeGrid()
         {
             var oldConfig = ActiveLevelConfig;
-            var oldBombs = ActiveBombs;
             
             var newConfig = new LevelConfig(EditorWidth, EditorHeight);
-            var newBombs = new BombType[EditorWidth * EditorHeight];
-
+            
             // Copy logic
             int w = Math.Min(oldConfig.Width, newConfig.Width);
             int h = Math.Min(oldConfig.Height, newConfig.Height);
@@ -194,7 +297,12 @@ namespace Match3.Editor.ViewModels
                     if (oldIdx < oldConfig.Grid.Length && newIdx < newConfig.Grid.Length)
                     {
                         newConfig.Grid[newIdx] = oldConfig.Grid[oldIdx];
-                        newBombs[newIdx] = oldBombs[oldIdx];
+                        
+                        // Copy bombs safely
+                        if (oldConfig.Bombs != null && oldIdx < oldConfig.Bombs.Length)
+                        {
+                            newConfig.Bombs[newIdx] = oldConfig.Bombs[oldIdx];
+                        }
                     }
                 }
             }
@@ -203,16 +311,15 @@ namespace Match3.Editor.ViewModels
             {
                 newConfig.MoveLimit = CurrentLevel.MoveLimit;
                 CurrentLevel = newConfig;
-                LevelBombs = newBombs;
             }
             else
             {
                 CurrentScenario.InitialState = newConfig;
-                ScenarioBombs = newBombs;
                 CurrentScenario.Operations.Clear();
                 CurrentScenario.ExpectedState = new LevelConfig();
             }
             RequestRepaint();
+            IsDirty = true;
         }
 
         public void HandleGridClick(int index)
@@ -238,13 +345,36 @@ namespace Match3.Editor.ViewModels
         {
             if (index < 0 || index >= ActiveLevelConfig.Grid.Length) return;
             
-            if (SelectedBomb == BombType.Color)
-                ActiveLevelConfig.Grid[index] = TileType.Rainbow;
+            // Mutual Exclusivity Logic:
+            // If a Bomb tool is selected, we paint a Bomb (and set Type to Bomb/Rainbow).
+            // If a Tile tool is selected, we paint a Tile (and set Bomb to None).
+            
+            if (SelectedBomb != BombType.None)
+            {
+                // Paint Bomb
+                ActiveLevelConfig.Bombs[index] = SelectedBomb;
+                
+                // Determine appropriate TileType
+                if (SelectedBomb == BombType.Color)
+                {
+                    ActiveLevelConfig.Grid[index] = TileType.Rainbow;
+                }
+                else
+                {
+                    // For other bombs, use the generic Bomb type placeholder
+                    ActiveLevelConfig.Grid[index] = TileType.Bomb;
+                }
+            }
             else
+            {
+                // Paint Tile
                 ActiveLevelConfig.Grid[index] = SelectedType;
+                // Clear Bomb
+                ActiveLevelConfig.Bombs[index] = BombType.None;
+            }
 
-            ActiveBombs[index] = SelectedBomb;
             RequestRepaint();
+            IsDirty = true;
         }
 
         // --- IO & Export ---
@@ -257,7 +387,7 @@ namespace Match3.Editor.ViewModels
                 JsonOutput = _jsonService.Serialize(CurrentScenario);
         }
 
-        public void ImportJson()
+        public void ImportJson(bool keepScenarioMode = false)
         {
             if (string.IsNullOrWhiteSpace(JsonOutput)) return;
             try
@@ -271,12 +401,33 @@ namespace Match3.Editor.ViewModels
                 }
                 else
                 {
-                    CurrentLevel = _jsonService.Deserialize<LevelConfig>(JsonOutput);
-                    CurrentMode = EditorMode.Level;
-                    EditorWidth = CurrentLevel.Width;
-                    EditorHeight = CurrentLevel.Height;
+                    var level = _jsonService.Deserialize<LevelConfig>(JsonOutput);
+
+                    if (keepScenarioMode || CurrentMode == EditorMode.Scenario)
+                    {
+                        CurrentScenario = new ScenarioConfig 
+                        { 
+                            InitialState = level,
+                            Operations = new List<MoveOperation>() 
+                        };
+                        CurrentMode = EditorMode.Scenario;
+                        EditorWidth = level.Width;
+                        EditorHeight = level.Height;
+                    }
+                    else
+                    {
+                        CurrentLevel = level;
+                        CurrentMode = EditorMode.Level;
+                        EditorWidth = CurrentLevel.Width;
+                        EditorHeight = CurrentLevel.Height;
+                    }
                 }
+                
+                // Ensure bombs are initialized after import
+                EnsureDefaultLevel();
+                
                 RequestRepaint();
+                IsDirty = false;
             }
             catch (Exception ex)
             {
@@ -298,23 +449,26 @@ namespace Match3.Editor.ViewModels
             var view = new EditorGameView(this);
             var config = new Match3Config(ActiveLevelConfig.Width, ActiveLevelConfig.Height, 6);
             
-            SimulationController = new Match3Controller(
+            var scoreSystem = new StandardScoreSystem();
+            var inputSystem = new StandardInputSystem();
+            var logger = new ConsoleGameLogger(); // Or wrap _logger if needed, but ConsoleGameLogger is fine for sim
+            var tileGen = new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill));
+
+            // Note: Match3Engine will now load Bombs directly from ActiveLevelConfig
+            SimulationController = new Match3Engine(
                 config, 
                 seedManager.GetRandom(RandomDomain.Main),
                 view,
-                new ClassicMatchFinder(),
-                new StandardMatchProcessor(new StandardScoreSystem()),
-                new StandardGravitySystem(new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill))),
-                new PowerUpHandler(new StandardScoreSystem()),
-                new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill)),
                 _logger,
-                new StandardScoreSystem(),
-                new StandardInputSystem(),
+                inputSystem,
+                new ClassicMatchFinder(),
+                new StandardMatchProcessor(scoreSystem),
+                new StandardGravitySystem(tileGen),
+                new PowerUpHandler(scoreSystem),
+                scoreSystem,
+                tileGen,
                 ActiveLevelConfig
             );
-            
-            // Apply Bombs to Sim State
-            ApplyBombsToSimulation();
         }
 
         public void StopRecording()
@@ -332,25 +486,10 @@ namespace Match3.Editor.ViewModels
             }
         }
         
-        private void ApplyBombsToSimulation()
-        {
-            var bombs = ActiveBombs;
-            for(int i=0; i<bombs.Length; i++)
-            {
-                if (bombs[i] != BombType.None)
-                {
-                    var x = i % ActiveLevelConfig.Width;
-                    var y = i / ActiveLevelConfig.Width;
-                    var type = SimulationController.State.GetTile(x, y).Type;
-                    if (bombs[i] == BombType.Color) type = TileType.Rainbow;
-                    SimulationController.SetTileWithBomb(x, y, type, bombs[i]);
-                }
-            }
-        }
-
         public void RecordMove(Position a, Position b)
         {
             CurrentScenario.Operations.Add(new MoveOperation(a.X, a.Y, b.X, b.Y));
+            IsDirty = true;
         }
 
         private class EditorGameView : IGameView

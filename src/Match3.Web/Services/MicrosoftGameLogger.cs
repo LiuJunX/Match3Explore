@@ -1,5 +1,5 @@
 using System;
-using Match3.Core.Interfaces;
+using Match3.Core.Utility;
 using Microsoft.Extensions.Logging;
 
 namespace Match3.Web.Services;

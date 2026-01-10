@@ -1,10 +1,10 @@
 using System.Collections.Generic;
+using Match3.Core.Models.Enums;
 
 namespace Match3.Core.Config;
 
 public class ScenarioConfig
 {
-    public string Name { get; set; } = "New Scenario";
     public string Description { get; set; } = "";
     public int Seed { get; set; } = 12345;
     public LevelConfig InitialState { get; set; } = new LevelConfig();

@@ -1,9 +1,17 @@
 using Xunit;
 using Match3.Core;
 using Match3.Core.Config;
-using Match3.Core.Structs;
-using Match3.Core.Logic;
 using Match3.Core.Interfaces;
+using Match3.Core.Models.Enums;
+using Match3.Core.Models.Gameplay;
+using Match3.Core.Models.Grid;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Gravity;
+using Match3.Core.Systems.Input;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
+using Match3.Core.Utility;
 using System.Collections.Generic;
 using System.Numerics;
 using Match3.Random;
@@ -35,7 +43,7 @@ public class GameBoardTests
         var logger = new ConsoleGameLogger();
         var config = new Match3Config(width, height, tileCount);
         
-        var controller = new Match3Controller(config, rng, view, finder, processor, gravity, powerUp, tileGen, logger, scoreSystem, inputSystem);
+        var controller = new Match3Engine(config, rng, view, logger, inputSystem, finder, processor, gravity, powerUp, scoreSystem, tileGen);
 
         // Assert
         Assert.Equal(width, controller.State.Width);

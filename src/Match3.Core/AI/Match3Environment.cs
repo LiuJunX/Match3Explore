@@ -1,9 +1,14 @@
 using System;
 using System.Collections.Generic;
-using Match3.Core.Structs;
-using Match3.Core.Logic;
+using Match3.Core.Models.Enums;
+using Match3.Core.Models.Gameplay;
+using Match3.Core.Models.Grid;
 using Match3.Core.Interfaces;
-using Match3.Core.Systems;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Gravity;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
 using Match3.Random;
 
 namespace Match3.Core.AI;

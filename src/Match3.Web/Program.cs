@@ -14,7 +14,7 @@ builder.Services.AddScoped<Match3.Editor.Interfaces.IPlatformService, Match3.Web
 builder.Services.AddScoped<Match3.Editor.Interfaces.IFileSystemService>(sp => 
     new Match3.Web.Services.EditorAdapters.PhysicalFileSystemService(@"d:\GitWorkSpace\LiuJun\ThreeMatchTrea\src\Match3.Core.Tests\Scenarios\Data"));
 builder.Services.AddScoped<Match3.Editor.Interfaces.IJsonService, Match3.Web.Services.EditorAdapters.SystemTextJsonService>();
-builder.Services.AddScoped<Match3.Core.Interfaces.IGameLogger>(sp => new MicrosoftGameLogger(sp.GetRequiredService<ILogger<MicrosoftGameLogger>>()));
+builder.Services.AddScoped<Match3.Core.Utility.IGameLogger>(sp => new MicrosoftGameLogger(sp.GetRequiredService<ILogger<MicrosoftGameLogger>>()));
 builder.Services.AddScoped<Match3.Editor.ViewModels.LevelEditorViewModel>();
 
 builder.Services.AddScoped<ScenarioLibraryService>(sp => 

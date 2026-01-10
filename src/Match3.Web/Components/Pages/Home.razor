@@ -13,7 +13,7 @@
         <ScorePanel />
     </div>
 
-    @if (GameService.Controller != null)
+    @if (GameService.Engine != null)
     {
         <GridBoard />
         <GameControls />
@@ -28,7 +28,7 @@
     protected override void OnInitialized()
     {
         // Start game if not already started
-        if (GameService.Controller == null)
+        if (GameService.Engine == null)
         {
             GameService.StartNewGame();
         }

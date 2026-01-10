@@ -2,7 +2,8 @@ using System;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Match3.Core;
-using Match3.Core.Structs;
+using Match3.Core.Models.Enums;
+using Match3.Core.Models.Grid;
 using Match3.Web.Services;
 
 namespace Match3.Web.Components.Game;
@@ -36,7 +37,7 @@ public partial class GridBoard : IDisposable
 
     private void HandlePointerDown(PointerEventArgs e, int x, int y)
     {
-        if (GameService.Controller == null) return;
+        if (GameService.Engine == null) return;
         
         _dragStartX = e.ClientX;
         _dragStartY = e.ClientY;
@@ -70,7 +71,7 @@ public partial class GridBoard : IDisposable
 
     private void HandleSwipe(double dx, double dy)
     {
-        if (GameService.Controller == null) return;
+        if (GameService.Engine == null) return;
 
         Direction direction;
         if (Math.Abs(dx) > Math.Abs(dy))

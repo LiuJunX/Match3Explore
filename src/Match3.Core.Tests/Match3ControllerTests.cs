@@ -1,10 +1,18 @@
 using System.Collections.Generic;
 using Match3.Core;
 using Match3.Core.Config;
-using Match3.Core.Structs;
-using Match3.Core.Logic;
-using Xunit;
 using Match3.Core.Interfaces;
+using Xunit;
+using Match3.Core.Models.Enums;
+using Match3.Core.Models.Gameplay;
+using Match3.Core.Models.Grid;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Gravity;
+using Match3.Core.Systems.Input;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
+using Match3.Core.Utility;
 using System.Linq;
 using Match3.Random;
 
@@ -25,18 +33,19 @@ public class Match3ControllerTests
         var scoreSystem = new StandardScoreSystem();
         var inputSystem = new StandardInputSystem();
 
-        var controller = new Match3Controller(
+        var tileGen = new StandardTileGenerator(new DefaultRandom(3002));
+        var controller = new Match3Engine(
             config,
             rng,
             view,
+            logger,
+            inputSystem,
             new ClassicMatchFinder(),
             new StandardMatchProcessor(scoreSystem),
             new StandardGravitySystem(new StandardTileGenerator(new DefaultRandom(3001))),
             new PowerUpHandler(scoreSystem),
-            new StandardTileGenerator(new DefaultRandom(3002)),
-            logger,
             scoreSystem,
-            inputSystem);
+            tileGen);
 
         // Setup a stable board (Checkerboard of Blue/Purple) to prevent gravity/matches
         for(int y=0; y<4; y++) 
@@ -96,18 +105,19 @@ public class Match3ControllerTests
         var scoreSystem = new StandardScoreSystem();
         var inputSystem = new StandardInputSystem();
 
-        var controller = new Match3Controller(
+        var tileGen = new StandardTileGenerator(new DefaultRandom(3004));
+        var controller = new Match3Engine(
             config,
             rng,
             view,
+            logger,
+            inputSystem,
             new ClassicMatchFinder(),
             new StandardMatchProcessor(scoreSystem),
             new StandardGravitySystem(new StandardTileGenerator(new DefaultRandom(3003))),
             new PowerUpHandler(scoreSystem),
-            new StandardTileGenerator(new DefaultRandom(3004)),
-            logger,
             scoreSystem,
-            inputSystem);
+            tileGen);
 
         // Stable board
         for(int y=0; y<4; y++) 
@@ -164,18 +174,19 @@ public class Match3ControllerTests
         var scoreSystem = new StandardScoreSystem();
         var inputSystem = new StandardInputSystem();
 
-        var controller = new Match3Controller(
+        var tileGen = new StandardTileGenerator(new DefaultRandom(3006));
+        var controller = new Match3Engine(
             config,
             rng,
             view,
+            logger,
+            inputSystem,
             new ClassicMatchFinder(),
             new StandardMatchProcessor(scoreSystem),
             new StandardGravitySystem(new StandardTileGenerator(new DefaultRandom(3005))),
             new PowerUpHandler(scoreSystem),
-            new StandardTileGenerator(new DefaultRandom(3006)),
-            logger,
             scoreSystem,
-            inputSystem);
+            tileGen);
 
         // Setup board
         // B B B B (0)

@@ -1,7 +1,8 @@
 using System;
 using Match3.Core;
 using Match3.Core.AI;
-using Match3.Core.Structs;
+using Match3.Core.Models.Gameplay;
+using Match3.Core.Models.Grid;
 using Xunit;
 
 namespace Match3.Tests;

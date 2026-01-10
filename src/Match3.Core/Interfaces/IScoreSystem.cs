@@ -1,4 +1,5 @@
-using Match3.Core.Structs;
+using Match3.Core.Models.Enums;
+using Match3.Core.Models.Gameplay;
 
 namespace Match3.Core.Interfaces;
 

@@ -11,11 +11,8 @@ namespace Match3.Core.Utility.Pools
         // Cache for List<T> pools to avoid recreating them.
         private static class ListPoolCache<T>
         {
-            public static readonly IObjectPool<List<T>> Instance = new GenericObjectPool<List<T>>(
-                generator: () => new List<T>(),
-                reset: list => list.Clear(),
-                maxSize: 128
-            );
+            // Use the specialized BucketedListPool instead of GenericObjectPool
+            public static readonly BucketedListPool<T> Instance = new BucketedListPool<T>();
         }
 
         // Cache for HashSet<T> pools.
@@ -42,10 +39,25 @@ namespace Match3.Core.Utility.Pools
         /// Gets a List&lt;T&gt; from the global pool.
         /// </summary>
         /// <typeparam name="T">The type of elements in the list.</typeparam>
+        /// <param name="capacity">Optional initial capacity. Use this for large lists to ensure performance.</param>
         /// <returns>A cleared list ready for use.</returns>
-        public static List<T> ObtainList<T>()
+        public static List<T> ObtainList<T>(int capacity = 0)
         {
-            return ListPoolCache<T>.Instance.Get();
+            return ListPoolCache<T>.Instance.Get(capacity);
+        }
+
+        /// <summary>
+        /// Gets a disposable wrapper for a pooled list.
+        /// Use with 'using' statement to ensure the list is returned to the pool.
+        /// </summary>
+        /// <example>
+        /// using var handle = Pools.ObtainDisposableList&lt;int&gt;(out var list);
+        /// list.Add(1);
+        /// </example>
+        public static PooledList<T> ObtainDisposableList<T>(out List<T> list, int capacity = 0)
+        {
+            list = ObtainList<T>(capacity);
+            return new PooledList<T>(list);
         }
 
         /// <summary>

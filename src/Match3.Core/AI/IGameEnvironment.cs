@@ -1,3 +1,5 @@
+using Match3.Core.Models.Gameplay;
+
 namespace Match3.Core.AI;
 
 public interface IGameEnvironment<TState, TAction>
