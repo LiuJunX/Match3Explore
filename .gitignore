@@ -8,6 +8,8 @@
 # Build results
 [Bb]in/
 [Oo]bj/
+build_log.txt
+*.log
 
 # NuGet
 *.lock.json
