@@ -13,7 +13,6 @@ namespace Match3.Tests.Scenarios
 
     public class TestScenario
     {
-        public ScenarioMetadata? Metadata { get; set; }
         public string Name { get; set; } = "";
         public int Width { get; set; }
         public int Height { get; set; }
