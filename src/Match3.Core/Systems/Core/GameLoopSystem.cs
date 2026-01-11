@@ -57,13 +57,15 @@ public class GameLoopSystem
     public void Update(ref GameState state, AnimationSystem animationSystem)
     {
         // 1. Update Pending Swaps
-        UpdateSwapTasks(ref state, animationSystem);
+        var foci = UpdateSwapTasks(ref state, animationSystem);
 
         // 2. Resolve Board State (Matches, Gravity, Refill)
         // Only resolve if we are not in the middle of a swap? 
         // Or continuously? Typically we resolve when things settle.
         // But in this implementation, ResolveMatches checks validity.
-        ResolveMatches(ref state);
+        ResolveMatches(ref state, foci);
+        
+        Pools.Release(foci);
     }
 
     public bool IsLocked(in GameState state, Position p)
@@ -95,8 +97,9 @@ public class GameLoopSystem
         return true;
     }
 
-    private void UpdateSwapTasks(ref GameState state, AnimationSystem animationSystem)
+    private List<Position> UpdateSwapTasks(ref GameState state, AnimationSystem animationSystem)
     {
+        var validSwapPositions = Pools.ObtainList<Position>();
         for (int i = _activeSwaps.Count - 1; i >= 0; i--)
         {
             var task = _activeSwaps[i];
@@ -117,8 +120,8 @@ public class GameLoopSystem
             {
                 if (task.CheckMatch)
                 {
-                    var matchesA = _matchFinder.FindMatchGroups(in state, posA);
-                    var matchesB = _matchFinder.FindMatchGroups(in state, posB);
+                    var matchesA = _matchFinder.FindMatchGroups(in state, new[] { posA });
+                    var matchesB = _matchFinder.FindMatchGroups(in state, new[] { posB });
                     bool hasMatch = matchesA.Count > 0 || matchesB.Count > 0;
                     bool isSpecial = IsSpecialMove(in state, posA, posB);
 
@@ -129,6 +132,12 @@ public class GameLoopSystem
                         {
                             _powerUpHandler.ProcessSpecialMove(ref state, posA, posB, out int points);
                             state.Score += points;
+                        }
+                        
+                        if (hasMatch)
+                        {
+                            validSwapPositions.Add(posA);
+                            validSwapPositions.Add(posB);
                         }
 
                         Unlock(task.IdA);
@@ -157,11 +166,12 @@ public class GameLoopSystem
                 }
             }
         }
+        return validSwapPositions;
     }
 
-    private void ResolveMatches(ref GameState state)
+    private void ResolveMatches(ref GameState state, IEnumerable<Position>? foci = null)
     {
-        var allGroups = _matchFinder.FindMatchGroups(in state);
+        var allGroups = _matchFinder.FindMatchGroups(in state, foci);
         var validGroups = Pools.ObtainList<MatchGroup>();
         
         try

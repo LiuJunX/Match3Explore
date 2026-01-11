@@ -22,6 +22,12 @@ public struct GameState
     public long Score;
     public long MoveCount;
     public long NextTileId;
+
+    /// <summary>
+    /// The currently selected position for swapping.
+    /// Part of the Input State.
+    /// </summary>
+    public Position SelectedPosition;
     
     // We store the seed or state of RNG to ensure determinism if we implement a custom PRNG struct.
     // For simplicity now, we'll keep the reference to IRandom, but in a pure ECS/DOTS, 
@@ -37,6 +43,7 @@ public struct GameState
         Score = 0;
         MoveCount = 0;
         NextTileId = 1;
+        SelectedPosition = Position.Invalid;
         Random = random;
     }
 
@@ -46,6 +53,7 @@ public struct GameState
         clone.Score = Score;
         clone.MoveCount = MoveCount;
         clone.NextTileId = NextTileId;
+        clone.SelectedPosition = SelectedPosition;
         Array.Copy(Grid, clone.Grid, Grid.Length);
         // Note: IRandom is shared reference here. 
         // For true MCTS/branching, we would need a cloneable/struct RNG.

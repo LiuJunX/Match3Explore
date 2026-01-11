@@ -36,7 +36,7 @@ public sealed class Match3Engine
     private readonly IMatchFinder _matchFinder;
 
     public GameState State => _state;
-    public Position SelectedPosition => _interactionSystem.SelectedPosition;
+    public Position SelectedPosition => _state.SelectedPosition;
     public string StatusMessage => _interactionSystem.StatusMessage;
     public bool IsIdle => _animationSystem.IsVisuallyStable && !_gameLoopSystem.HasActiveTasks;
 
@@ -87,7 +87,7 @@ public sealed class Match3Engine
     {
         bool isInteractive = _animationSystem.IsVisuallyStable && !_gameLoopSystem.HasActiveTasks;
         
-        if (_interactionSystem.TryHandleTap(in _state, p, isInteractive, out var move))
+        if (_interactionSystem.TryHandleTap(ref _state, p, isInteractive, out var move))
         {
             if (move.HasValue)
             {
@@ -100,7 +100,7 @@ public sealed class Match3Engine
     {
         bool isInteractive = _animationSystem.IsVisuallyStable && !_gameLoopSystem.HasActiveTasks;
 
-        if (_interactionSystem.TryHandleSwipe(in _state, from, direction, isInteractive, out var move))
+        if (_interactionSystem.TryHandleSwipe(ref _state, from, direction, isInteractive, out var move))
         {
             if (move.HasValue)
             {
@@ -222,17 +222,9 @@ public sealed class Match3Engine
         // 2. Swap in state
         SwapTiles(ref _state, a, b);
         
-        // 3. Check match
-        var matchesA = _matchFinder.FindMatchGroups(in _state, a);
-        var matchesB = _matchFinder.FindMatchGroups(in _state, b);
-        bool hasMatch = matchesA.Count > 0 || matchesB.Count > 0;
+        // 3. Check match (Optimized)
+        bool hasMatch = _matchFinder.HasMatchAt(in _state, a) || _matchFinder.HasMatchAt(in _state, b);
         
-        // Release pools (MatchFinder uses pools internally and releases them, but returns a list we should release if obtained from pool)
-        // Check ClassicMatchFinder implementation: it returns "groups" which is Pools.ObtainList<MatchGroup>().
-        // So we MUST release them.
-        Match3.Core.Systems.Matching.ClassicMatchFinder.ReleaseGroups(matchesA);
-        Match3.Core.Systems.Matching.ClassicMatchFinder.ReleaseGroups(matchesB);
-
         // 4. Swap back
         SwapTiles(ref _state, a, b);
         

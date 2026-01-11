@@ -170,7 +170,7 @@ public class Match3Environment : IGameEnvironment<GameState, Move>
         bool firstIteration = true;
         while (true)
         {
-            var groups = _matchFinder.FindMatchGroups(in state, firstIteration ? to : null);
+            var groups = _matchFinder.FindMatchGroups(in state, firstIteration ? new[] { to } : null);
             
             if (groups.Count == 0) break;
 

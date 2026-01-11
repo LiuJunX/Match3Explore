@@ -30,7 +30,50 @@ public class ClassicMatchFinder : IMatchFinder
         return has;
     }
 
-    public List<MatchGroup> FindMatchGroups(in GameState state, Position? focus = null)
+    public bool HasMatchAt(in GameState state, Position p)
+    {
+        var type = state.GetType(p.X, p.Y);
+        if (type == TileType.None || type == TileType.Rainbow || type == TileType.Bomb) return false;
+
+        int w = state.Width;
+        int h = state.Height;
+        int x = p.X;
+        int y = p.Y;
+
+        // Check horizontal
+        int hCount = 1;
+        // Look left
+        for (int i = x - 1; i >= 0; i--)
+        {
+            if (state.GetType(i, y) == type) hCount++;
+            else break;
+        }
+        // Look right
+        for (int i = x + 1; i < w; i++)
+        {
+            if (state.GetType(i, y) == type) hCount++;
+            else break;
+        }
+        if (hCount >= 3) return true;
+
+        // Check vertical
+        int vCount = 1;
+        // Look up
+        for (int i = y - 1; i >= 0; i--)
+        {
+            if (state.GetType(x, i) == type) vCount++;
+            else break;
+        }
+        // Look down
+        for (int i = y + 1; i < h; i++)
+        {
+            if (state.GetType(x, i) == type) vCount++;
+            else break;
+        }
+        return vCount >= 3;
+    }
+
+    public List<MatchGroup> FindMatchGroups(in GameState state, IEnumerable<Position>? foci = null)
     {
         var groups = Pools.ObtainList<MatchGroup>();
         var visited = Pools.ObtainHashSet<Position>();
@@ -53,7 +96,7 @@ public class ClassicMatchFinder : IMatchFinder
                     var component = GetConnectedComponent(in state, p, type);
                     try
                     {
-                        var validMatch = AnalyzeMatch(component, focus);
+                        var validMatch = AnalyzeMatch(component, foci);
                         
                         if (validMatch != null)
                         {
@@ -121,7 +164,7 @@ public class ClassicMatchFinder : IMatchFinder
         }
     }
 
-    private MatchGroup? AnalyzeMatch(HashSet<Position> component, Position? focus)
+    private MatchGroup? AnalyzeMatch(HashSet<Position> component, IEnumerable<Position>? foci)
     {
         var positions = Pools.ObtainList<Position>();
         foreach(var p in component) positions.Add(p);
@@ -136,10 +179,19 @@ public class ClassicMatchFinder : IMatchFinder
             
             group.SpawnBombType = DetermineBombType(component, positions);
             
-            if (focus.HasValue && component.Contains(focus.Value))
-                group.BombOrigin = focus.Value;
-            else
-                group.BombOrigin = positions[component.Count / 2];
+            group.BombOrigin = positions[component.Count / 2];
+
+            if (foci != null)
+            {
+                foreach (var f in foci)
+                {
+                    if (component.Contains(f))
+                    {
+                        group.BombOrigin = f;
+                        break;
+                    }
+                }
+            }
 
             return group;
         }

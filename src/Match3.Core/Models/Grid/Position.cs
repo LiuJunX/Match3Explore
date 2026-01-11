@@ -5,7 +5,7 @@ namespace Match3.Core.Models.Grid;
 /// <summary>
 /// Represents a 2D coordinate on the game board.
 /// </summary>
-public readonly struct Position
+public readonly struct Position : IEquatable<Position>
 {
     /// <summary>
     /// Gets the X coordinate (column index).
@@ -32,9 +32,14 @@ public readonly struct Position
 
     public bool IsValid => X >= 0 && Y >= 0;
 
+    public bool Equals(Position other)
+    {
+        return X == other.X && Y == other.Y;
+    }
+
     public override bool Equals(object? obj)
     {
-        return obj is Position other && X == other.X && Y == other.Y;
+        return obj is Position other && Equals(other);
     }
 
     public override int GetHashCode()
