@@ -116,12 +116,12 @@ public class StandardMatchProcessor : IMatchProcessor
                 }
                 return list;
             }
-            case BombType.Square3x3:
+            case BombType.Square5x5:
             {
                 var list = Pools.ObtainList<Position>();
-                for (int dy = -1; dy <= 1; dy++)
+                for (int dy = -2; dy <= 2; dy++)
                 {
-                    for (int dx = -1; dx <= 1; dx++)
+                    for (int dx = -2; dx <= 2; dx++)
                     {
                         int nx = cx + dx;
                         int ny = cy + dy;

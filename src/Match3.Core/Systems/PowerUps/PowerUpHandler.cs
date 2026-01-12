@@ -199,8 +199,8 @@ public class PowerUpHandler : IPowerUpHandler
                     }
                 }
                 break;
-            case BombType.Square3x3:
-                ExplodeArea(ref state, cx, cy, 1); // 3x3
+            case BombType.Square5x5:
+                ExplodeArea(ref state, cx, cy, 2); // 5x5
                 break;
             case BombType.Color:
                 ClearAll(ref state);

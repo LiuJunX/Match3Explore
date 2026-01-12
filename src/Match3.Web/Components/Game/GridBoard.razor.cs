@@ -102,7 +102,7 @@ public partial class GridBoard : IDisposable
                 BombType.Horizontal => "↔️",
                 BombType.Vertical => "↕️",
                 BombType.Ufo => "🛸",
-                BombType.Square3x3 => "💣",
+                BombType.Square5x5 => "💣",
                 BombType.Color => "🌈",
                 _ => ""
             };

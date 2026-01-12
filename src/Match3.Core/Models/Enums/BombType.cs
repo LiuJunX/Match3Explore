@@ -30,9 +30,9 @@ namespace Match3.Core.Models.Enums
         Ufo = 5,
 
         /// <summary>
-        /// Legacy: Explodes a 3x3 square area. Same as Area.
+        /// Explodes a 5x5 square area (Radius 2).
         /// </summary>
-        Square3x3 = 6
+        Square5x5 = 6
     }
 
     public static class BombTypeExtensions
@@ -44,7 +44,7 @@ namespace Match3.Core.Models.Enums
 
         public static bool IsAreaBomb(this BombType type)
         {
-            return type == BombType.Area || type == BombType.Square3x3;
+            return type == BombType.Area || type == BombType.Square5x5;
         }
 
         public static bool IsUfo(this BombType type)

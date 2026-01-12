@@ -60,7 +60,7 @@ namespace Match3.Core.Tests.Systems.Matching
             );
             var results = _generator.Generate(component);
             Assert.Single(results);
-            // TNT can be Area or Square3x3 depending on detection logic
+            // TNT can be Area or Square5x5 depending on detection logic
             Assert.True(results[0].SpawnBombType.IsAreaBomb());
         }
 
@@ -108,7 +108,7 @@ namespace Match3.Core.Tests.Systems.Matching
                 "A A A"
             );
             var results = _generator.Generate(component);
-            // Should contain at least one high tier bomb (Area/Square3x3 or Color)
+            // Should contain at least one high tier bomb (Area/Square5x5 or Color)
             Assert.Contains(results, g => g.SpawnBombType.IsAreaBomb() || g.SpawnBombType == BombType.Color);
         }
 

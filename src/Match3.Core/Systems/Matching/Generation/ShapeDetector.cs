@@ -168,7 +168,7 @@ public class ShapeDetector
                     if (unionCount >= BombDefinitions.TNT.MinLength)
                     {
                         var shape = Pools.Obtain<DetectedShape>();
-                        shape.Type = BombType.Square3x3; // TNT
+                        shape.Type = BombType.Square5x5; // TNT
                         shape.Weight = BombDefinitions.TNT.Weight;
                         shape.Shape = MatchShape.Cross;
                         shape.Cells = Pools.ObtainHashSet<Position>();
