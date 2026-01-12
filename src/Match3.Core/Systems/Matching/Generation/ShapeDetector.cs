@@ -68,15 +68,15 @@ public class ShapeDetector
                     lines3.Add(lineCells);
 
                     // Rocket (4)
-                    if (len >= 4)
+                    if (len >= BombDefinitions.Rocket.MinLength)
                     {
-                        CreateShape(candidates, BombType.Vertical, BombWeights.Rocket, MatchShape.Line4Horizontal, x, y, 4, true);
+                        CreateShape(candidates, BombType.Vertical, BombDefinitions.Rocket.Weight, MatchShape.Line4Horizontal, x, y, len >= 5 ? 5 : 4, true);
                     }
 
                     // Rainbow (5)
-                    if (len >= 5)
+                    if (len >= BombDefinitions.Rainbow.MinLength)
                     {
-                        CreateShape(candidates, BombType.Color, BombWeights.Rainbow, MatchShape.Line5, x, y, 5, true);
+                        CreateShape(candidates, BombType.Color, BombDefinitions.Rainbow.Weight, MatchShape.Line5, x, y, 5, true);
                     }
                 }
             }
@@ -102,15 +102,15 @@ public class ShapeDetector
                     lines3.Add(lineCells);
 
                     // Rocket (4) - Vertical match clears Horizontal row
-                    if (len >= 4)
+                    if (len >= BombDefinitions.Rocket.MinLength)
                     {
-                        CreateShape(candidates, BombType.Horizontal, BombWeights.Rocket, MatchShape.Line4Vertical, x, y, 4, false);
+                        CreateShape(candidates, BombType.Horizontal, BombDefinitions.Rocket.Weight, MatchShape.Line4Vertical, x, y, BombDefinitions.Rocket.MinLength, false);
                     }
 
                     // Rainbow (5)
-                    if (len >= 5)
+                    if (len >= BombDefinitions.Rainbow.MinLength)
                     {
-                        CreateShape(candidates, BombType.Color, BombWeights.Rainbow, MatchShape.Line5, x, y, 5, false);
+                        CreateShape(candidates, BombType.Color, BombDefinitions.Rainbow.Weight, MatchShape.Line5, x, y, BombDefinitions.Rainbow.MinLength, false);
                     }
                 }
             }
@@ -133,7 +133,7 @@ public class ShapeDetector
                 {
                     var shape = Pools.Obtain<DetectedShape>();
                     shape.Type = BombType.Ufo;
-                    shape.Weight = BombWeights.UFO;
+                    shape.Weight = BombDefinitions.UFO.Weight;
                     shape.Shape = MatchShape.Square;
                     shape.Cells = Pools.ObtainHashSet<Position>();
                     shape.Cells.Add(p00); shape.Cells.Add(p10);
@@ -165,11 +165,11 @@ public class ShapeDetector
                 {
                     // L/T shape requires total count >= 5
                     var unionCount = hLine.Count + vLine.Count - 1;
-                    if (unionCount >= 5)
+                    if (unionCount >= BombDefinitions.TNT.MinLength)
                     {
                         var shape = Pools.Obtain<DetectedShape>();
                         shape.Type = BombType.Square3x3; // TNT
-                        shape.Weight = BombWeights.TNT;
+                        shape.Weight = BombDefinitions.TNT.Weight;
                         shape.Shape = MatchShape.Cross;
                         shape.Cells = Pools.ObtainHashSet<Position>();
                         

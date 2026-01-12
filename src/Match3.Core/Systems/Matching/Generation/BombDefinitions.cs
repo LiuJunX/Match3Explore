@@ -1,34 +1,28 @@
-using System.Collections.Generic;
 using Match3.Core.Models.Enums;
-using Match3.Core.Models.Grid;
-using Match3.Core.Models.Gameplay;
 
-namespace Match3.Core.Systems.Matching.Generation;
-
-public static class BombWeights
+namespace Match3.Core.Systems.Matching.Generation
 {
-    public const int Rainbow = 130; // Updated from 100/150 to 130
-    public const int TNT = 60;
-    public const int Rocket = 40;
-    public const int UFO = 20;
-}
-
-public class DetectedShape
-{
-    public BombType Type { get; set; }
-    public HashSet<Position>? Cells { get; set; } // Managed by Pool
-    public int Weight { get; set; }
-    public MatchShape Shape { get; set; } 
-    
-    // For debugging/logging
-    public string DebugName => $"{Type} ({Cells?.Count ?? 0})";
-
-    public void Clear()
+    /// <summary>
+    /// Defines configuration and weights for bomb generation.
+    /// </summary>
+    public static class BombDefinitions
     {
-        // Cells are released externally
-        Cells = null;
-        Type = BombType.None;
-        Weight = 0;
-        Shape = MatchShape.Simple3;
+        public struct BombConfig
+        {
+            public int Weight;
+            public int MinLength; // Minimum length/count to trigger
+        }
+
+        // Color Bomb (Rainbow) - 5 in a row
+        public static readonly BombConfig Rainbow = new() { Weight = 130, MinLength = 5 };
+
+        // TNT (Area/Square3x3) - L/T Shape (Intersection >= 5 tiles)
+        public static readonly BombConfig TNT = new() { Weight = 60, MinLength = 5 };
+
+        // Rocket (Line) - 4 in a row
+        public static readonly BombConfig Rocket = new() { Weight = 40, MinLength = 4 };
+
+        // UFO (Square) - 2x2 Square
+        public static readonly BombConfig UFO = new() { Weight = 20, MinLength = 4 }; // 4 tiles total
     }
 }
