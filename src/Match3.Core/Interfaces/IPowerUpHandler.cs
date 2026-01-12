@@ -6,4 +6,5 @@ namespace Match3.Core.Interfaces;
 public interface IPowerUpHandler
 {
     void ProcessSpecialMove(ref GameState state, Position p1, Position p2, out int points);
+    void ActivateBomb(ref GameState state, Position p);
 }

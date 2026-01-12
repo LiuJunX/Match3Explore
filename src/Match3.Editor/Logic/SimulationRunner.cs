@@ -9,7 +9,6 @@ using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
 using Match3.Core.Scenarios;
 using Match3.Core.Systems.Generation;
-using Match3.Core.Systems.Gravity;
 using Match3.Core.Systems.Input;
 using Match3.Core.Systems.Matching;
 using Match3.Core.Systems.Matching.Generation;
@@ -54,6 +53,7 @@ namespace Match3.Editor.Logic
             var scoreSystem = new StandardScoreSystem();
             var inputSystem = new StandardInputSystem();
             var tileGen = new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill));
+            var bombRegistry = BombEffectRegistry.CreateDefault();
 
             _engine = new Match3Engine(
                 engineConfig,
@@ -62,8 +62,7 @@ namespace Match3.Editor.Logic
                 _logger,
                 inputSystem,
                 new ClassicMatchFinder(new BombGenerator()),
-                new StandardMatchProcessor(scoreSystem),
-                new StandardGravitySystem(tileGen, engineConfig),
+                new StandardMatchProcessor(scoreSystem, bombRegistry),
                 new PowerUpHandler(scoreSystem),
                 scoreSystem,
                 tileGen,

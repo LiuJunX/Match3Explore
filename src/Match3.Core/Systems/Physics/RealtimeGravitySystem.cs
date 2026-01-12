@@ -1,0 +1,136 @@
+using System;
+using System.Numerics;
+using Match3.Core.Interfaces;
+using Match3.Core.Models.Enums;
+using Match3.Core.Models.Gameplay;
+using Match3.Core.Models.Grid;
+
+namespace Match3.Core.Systems.Physics;
+
+public class RealtimeGravitySystem : IPhysicsSimulation
+{
+    private const float Gravity = 35.0f; // Accelerated gravity for snappy feel
+    private const float MaxVelocity = 20.0f;
+    private const float FloorThreshold = 0.05f; // Snap distance
+
+    public void Update(ref GameState state, float deltaTime)
+    {
+        for (int x = 0; x < state.Width; x++)
+        {
+            ProcessColumn(ref state, x, deltaTime);
+        }
+    }
+
+    public bool IsStable(in GameState state)
+    {
+        for (int x = 0; x < state.Width; x++)
+        {
+            for (int y = 0; y < state.Height; y++)
+            {
+                var tile = state.GetTile(x, y);
+                if (tile.Type != TileType.None)
+                {
+                    // Check if moving significantly or not aligned
+                    if (Math.Abs(tile.Velocity.Y) > 0.01f || Math.Abs(tile.Position.Y - y) > 0.01f)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    private void ProcessColumn(ref GameState state, int x, float dt)
+    {
+        // Iterate from bottom to top so we can move tiles down into empty slots
+        for (int y = state.Height - 1; y >= 0; y--)
+        {
+            var tile = state.GetTile(x, y);
+            if (tile.Type == TileType.None || tile.IsSuspended) continue;
+
+            // 1. Calculate the floor (stop target)
+            // The floor is the Y index of the first non-empty tile below, OR the bottom (Height-1)
+            int floorY = y;
+            for (int checkY = y + 1; checkY < state.Height; checkY++)
+            {
+                var below = state.GetTile(x, checkY);
+                if (below.Type == TileType.None && !below.IsSuspended)
+                {
+                    floorY = checkY;
+                }
+                else
+                {
+                    // Hit an obstacle
+                    break;
+                }
+            }
+
+            // 2. Physics Update
+            // Target Y is simply floorY (integer).
+            // But wait, if the tile below is ALSO falling, we should be able to follow it?
+            // With this logic (finding floor based on current grid), if the tile below is falling, 
+            // it might still be logically at 'y+1', so floorY will be 'y'. 
+            // So we won't move until the tile below moves to 'y+2'.
+            // This creates a "step-by-step" following, which is safe.
+            
+            float targetY = (float)floorY;
+
+            if (tile.Position.Y < targetY - FloorThreshold)
+            {
+                // Falling
+                tile.IsFalling = true;
+                tile.Velocity.Y += Gravity * dt;
+                if (tile.Velocity.Y > MaxVelocity) tile.Velocity.Y = MaxVelocity;
+                
+                tile.Position.Y += tile.Velocity.Y * dt;
+
+                // Collision / Floor Check
+                if (tile.Position.Y >= targetY)
+                {
+                    tile.Position.Y = targetY;
+                    tile.Velocity.Y = 0;
+                    tile.IsFalling = false;
+                }
+            }
+            else
+            {
+                // Stable or near floor
+                if (tile.IsFalling || Math.Abs(tile.Position.Y - y) > float.Epsilon)
+                {
+                    // Snap to integer position
+                    tile.Position.Y = y; 
+                    tile.Velocity.Y = 0;
+                    tile.IsFalling = false;
+                }
+            }
+
+            // 3. Grid Logic Update (Spatial Partitioning)
+            // If the tile has visually moved past the midpoint of the current cell,
+            // move it logically to the next cell.
+            // Current logical row is 'y'.
+            // If Position.Y > y + 1 (meaning it fully entered the next cell? No, usually > y + 0.5)
+            // Let's be conservative: Only swap if target is truly empty.
+            
+            int visualRow = (int)Math.Floor(tile.Position.Y + 0.5f); // Round to nearest
+            
+            if (visualRow > y && visualRow < state.Height)
+            {
+                // Check if we can move ownership
+                var targetSlot = state.GetTile(x, visualRow);
+                if (targetSlot.Type == TileType.None)
+                {
+                    // Move Tile Logic
+                    state.SetTile(x, visualRow, tile);
+                    state.SetTile(x, y, new Tile(0, TileType.None, x, y));
+                    // Note: We don't need to update 'tile' variable because we won't use it again in this loop
+                    // (we are iterating backwards).
+                    continue; // Done with this tile
+                }
+            }
+
+            // Save state back if we didn't move logical slots
+            state.SetTile(x, y, tile);
+        }
+    }
+}

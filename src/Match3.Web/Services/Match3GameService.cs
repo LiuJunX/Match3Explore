@@ -9,7 +9,6 @@ using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
 using Match3.Core.Systems.Generation;
-using Match3.Core.Systems.Gravity;
 using Match3.Core.Systems.Input;
 using Match3.Core.Systems.Matching;
 using Match3.Core.Systems.Matching.Generation;
@@ -25,6 +24,7 @@ public class Match3GameService : IDisposable
 {
     private readonly ILogger<Match3GameService> _appLogger;
     private Match3Engine? _engine;
+    private StandardInputSystem? _inputSystem;
     private bool _isAutoPlaying;
     private float _gameSpeed = 1.0f;
     private bool _disposed;
@@ -69,23 +69,23 @@ public class Match3GameService : IDisposable
         var config = new Match3Config(Width, Height, 6);
 
         var tileGenerator = new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill));
-        var gravitySystem = new StandardGravitySystem(tileGenerator, config);
         var bombGenerator = new Match3.Core.Systems.Matching.Generation.BombGenerator();
         var matchFinder = new ClassicMatchFinder(bombGenerator);
         var scoreSystem = new StandardScoreSystem();
-        var matchProcessor = new StandardMatchProcessor(scoreSystem);
+        var bombRegistry = BombEffectRegistry.CreateDefault();
+        var matchProcessor = new StandardMatchProcessor(scoreSystem, bombRegistry);
         var powerUpHandler = new PowerUpHandler(scoreSystem);
-        var inputSystem = new StandardInputSystem();
+        _inputSystem = new StandardInputSystem();
+        _inputSystem.Configure(CellSize);
 
         _engine = new Match3Engine(
             config,
             rng, 
             view,
             gameLogger,
-            inputSystem,
+            _inputSystem,
             matchFinder,
             matchProcessor,
-            gravitySystem,
             powerUpHandler,
             scoreSystem,
             tileGenerator,
@@ -147,9 +147,19 @@ public class Match3GameService : IDisposable
     {
         _isAutoPlaying = !_isAutoPlaying;
     }
+
+    public void HandlePointerDown(int gx, int gy, double sx, double sy)
+    {
+        _inputSystem?.OnPointerDown(gx, gy, sx, sy);
+    }
     
-    public void OnTap(int x, int y) => _engine?.OnTap(new Position(x, y));
-    public void OnSwipe(Position from, Direction dir) => _engine?.OnSwipe(from, dir);
+    public void HandlePointerUp(double sx, double sy)
+    {
+        _inputSystem?.OnPointerUp(sx, sy);
+    }
+
+    // public void OnTap(int x, int y) => _engine?.OnTap(new Position(x, y));
+    // public void OnSwipe(Position from, Direction dir) => _engine?.OnSwipe(from, dir);
 
     public void SetLastMatches(int count)
     {

@@ -3,6 +3,7 @@ using Match3.Core.Interfaces;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
+using Match3.Core.Systems.PowerUps;
 using Match3.Core.Utility.Pools;
 
 namespace Match3.Core.Systems.Matching;
@@ -10,10 +11,12 @@ namespace Match3.Core.Systems.Matching;
 public class StandardMatchProcessor : IMatchProcessor
 {
     private readonly IScoreSystem _scoreSystem;
+    private readonly BombEffectRegistry _bombRegistry;
 
-    public StandardMatchProcessor(IScoreSystem scoreSystem)
+    public StandardMatchProcessor(IScoreSystem scoreSystem, BombEffectRegistry bombRegistry)
     {
         _scoreSystem = scoreSystem;
+        _bombRegistry = bombRegistry;
     }
 
     public int ProcessMatches(ref GameState state, List<MatchGroup> groups)
@@ -24,6 +27,7 @@ public class StandardMatchProcessor : IMatchProcessor
         var protectedTiles = Pools.ObtainHashSet<Position>();
         var queue = Pools.ObtainQueue<Position>();
         var cleared = Pools.ObtainHashSet<Position>();
+        var explosionRange = Pools.ObtainHashSet<Position>();
 
         try
         {
@@ -65,18 +69,16 @@ public class StandardMatchProcessor : IMatchProcessor
 
                 if (t.Bomb != BombType.None)
                 {
-                    var explosionRange = GetExplosionRange(in state, p.X, p.Y, t.Bomb);
-                    try
+                    if (_bombRegistry.TryGetEffect(t.Bomb, out var effect))
                     {
+                        explosionRange.Clear();
+                        effect!.Apply(in state, p, explosionRange);
+                        
                         foreach (var exP in explosionRange)
                         {
                             if (!cleared.Contains(exP))
                                 queue.Enqueue(exP);
                         }
-                    }
-                    finally
-                    {
-                        Pools.Release(explosionRange);
                     }
                 }
                 
@@ -89,91 +91,10 @@ public class StandardMatchProcessor : IMatchProcessor
             Pools.Release(protectedTiles);
             Pools.Release(queue);
             Pools.Release(cleared);
+            Pools.Release(explosionRange);
         }
         
         return points;
     }
-    
-    private List<Position> GetExplosionRange(in GameState state, int cx, int cy, BombType type)
-    {
-        switch (type)
-        {
-            case BombType.Horizontal:
-            {
-                var list = Pools.ObtainList<Position>();
-                for (int x = 0; x < state.Width; x++)
-                {
-                    list.Add(new Position(x, cy));
-                }
-                return list;
-            }
-            case BombType.Vertical:
-            {
-                var list = Pools.ObtainList<Position>();
-                for (int y = 0; y < state.Height; y++)
-                {
-                    list.Add(new Position(cx, y));
-                }
-                return list;
-            }
-            case BombType.Square5x5:
-            {
-                var list = Pools.ObtainList<Position>();
-                for (int dy = -2; dy <= 2; dy++)
-                {
-                    for (int dx = -2; dx <= 2; dx++)
-                    {
-                        int nx = cx + dx;
-                        int ny = cy + dy;
-                        if (nx >= 0 && nx < state.Width && ny >= 0 && ny < state.Height)
-                        {
-                            list.Add(new Position(nx, ny));
-                        }
-                    }
-                }
-                return list;
-            }
-            case BombType.Color:
-            {
-                var list = Pools.ObtainList<Position>();
-                list.Add(new Position(cx, cy));
-                return list;
-            }
-            case BombType.Ufo:
-            {
-                var candidates = Pools.ObtainList<Position>();
-                try
-                {
-                    for (int y = 0; y < state.Height; y++)
-                    {
-                        for (int x = 0; x < state.Width; x++)
-                        {
-                            if (x == cx && y == cy) continue;
-                            var t = state.GetTile(x, y);
-                            if (t.Type != TileType.None)
-                            {
-                                candidates.Add(new Position(x, y));
-                            }
-                        }
-                    }
-
-                    if (candidates.Count == 0)
-                    {
-                        return Pools.ObtainList<Position>();
-                    }
-
-                    int idx = state.Random.Next(0, candidates.Count);
-                    var result = Pools.ObtainList<Position>();
-                    result.Add(candidates[idx]);
-                    return result;
-                }
-                finally
-                {
-                    Pools.Release(candidates);
-                }
-            }
-            default:
-                return Pools.ObtainList<Position>();
-        }
-    }
 }
+

@@ -13,12 +13,7 @@ public partial class GridBoard : IDisposable
     [Inject]
     public Match3GameService GameService { get; set; } = default!;
 
-    // Drag & Drop State
-    private double? _dragStartX;
-    private double? _dragStartY;
-    private int _dragSourceX = -1;
-    private int _dragSourceY = -1;
-    private const double DragThreshold = 20.0; // pixels
+    // Drag & Drop State is now managed by Match3.Core.InputSystem
 
     protected override void OnInitialized()
     {
@@ -37,59 +32,26 @@ public partial class GridBoard : IDisposable
 
     private void HandlePointerDown(PointerEventArgs e, int x, int y)
     {
-        if (GameService.Engine == null) return;
+        // Engine does not expose HandlePointerDown directly anymore.
+        // It's handled internally via IInputSystem events, BUT standard input system is NOT directly accessible here easily 
+        // unless we expose it or use a different pattern.
+        // Wait, Match3Engine has IInputSystem dependency.
+        // If we want to feed raw input, we need access to that InputSystem.
+        // Or we expose a helper on Engine.
         
-        _dragStartX = e.ClientX;
-        _dragStartY = e.ClientY;
-        _dragSourceX = x;
-        _dragSourceY = y;
+        // However, looking at Match3Engine, it has OnTap and OnSwipe but no direct pointer handling exposed.
+        // But StandardInputSystem implements IInputSystem.
+        
+        // Solution:
+        // We should expose the InputSystem via Match3GameService so we can feed it events.
+        // Or, better, Match3GameService should expose methods to feed input.
+        
+        GameService.HandlePointerDown(x, y, e.ClientX, e.ClientY);
     }
 
     private void HandlePointerUp(PointerEventArgs e)
     {
-        if (_dragStartX == null || _dragStartY == null || _dragSourceX == -1) return;
-
-        var deltaX = e.ClientX - _dragStartX.Value;
-        var deltaY = e.ClientY - _dragStartY.Value;
-        var distance = Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
-
-        if (distance < DragThreshold)
-        {
-            OnTileClick(_dragSourceX, _dragSourceY);
-        }
-        else
-        {
-            HandleSwipe(deltaX, deltaY);
-        }
-
-        // Reset
-        _dragStartX = null;
-        _dragStartY = null;
-        _dragSourceX = -1;
-        _dragSourceY = -1;
-    }
-
-    private void HandleSwipe(double dx, double dy)
-    {
-        if (GameService.Engine == null) return;
-
-        Direction direction;
-        if (Math.Abs(dx) > Math.Abs(dy))
-        {
-            direction = dx > 0 ? Direction.Right : Direction.Left;
-        }
-        else
-        {
-            direction = dy > 0 ? Direction.Down : Direction.Up;
-        }
-
-        var p1 = new Position(_dragSourceX, _dragSourceY);
-        GameService.OnSwipe(p1, direction);
-    }
-
-    private void OnTileClick(int x, int y)
-    {
-        GameService.OnTap(x, y);
+        GameService.HandlePointerUp(e.ClientX, e.ClientY);
     }
 // 获取基础图块图标 (当前使用 Emoji)
     private string GetTileBaseIcon(Tile t) 

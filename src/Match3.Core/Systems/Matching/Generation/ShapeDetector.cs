@@ -1,37 +1,56 @@
 using System.Collections.Generic;
+using Match3.Core.Interfaces;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
+using Match3.Core.Systems.Matching.Generation.Rules;
 using Match3.Core.Utility.Pools;
 
 namespace Match3.Core.Systems.Matching.Generation;
 
 public class ShapeDetector
 {
+    private readonly List<IShapeRule> _rules = new();
+
+    public ShapeDetector()
+    {
+        // Register Default Rules
+        _rules.Add(new LineRule());
+        _rules.Add(new SquareRule());
+        _rules.Add(new IntersectionRule());
+    }
+
+    public void RegisterRule(IShapeRule rule)
+    {
+        _rules.Add(rule);
+    }
+
     public void DetectAll(HashSet<Position> component, List<DetectedShape> candidates)
     {
-        if (component == null || component.Count < 4) return;
+        if (component == null || component.Count < 3) return;
 
-        GetBounds(component, out int minX, out int maxX, out int minY, out int maxY);
+        var features = new ShapeFeature();
+        GetBounds(component, out features.MinX, out features.MaxX, out features.MinY, out features.MaxY);
 
-        // Pools for intermediate line storage (used for TNT detection)
-        var hLines3 = Pools.ObtainList<HashSet<Position>>();
-        var vLines3 = Pools.ObtainList<HashSet<Position>>();
+        features.HLines = Pools.ObtainList<HashSet<Position>>();
+        features.VLines = Pools.ObtainList<HashSet<Position>>();
 
         try 
         {
-            DetectHorizontalLines(component, candidates, minX, maxX, minY, maxY, hLines3);
-            DetectVerticalLines(component, candidates, minX, maxX, minY, maxY, vLines3);
-            DetectSquares(component, candidates, minX, maxX, minY, maxY);
-            DetectIntersections(hLines3, vLines3, candidates);
+            ExtractLines(component, features);
+
+            foreach (var rule in _rules)
+            {
+                rule.Detect(component, features, candidates);
+            }
         }
         finally
         {
             // Release pooled sets
-            foreach(var s in hLines3) Pools.Release(s);
-            foreach(var s in vLines3) Pools.Release(s);
-            Pools.Release(hLines3);
-            Pools.Release(vLines3);
+            foreach(var s in features.HLines) Pools.Release(s);
+            foreach(var s in features.VLines) Pools.Release(s);
+            Pools.Release(features.HLines);
+            Pools.Release(features.VLines);
         }
     }
 
@@ -49,11 +68,12 @@ public class ShapeDetector
         }
     }
 
-    private void DetectHorizontalLines(HashSet<Position> component, List<DetectedShape> candidates, int minX, int maxX, int minY, int maxY, List<HashSet<Position>> lines3)
+    private void ExtractLines(HashSet<Position> component, ShapeFeature features)
     {
-        for (int y = minY; y <= maxY; y++)
+        // Horizontal
+        for (int y = features.MinY; y <= features.MaxY; y++)
         {
-            for (int x = minX; x <= maxX; x++)
+            for (int x = features.MinX; x <= features.MaxX; x++)
             {
                 if (!component.Contains(new Position(x, y))) continue;
 
@@ -62,32 +82,25 @@ public class ShapeDetector
 
                 if (len >= 3)
                 {
-                    // Store for TNT
                     var lineCells = Pools.ObtainHashSet<Position>();
                     for (int k = 0; k < len; k++) lineCells.Add(new Position(x + k, y));
-                    lines3.Add(lineCells);
-
-                    // Rocket (4)
-                    if (len >= BombDefinitions.Rocket.MinLength)
-                    {
-                        CreateShape(candidates, BombType.Vertical, BombDefinitions.Rocket.Weight, MatchShape.Line4Horizontal, x, y, len >= 5 ? 5 : 4, true);
-                    }
-
-                    // Rainbow (5)
-                    if (len >= BombDefinitions.Rainbow.MinLength)
-                    {
-                        CreateShape(candidates, BombType.Color, BombDefinitions.Rainbow.Weight, MatchShape.Line5, x, y, 5, true);
-                    }
+                    features.HLines.Add(lineCells);
+                    
+                    // Skip processed cells to avoid duplicate lines (though loop increments by 1)
+                    // The loop continues x++, so next iteration x+1 will be found.
+                    // Wait, if I have O-O-O-O at x=0.
+                    // Loop x=0: len=4. Add line 0,1,2,3.
+                    // Loop x=1: len=3. Add line 1,2,3. -> This is redundant!
+                    // I must skip x by len.
+                    x += len - 1; 
                 }
             }
         }
-    }
 
-    private void DetectVerticalLines(HashSet<Position> component, List<DetectedShape> candidates, int minX, int maxX, int minY, int maxY, List<HashSet<Position>> lines3)
-    {
-        for (int x = minX; x <= maxX; x++)
+        // Vertical
+        for (int x = features.MinX; x <= features.MaxX; x++)
         {
-            for (int y = minY; y <= maxY; y++)
+            for (int y = features.MinY; y <= features.MaxY; y++)
             {
                 if (!component.Contains(new Position(x, y))) continue;
 
@@ -96,107 +109,13 @@ public class ShapeDetector
 
                 if (len >= 3)
                 {
-                    // Store for TNT
                     var lineCells = Pools.ObtainHashSet<Position>();
                     for (int k = 0; k < len; k++) lineCells.Add(new Position(x, y + k));
-                    lines3.Add(lineCells);
-
-                    // Rocket (4) - Vertical match clears Horizontal row
-                    if (len >= BombDefinitions.Rocket.MinLength)
-                    {
-                        CreateShape(candidates, BombType.Horizontal, BombDefinitions.Rocket.Weight, MatchShape.Line4Vertical, x, y, BombDefinitions.Rocket.MinLength, false);
-                    }
-
-                    // Rainbow (5)
-                    if (len >= BombDefinitions.Rainbow.MinLength)
-                    {
-                        CreateShape(candidates, BombType.Color, BombDefinitions.Rainbow.Weight, MatchShape.Line5, x, y, BombDefinitions.Rainbow.MinLength, false);
-                    }
+                    features.VLines.Add(lineCells);
+                    
+                    y += len - 1;
                 }
             }
         }
-    }
-
-    private void DetectSquares(HashSet<Position> component, List<DetectedShape> candidates, int minX, int maxX, int minY, int maxY)
-    {
-        for (int x = minX; x < maxX; x++)
-        {
-            for (int y = minY; y < maxY; y++)
-            {
-                var p00 = new Position(x, y);
-                var p10 = new Position(x + 1, y);
-                var p01 = new Position(x, y + 1);
-                var p11 = new Position(x + 1, y + 1);
-
-                if (component.Contains(p00) && component.Contains(p10) && 
-                    component.Contains(p01) && component.Contains(p11))
-                {
-                    var shape = Pools.Obtain<DetectedShape>();
-                    shape.Type = BombType.Ufo;
-                    shape.Weight = BombDefinitions.UFO.Weight;
-                    shape.Shape = MatchShape.Square;
-                    shape.Cells = Pools.ObtainHashSet<Position>();
-                    shape.Cells.Add(p00); shape.Cells.Add(p10);
-                    shape.Cells.Add(p01); shape.Cells.Add(p11);
-                    candidates.Add(shape);
-                }
-            }
-        }
-    }
-
-    private void DetectIntersections(List<HashSet<Position>> hLines, List<HashSet<Position>> vLines, List<DetectedShape> candidates)
-    {
-        foreach (var hLine in hLines)
-        {
-            foreach (var vLine in vLines)
-            {
-                // Check for intersection
-                bool intersects = false;
-                foreach (var p in hLine)
-                {
-                    if (vLine.Contains(p))
-                    {
-                        intersects = true;
-                        break;
-                    }
-                }
-
-                if (intersects)
-                {
-                    // L/T shape requires total count >= 5
-                    var unionCount = hLine.Count + vLine.Count - 1;
-                    if (unionCount >= BombDefinitions.TNT.MinLength)
-                    {
-                        var shape = Pools.Obtain<DetectedShape>();
-                        shape.Type = BombType.Square5x5; // TNT
-                        shape.Weight = BombDefinitions.TNT.Weight;
-                        shape.Shape = MatchShape.Cross;
-                        shape.Cells = Pools.ObtainHashSet<Position>();
-                        
-                        foreach(var p in hLine) shape.Cells.Add(p);
-                        foreach(var p in vLine) shape.Cells.Add(p);
-                        
-                        candidates.Add(shape);
-                    }
-                }
-            }
-        }
-    }
-
-    private void CreateShape(List<DetectedShape> candidates, BombType type, int weight, MatchShape matchShape, int startX, int startY, int length, bool isHorizontal)
-    {
-        var shape = Pools.Obtain<DetectedShape>();
-        shape.Type = type;
-        shape.Weight = weight;
-        shape.Shape = matchShape;
-        shape.Cells = Pools.ObtainHashSet<Position>();
-        
-        for (int k = 0; k < length; k++)
-        {
-            shape.Cells.Add(isHorizontal 
-                ? new Position(startX + k, startY) 
-                : new Position(startX, startY + k));
-        }
-        candidates.Add(shape);
     }
 }

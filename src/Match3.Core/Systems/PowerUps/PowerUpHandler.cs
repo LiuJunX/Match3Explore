@@ -38,6 +38,21 @@ public class PowerUpHandler : IPowerUpHandler
         points = 0;
     }
 
+    public void ActivateBomb(ref GameState state, Position p)
+    {
+        var t = state.GetTile(p.X, p.Y);
+        if (t.Bomb == BombType.None) return;
+
+        ExplodeBomb(ref state, p.X, p.Y, t.Bomb);
+
+        // Ensure the bomb itself is cleared if the explosion didn't cover it (e.g. UFO targetting elsewhere)
+        var currentT = state.GetTile(p.X, p.Y);
+        if (currentT.Type != TileType.None)
+        {
+             state.SetTile(p.X, p.Y, new Tile(0, TileType.None, p.X, p.Y));
+        }
+    }
+
     private bool TryHandleRainbowCombo(ref GameState state, Tile t1, Tile t2, Position p1, Position p2, out int points)
     {
         points = 0; // Legacy param, ignored by caller in favor of IScoreSystem result
