@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Match3.Core.Config;
 using Match3.Core.Interfaces;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
@@ -9,9 +10,18 @@ namespace Match3.Core.Systems.Physics;
 
 public class RealtimeGravitySystem : IPhysicsSimulation
 {
-    private const float Gravity = 35.0f; // Accelerated gravity for snappy feel
-    private const float MaxVelocity = 20.0f;
+    private readonly Match3Config _config;
     private const float FloorThreshold = 0.05f; // Snap distance
+
+    public RealtimeGravitySystem(Match3Config config) : this()
+    {
+        _config = config;
+    }
+
+    private RealtimeGravitySystem()
+    {
+        throw new NotSupportedException("无参构造函数仅用于反射，禁止直接调用。请使用带 Match3Config 参数的构造函数。");
+    }
 
     public void Update(ref GameState state, float deltaTime)
     {
@@ -86,8 +96,8 @@ public class RealtimeGravitySystem : IPhysicsSimulation
             {
                 // Falling
                 tile.IsFalling = true;
-                tile.Velocity.Y += Gravity * dt;
-                if (tile.Velocity.Y > MaxVelocity) tile.Velocity.Y = MaxVelocity;
+                tile.Velocity.Y += _config.GravitySpeed * dt;
+                if (tile.Velocity.Y > _config.MaxFallSpeed) tile.Velocity.Y = _config.MaxFallSpeed;
                 
                 tile.Position.Y += tile.Velocity.Y * dt;
 
