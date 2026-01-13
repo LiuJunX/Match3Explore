@@ -1,4 +1,5 @@
 using System.Numerics;
+using Match3.Core.Config;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
 using Match3.Core.Systems.Physics;
@@ -30,11 +31,11 @@ public class RealtimeGravityTests
         var tile = new Tile(100, TileType.Red, 0, 0);
         state.SetTile(0, 0, tile);
         
-        var physics = new RealtimeGravitySystem();
+        var physics = new RealtimeGravitySystem(new Match3Config());
         
         // Act
-        // Simulate 0.1s
-        physics.Update(ref state, 0.1f);
+        // Simulate 0.05s (Reduced dt to prevent logical swap at high speed)
+        physics.Update(ref state, 0.05f);
         
         // Assert
         var newTile = state.GetTile(0, 0);
@@ -58,7 +59,7 @@ public class RealtimeGravityTests
         state.SetTile(0, 0, new Tile(1, TileType.Red, 0, 0));
         state.SetTile(0, 1, new Tile(2, TileType.None, 0, 1));
         
-        var physics = new RealtimeGravitySystem();
+        var physics = new RealtimeGravitySystem(new Match3Config());
         
         // Act
         // Simulate enough time to fall 1 unit.

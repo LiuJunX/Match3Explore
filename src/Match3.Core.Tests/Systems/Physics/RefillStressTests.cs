@@ -1,4 +1,5 @@
 using System.Text;
+using Match3.Core.Config;
 using Match3.Core.Interfaces;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
@@ -89,7 +90,7 @@ public class RefillStressTests
         int height = 10;
         var state = new GameState(1, height, 3, new StubRandom());
         var refill = new RealtimeRefillSystem(new StubTileGenerator());
-        var gravity = new RealtimeGravitySystem();
+        var gravity = new RealtimeGravitySystem(new Match3Config());
 
         // 2. Run refill
         refill.Update(ref state);

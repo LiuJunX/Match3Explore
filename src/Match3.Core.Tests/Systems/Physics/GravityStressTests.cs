@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using Match3.Core.Config;
 using Match3.Core.Interfaces;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
@@ -44,7 +45,7 @@ public class GravityStressTests
         // Setup a tall grid
         int height = 10;
         var state = new GameState(1, height, 3, new StubRandom());
-        var gravity = new RealtimeGravitySystem();
+        var gravity = new RealtimeGravitySystem(new Match3Config());
         
         // Fill top 3 with tiles, bottom 7 empty
         // Y=0,1,2 occupied. 3..9 empty.
@@ -102,7 +103,7 @@ public class GravityStressTests
     public void VelocityInheritance_ShouldNotSlowDown_WhenStacked()
     {
         var state = new GameState(1, 10, 3, new StubRandom());
-        var gravity = new RealtimeGravitySystem();
+        var gravity = new RealtimeGravitySystem(new Match3Config());
 
         // Tile A (Bottom) falling at speed 10
         var tileA = new Tile(1, TileType.Red, 0, 5);

@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Match3.Core.Config;
 using Match3.Core.Interfaces;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
@@ -31,7 +32,7 @@ public class GravityBugTests
     {
         // Arrange
         var state = new GameState(1, 5, 3, new StubRandom());
-        var gravity = new RealtimeGravitySystem();
+        var gravity = new RealtimeGravitySystem(new Match3Config());
         
         // Setup:
         // Y=4: Ground
@@ -43,7 +44,7 @@ public class GravityBugTests
         state.SetTile(0, 0, new Tile(1, TileType.Red, 0, 0));
         
         // Act - Frame 1
-        gravity.Update(ref state, 0.1f);
+        gravity.Update(ref state, 0.05f);
         
         var tileA = state.GetTile(0, 0);
         var tileB = state.GetTile(0, 1);
@@ -62,7 +63,7 @@ public class GravityBugTests
     {
         // Arrange
         var state = new GameState(1, 10, 3, new StubRandom());
-        var gravity = new RealtimeGravitySystem();
+        var gravity = new RealtimeGravitySystem(new Match3Config());
 
         // Setup:
         // Tile B at Y=3.5 (Falling). Logically at Y=3.
