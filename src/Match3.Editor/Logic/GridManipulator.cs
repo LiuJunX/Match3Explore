@@ -75,14 +75,11 @@ namespace Match3.Editor.Logic
                 }
                 else
                 {
-                    var current = config.Grid[index];
-                    if (current == TileType.None || current == TileType.Bomb || current == TileType.Rainbow)
-                    {
-                        var defaultColor = (selectedType >= TileType.Red && selectedType <= TileType.Orange) 
-                            ? selectedType 
-                            : TileType.Red;
-                        config.Grid[index] = defaultColor;
-                    }
+                    // Always use selectedType for bomb placement; fallback to Red if invalid
+                    var newColor = (selectedType >= TileType.Red && selectedType <= TileType.Orange)
+                        ? selectedType
+                        : TileType.Red;
+                    config.Grid[index] = newColor;
                 }
             }
             else
