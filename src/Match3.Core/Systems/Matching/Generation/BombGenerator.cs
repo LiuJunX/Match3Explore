@@ -2,12 +2,11 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
-using Match3.Core.Interfaces;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
-using Match3.Core.Systems.Matching;
 using Match3.Core.Utility.Pools;
+using Match3.Random;
 
 namespace Match3.Core.Systems.Matching.Generation;
 
@@ -15,21 +14,21 @@ public class BombGenerator : IBombGenerator
 {
     private readonly ShapeDetector _detector = new();
 
-    public List<MatchGroup> Generate(HashSet<Position> component, IEnumerable<Position>? foci = null)
+    public List<MatchGroup> Generate(HashSet<Position> component, IEnumerable<Position>? foci = null, IRandom? random = null)
     {
         // 0. Trivial Case
         if (component.Count < 3)
         {
-            return new List<MatchGroup>();
+            return Pools.ObtainList<MatchGroup>();
         }
 
         // 1. Detect All Candidates
         var candidates = Pools.ObtainList<DetectedShape>();
-        
+
         try
         {
             _detector.DetectAll(component, candidates);
-            
+
             // Handle Simple Match (No bomb candidates)
             if (candidates.Count == 0)
             {
@@ -41,15 +40,15 @@ public class BombGenerator : IBombGenerator
 
             // 3. Solve Optimal Partition
             var bestIndices = Pools.ObtainList<int>();
-            try 
+            try
             {
                 FindOptimalPartition(candidates, component, bestIndices);
 
                 // 4. Scrap Absorption & Result Construction
                 AbsorbScraps(component, candidates, bestIndices);
-                
+
                 // 5. Finalize Results
-                return ConstructResults(candidates, bestIndices, component, foci);
+                return ConstructResults(candidates, bestIndices, component, foci, random);
             }
             finally
             {
@@ -73,13 +72,15 @@ public class BombGenerator : IBombGenerator
     {
         var simpleGroup = Pools.Obtain<MatchGroup>();
         simpleGroup.Positions.Clear();
-        foreach(var p in component) simpleGroup.Positions.Add(p);
+        foreach (var p in component) simpleGroup.Positions.Add(p);
         simpleGroup.Shape = MatchShape.Simple3;
         simpleGroup.SpawnBombType = BombType.None;
         simpleGroup.Type = TileType.None; // Set by caller
         simpleGroup.BombOrigin = null;
-        
-        return new List<MatchGroup> { simpleGroup };
+
+        var results = Pools.ObtainList<MatchGroup>();
+        results.Add(simpleGroup);
+        return results;
     }
 
     private void SortCandidates(List<DetectedShape> candidates, IEnumerable<Position>? foci)
@@ -112,34 +113,35 @@ public class BombGenerator : IBombGenerator
         }
     }
 
+    // Weight thresholds for multi-layer solving
+    private const int RainbowWeightThreshold = 100;  // Rainbow (130) - always exact
+    private const int TntWeightThreshold = 50;       // TNT (60)
+    private const int RocketWeightThreshold = 30;    // Rocket (40)
+    // UFO (20) is always greedy
+
+    // Max candidates for exact solving per layer
+    private const int MaxExactSolveCount = 25;
+
     private void FindOptimalPartition(List<DetectedShape> candidates, HashSet<Position> component, List<int> bestIndices)
     {
-        var currentIndices = Pools.ObtainList<int>();
         var positionToIndex = Pools.Obtain<Dictionary<Position, int>>();
-        
-        // Optimization: Branch & Bound with BitMasks
-        // Precompute masks and suffix sums
         var candidateMasks = ArrayPool<BitMask256>.Shared.Rent(candidates.Count);
-        var suffixSums = ArrayPool<int>.Shared.Rent(candidates.Count + 1);
 
         try
         {
             // Map component positions to indices for BitMask
             int posIndex = 0;
-            foreach (var p in component) 
+            foreach (var p in component)
             {
                 positionToIndex[p] = posIndex++;
             }
 
-            suffixSums[candidates.Count] = 0;
-            for (int i = candidates.Count - 1; i >= 0; i--)
+            // Precompute masks for all candidates
+            for (int i = 0; i < candidates.Count; i++)
             {
-                suffixSums[i] = suffixSums[i + 1] + candidates[i].Weight;
-                
                 var mask = new BitMask256();
                 foreach (var p in candidates[i].Cells!)
                 {
-                    // Map Position to Index in component
                     if (positionToIndex.TryGetValue(p, out int index) && index < 256)
                     {
                         mask.Set(index);
@@ -148,48 +150,148 @@ public class BombGenerator : IBombGenerator
                 candidateMasks[i] = mask;
             }
 
-            // Hybrid Approach:
-            // If candidates are few (< 40), use Exact Branch & Bound (Global Optimal).
-            // If candidates are many (>= 40), use Greedy with BitMasks (Local Optimal, but extremely fast).
-            // 40 is chosen because 2^40 is roughly 1 trillion operations, but pruning helps.
-            // With pruning, 40 might still be slow if many overlaps exist.
-            // For Massive Block (81 cells), we might have 100+ candidates.
-            if (candidates.Count < 40)
-            {
-                int bestScore = -1;
-                SolveBranchAndBound(candidates, 0, currentIndices, new BitMask256(), 0, ref bestScore, bestIndices, suffixSums, candidateMasks);
-            }
-            else
-            {
-                SolveGreedy(candidates, bestIndices, candidateMasks);
-            }
+            // ═══════════════════════════════════════════════════════════════
+            // Layered Exact Solving: Solve high-weight exactly, low-weight greedily
+            // ═══════════════════════════════════════════════════════════════
+            FindOptimalPartitionLayered(candidates, candidateMasks, bestIndices);
         }
         finally
         {
-            Pools.Release(currentIndices);
             positionToIndex.Clear();
             Pools.Release(positionToIndex);
             ArrayPool<BitMask256>.Shared.Return(candidateMasks);
-            ArrayPool<int>.Shared.Return(suffixSums);
         }
     }
 
-    private void SolveGreedy(
+    private void FindOptimalPartitionLayered(
         List<DetectedShape> candidates,
-        List<int> bestIndices,
-        BitMask256[] candidateMasks)
+        BitMask256[] candidateMasks,
+        List<int> bestIndices)
     {
-        // Candidates are already sorted by Weight DESC
-        var usedMask = new BitMask256();
-        
-        for (int i = 0; i < candidates.Count; i++)
+        var rainbowIndices = Pools.ObtainList<int>();   // >= 100 (Rainbow: 130)
+        var tntIndices = Pools.ObtainList<int>();       // >= 50 (TNT: 60)
+        var rocketIndices = Pools.ObtainList<int>();    // >= 30 (Rocket: 40)
+        var ufoIndices = Pools.ObtainList<int>();       // < 30 (UFO: 20)
+
+        try
         {
-            var mask = candidateMasks[i];
-            if (!usedMask.Overlaps(mask))
+            // ═══════════════════════════════════════════════════════════════
+            // Phase 1: Categorize candidates by weight tier
+            // ═══════════════════════════════════════════════════════════════
+            for (int i = 0; i < candidates.Count; i++)
             {
-                bestIndices.Add(i);
-                usedMask.UnionWith(mask);
+                int weight = candidates[i].Weight;
+                if (weight >= RainbowWeightThreshold)
+                    rainbowIndices.Add(i);
+                else if (weight >= TntWeightThreshold)
+                    tntIndices.Add(i);
+                else if (weight >= RocketWeightThreshold)
+                    rocketIndices.Add(i);
+                else
+                    ufoIndices.Add(i);
             }
+
+            var usedMask = new BitMask256();
+
+            // ═══════════════════════════════════════════════════════════════
+            // Phase 2: Solve Rainbow layer (highest priority)
+            // For large grids, Rainbow candidates can be many (sliding window)
+            // ═══════════════════════════════════════════════════════════════
+            if (rainbowIndices.Count > 0)
+            {
+                if (rainbowIndices.Count <= MaxExactSolveCount)
+                {
+                    SolveBranchAndBoundSubset(candidates, rainbowIndices, candidateMasks, bestIndices);
+                }
+                else
+                {
+                    // Sort by size DESC (prefer larger rainbows that cover more)
+                    rainbowIndices.Sort((a, b) => candidates[b].Cells!.Count.CompareTo(candidates[a].Cells!.Count));
+                    SolveGreedySubset(rainbowIndices, candidateMasks, ref usedMask, bestIndices);
+                }
+                foreach (var idx in bestIndices)
+                {
+                    usedMask.UnionWith(candidateMasks[idx]);
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // Phase 3: Solve TNT + Rocket together (they compete for space)
+            // Key insight: 2 Rockets (80) > 1 TNT (60), so we need exact solving
+            // ═══════════════════════════════════════════════════════════════
+            var tntAndRocketIndices = Pools.ObtainList<int>();
+            try
+            {
+                // Filter out candidates that overlap with already-selected Rainbow
+                foreach (var idx in tntIndices)
+                {
+                    if (!usedMask.Overlaps(candidateMasks[idx]))
+                        tntAndRocketIndices.Add(idx);
+                }
+                foreach (var idx in rocketIndices)
+                {
+                    if (!usedMask.Overlaps(candidateMasks[idx]))
+                        tntAndRocketIndices.Add(idx);
+                }
+
+                if (tntAndRocketIndices.Count > 0)
+                {
+                    int prevCount = bestIndices.Count;
+
+                    if (tntAndRocketIndices.Count <= MaxExactSolveCount)
+                    {
+                        // Exact Branch & Bound
+                        SolveBranchAndBoundSubset(candidates, tntAndRocketIndices, candidateMasks, bestIndices);
+                    }
+                    else
+                    {
+                        // Too many candidates - use smart greedy
+                        // Sort by weight, but prefer smaller shapes (they block less)
+                        tntAndRocketIndices.Sort((a, b) =>
+                        {
+                            int weightDiff = candidates[b].Weight.CompareTo(candidates[a].Weight);
+                            if (weightDiff != 0) return weightDiff;
+                            // Same weight: prefer smaller size (blocks less space)
+                            return candidates[a].Cells!.Count.CompareTo(candidates[b].Cells!.Count);
+                        });
+                        SolveGreedySubset(tntAndRocketIndices, candidateMasks, ref usedMask, bestIndices);
+                    }
+
+                    // Update used mask with newly selected candidates
+                    for (int i = prevCount; i < bestIndices.Count; i++)
+                    {
+                        usedMask.UnionWith(candidateMasks[bestIndices[i]]);
+                    }
+                }
+            }
+            finally
+            {
+                Pools.Release(tntAndRocketIndices);
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // Phase 4: Greedily fill UFO layer - O(n)
+            // ═══════════════════════════════════════════════════════════════
+            foreach (var idx in ufoIndices)
+            {
+                if (!usedMask.Overlaps(candidateMasks[idx]))
+                {
+                    bestIndices.Add(idx);
+                    usedMask.UnionWith(candidateMasks[idx]);
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // Phase 5: Local search optimization (try swapping for better score)
+            // ═══════════════════════════════════════════════════════════════
+            LocalSearchOptimize(candidates, candidateMasks, bestIndices);
+        }
+        finally
+        {
+            Pools.Release(rainbowIndices);
+            Pools.Release(tntIndices);
+            Pools.Release(rocketIndices);
+            Pools.Release(ufoIndices);
         }
     }
 
@@ -238,6 +340,223 @@ public class BombGenerator : IBombGenerator
 
          // 3. Try Exclude
          SolveBranchAndBound(candidates, index + 1, currentIndices, usedMask, currentScore, ref bestScore, bestIndices, suffixSums, candidateMasks);
+    }
+
+    /// <summary>
+    /// Exact Branch & Bound solver for a subset of candidates (typically high-weight only).
+    /// </summary>
+    private void SolveBranchAndBoundSubset(
+        List<DetectedShape> candidates,
+        List<int> subsetIndices,
+        BitMask256[] candidateMasks,
+        List<int> bestIndices)
+    {
+        if (subsetIndices.Count == 0) return;
+
+        var currentIndices = Pools.ObtainList<int>();
+        var suffixSums = ArrayPool<int>.Shared.Rent(subsetIndices.Count + 1);
+
+        try
+        {
+            // Compute suffix sums for pruning
+            suffixSums[subsetIndices.Count] = 0;
+            for (int i = subsetIndices.Count - 1; i >= 0; i--)
+            {
+                suffixSums[i] = suffixSums[i + 1] + candidates[subsetIndices[i]].Weight;
+            }
+
+            int bestScore = -1;
+            SolveBranchAndBoundSubsetRecursive(
+                candidates, subsetIndices, candidateMasks,
+                0, currentIndices, new BitMask256(), 0,
+                ref bestScore, bestIndices, suffixSums);
+        }
+        finally
+        {
+            Pools.Release(currentIndices);
+            ArrayPool<int>.Shared.Return(suffixSums);
+        }
+    }
+
+    private void SolveBranchAndBoundSubsetRecursive(
+        List<DetectedShape> candidates,
+        List<int> subsetIndices,
+        BitMask256[] candidateMasks,
+        int subsetPos,
+        List<int> currentIndices,
+        BitMask256 usedMask,
+        int currentScore,
+        ref int bestScore,
+        List<int> bestIndices,
+        int[] suffixSums)
+    {
+        // Base case
+        if (subsetPos >= subsetIndices.Count)
+        {
+            if (currentScore > bestScore)
+            {
+                bestScore = currentScore;
+                bestIndices.Clear();
+                bestIndices.AddRange(currentIndices);
+            }
+            return;
+        }
+
+        // Pruning: if remaining max possible score can't beat best, skip
+        if (currentScore + suffixSums[subsetPos] <= bestScore)
+        {
+            return;
+        }
+
+        int candidateIdx = subsetIndices[subsetPos];
+        var candidateMask = candidateMasks[candidateIdx];
+
+        // Try include
+        if (!usedMask.Overlaps(candidateMask))
+        {
+            currentIndices.Add(candidateIdx);
+            var nextMask = usedMask;
+            nextMask.UnionWith(candidateMask);
+
+            SolveBranchAndBoundSubsetRecursive(
+                candidates, subsetIndices, candidateMasks,
+                subsetPos + 1, currentIndices, nextMask,
+                currentScore + candidates[candidateIdx].Weight,
+                ref bestScore, bestIndices, suffixSums);
+
+            currentIndices.RemoveAt(currentIndices.Count - 1);
+        }
+
+        // Try exclude
+        SolveBranchAndBoundSubsetRecursive(
+            candidates, subsetIndices, candidateMasks,
+            subsetPos + 1, currentIndices, usedMask,
+            currentScore, ref bestScore, bestIndices, suffixSums);
+    }
+
+    /// <summary>
+    /// Greedy solver for a subset of candidates.
+    /// </summary>
+    private void SolveGreedySubset(
+        List<int> subsetIndices,
+        BitMask256[] candidateMasks,
+        ref BitMask256 usedMask,
+        List<int> bestIndices)
+    {
+        // subsetIndices should already be sorted by weight DESC
+        foreach (var idx in subsetIndices)
+        {
+            if (!usedMask.Overlaps(candidateMasks[idx]))
+            {
+                bestIndices.Add(idx);
+                usedMask.UnionWith(candidateMasks[idx]);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Local search optimization: try removing one candidate and adding multiple others
+    /// to see if total score improves.
+    /// Optimized version with O(1) solution membership check and cached mask computation.
+    /// </summary>
+    private void LocalSearchOptimize(
+        List<DetectedShape> candidates,
+        BitMask256[] candidateMasks,
+        List<int> solution)
+    {
+        if (solution.Count == 0) return;
+
+        var solutionSet = Pools.ObtainHashSet<int>();
+        var potentialAdds = Pools.ObtainList<int>();
+        var actualAdds = Pools.ObtainList<int>();
+
+        try
+        {
+            bool improved = true;
+            int maxIterations = 10;
+            int iterations = 0;
+
+            while (improved && iterations < maxIterations)
+            {
+                improved = false;
+                iterations++;
+
+                // Rebuild solution set at start of each iteration
+                solutionSet.Clear();
+                foreach (var idx in solution) solutionSet.Add(idx);
+
+                // Precompute total mask
+                var totalMask = new BitMask256();
+                foreach (var idx in solution)
+                {
+                    totalMask.UnionWith(candidateMasks[idx]);
+                }
+
+                for (int i = 0; i < solution.Count; i++)
+                {
+                    int removedIdx = solution[i];
+                    int removedWeight = candidates[removedIdx].Weight;
+                    var freedMask = candidateMasks[removedIdx];
+
+                    // Compute mask excluding this candidate using ClearBits
+                    var currentMask = totalMask;
+                    currentMask.ClearBits(freedMask);
+
+                    potentialAdds.Clear();
+
+                    // Find candidates that could fit in the freed space
+                    for (int k = 0; k < candidates.Count; k++)
+                    {
+                        // O(1) solution membership check
+                        if (solutionSet.Contains(k)) continue;
+
+                        // Must overlap with freed space to be relevant
+                        if (!freedMask.Overlaps(candidateMasks[k])) continue;
+
+                        // Must fit in remaining space
+                        if (!currentMask.Overlaps(candidateMasks[k]))
+                        {
+                            potentialAdds.Add(k);
+                        }
+                    }
+
+                    if (potentialAdds.Count == 0) continue;
+
+                    // Sort by weight DESC
+                    potentialAdds.Sort((a, b) => candidates[b].Weight.CompareTo(candidates[a].Weight));
+
+                    // Greedily select
+                    var testMask = currentMask;
+                    actualAdds.Clear();
+                    int potentialGain = 0;
+
+                    foreach (var k in potentialAdds)
+                    {
+                        if (!testMask.Overlaps(candidateMasks[k]))
+                        {
+                            actualAdds.Add(k);
+                            potentialGain += candidates[k].Weight;
+                            testMask.UnionWith(candidateMasks[k]);
+                        }
+                    }
+
+                    // Apply if net gain is positive
+                    if (potentialGain > removedWeight)
+                    {
+                        solution.RemoveAt(i);
+                        solution.AddRange(actualAdds);
+                        improved = true;
+                        break;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            Pools.Release(solutionSet);
+            Pools.Release(potentialAdds);
+            Pools.Release(actualAdds);
+        }
     }
 
     private void AbsorbScraps(HashSet<Position> component, List<DetectedShape> candidates, List<int> bestIndices)
@@ -329,14 +648,16 @@ public class BombGenerator : IBombGenerator
     }
 
     private List<MatchGroup> ConstructResults(
-        List<DetectedShape> candidates, 
-        List<int> bestIndices, 
+        List<DetectedShape> candidates,
+        List<int> bestIndices,
         HashSet<Position> component,
-        IEnumerable<Position>? foci)
+        IEnumerable<Position>? foci,
+        IRandom? random)
     {
-        var results = new List<MatchGroup>();
+        var results = Pools.ObtainList<MatchGroup>();
         var finalUsed = Pools.ObtainHashSet<Position>();
         var orphans = Pools.ObtainList<Position>();
+        var matchingFoci = Pools.ObtainList<Position>();
 
         try
         {
@@ -345,64 +666,112 @@ public class BombGenerator : IBombGenerator
                 var shape = candidates[idx];
                 var group = Pools.Obtain<MatchGroup>();
                 group.Positions.Clear();
-                foreach(var p in shape.Cells!) group.Positions.Add(p);
-                
+                foreach (var p in shape.Cells!) group.Positions.Add(p);
+
                 group.Shape = shape.Shape;
                 group.SpawnBombType = shape.Type;
                 group.Type = TileType.None; // Set by caller
-                
+
                 // Determine Bomb Origin
                 Position? origin = null;
-                // Priority 1: Foci
+
+                // Priority 1: Player operation positions (foci)
+                // Collect all foci that are in this shape
+                matchingFoci.Clear();
                 if (foci != null)
                 {
                     foreach (var f in foci)
                     {
                         if (shape.Cells!.Contains(f))
                         {
-                            origin = f;
-                            break;
+                            matchingFoci.Add(f);
                         }
                     }
                 }
-                // Priority 2: Center/Random
+
+                if (matchingFoci.Count == 1)
+                {
+                    // Single focus in shape - use it
+                    origin = matchingFoci[0];
+                }
+                else if (matchingFoci.Count > 1)
+                {
+                    // Multiple foci in shape - randomly select one
+                    if (random != null)
+                    {
+                        int idx2 = random.Next(0, matchingFoci.Count);
+                        origin = matchingFoci[idx2];
+                    }
+                    else
+                    {
+                        origin = matchingFoci[0]; // Fallback to first
+                    }
+                }
+
+                // Priority 2: Random position from shape cells
                 if (origin == null && shape.Cells!.Count > 0)
                 {
-                    origin = shape.Cells!.First();
+                    // Convert to sorted list for deterministic access
+                    var cellList = Pools.ObtainList<Position>();
+                    try
+                    {
+                        foreach (var c in shape.Cells) cellList.Add(c);
+                        // Sort for deterministic ordering (by Y then X)
+                        cellList.Sort((a, b) =>
+                        {
+                            int cmp = a.Y.CompareTo(b.Y);
+                            return cmp != 0 ? cmp : a.X.CompareTo(b.X);
+                        });
+
+                        if (random != null)
+                        {
+                            int idx3 = random.Next(0, cellList.Count);
+                            origin = cellList[idx3];
+                        }
+                        else
+                        {
+                            origin = cellList[0]; // Deterministic: top-left position
+                        }
+                    }
+                    finally
+                    {
+                        Pools.Release(cellList);
+                    }
                 }
                 group.BombOrigin = origin;
 
                 results.Add(group);
             }
-            
+
             // Handle Orphans (Islands not connected to any solution shape)
-            foreach (var r in results) 
-                foreach(var p in r.Positions) finalUsed.Add(p);
-            
-            foreach(var p in component)
+            foreach (var r in results)
+                foreach (var p in r.Positions) finalUsed.Add(p);
+
+            foreach (var p in component)
             {
                 if (!finalUsed.Contains(p)) orphans.Add(p);
             }
-            
+
             if (orphans.Count > 0)
             {
-                 // Create a simple match group for orphans
-                 var orphanGroup = Pools.Obtain<MatchGroup>();
-                 orphanGroup.Positions.Clear();
-                 foreach(var p in orphans) orphanGroup.Positions.Add(p);
-                 orphanGroup.Shape = MatchShape.Simple3;
-                 orphanGroup.SpawnBombType = BombType.None;
-                 orphanGroup.Type = TileType.None;
-                 orphanGroup.BombOrigin = null;
-                 results.Add(orphanGroup);
+                // Create a simple match group for orphans
+                var orphanGroup = Pools.Obtain<MatchGroup>();
+                orphanGroup.Positions.Clear();
+                foreach (var p in orphans) orphanGroup.Positions.Add(p);
+                orphanGroup.Shape = MatchShape.Simple3;
+                orphanGroup.SpawnBombType = BombType.None;
+                orphanGroup.Type = TileType.None;
+                orphanGroup.BombOrigin = null;
+                results.Add(orphanGroup);
             }
-            
+
             return results;
         }
         finally
         {
             Pools.Release(finalUsed);
             Pools.Release(orphans);
+            Pools.Release(matchingFoci);
         }
     }
 
@@ -435,6 +804,18 @@ public class BombGenerator : IBombGenerator
             _p1 |= other._p1;
             _p2 |= other._p2;
             _p3 |= other._p3;
+        }
+
+        /// <summary>
+        /// Clears bits that are set in 'other' from this mask.
+        /// Equivalent to: this &= ~other
+        /// </summary>
+        public void ClearBits(in BitMask256 other)
+        {
+            _p0 &= ~other._p0;
+            _p1 &= ~other._p1;
+            _p2 &= ~other._p2;
+            _p3 &= ~other._p3;
         }
     }
 }

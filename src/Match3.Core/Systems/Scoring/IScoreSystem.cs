@@ -1,7 +1,7 @@
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
 
-namespace Match3.Core.Interfaces;
+namespace Match3.Core.Systems.Scoring;
 
 /// <summary>
 /// Responsible for calculating scores for various game events.

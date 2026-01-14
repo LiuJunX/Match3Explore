@@ -1,7 +1,7 @@
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
 
-namespace Match3.Core.Interfaces;
+namespace Match3.Core.Systems.Generation;
 
 public interface ITileGenerator
 {

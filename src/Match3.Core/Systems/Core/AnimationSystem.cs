@@ -1,5 +1,13 @@
 using System.Numerics;
 using Match3.Core.Config;
+using Match3.Core.Systems.Core;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Input;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.Physics;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
+using Match3.Core.View;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
 
@@ -9,7 +17,7 @@ namespace Match3.Core.Systems.Core;
 /// Manages the visual state of tiles (position interpolation).
 /// Separates the visual physics from the logical grid state.
 /// </summary>
-public class AnimationSystem
+public class AnimationSystem : IAnimationSystem
 {
     private readonly Match3Config _config;
     private const float Epsilon = 0.01f;

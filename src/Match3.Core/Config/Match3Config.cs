@@ -11,8 +11,11 @@ public class Match3Config
     
     // Animation speeds (visual/logical update speeds)
     public float SwapSpeed { get; set; } = 15.0f;
-    public float GravitySpeed { get; set; } = 165.0f;
-    public float MaxFallSpeed { get; set; } = 40.0f;
+
+    // Gravity settings
+    public float InitialFallSpeed { get; set; } = 8.0f;  // 初始掉落速度，解决"前半格慢"问题
+    public float GravitySpeed { get; set; } = 20.0f;     // 重力加速度
+    public float MaxFallSpeed { get; set; } = 25.0f;     // 最大掉落速度
 
     // Logic Flags
     public bool IsGravityEnabled { get; set; } = true;

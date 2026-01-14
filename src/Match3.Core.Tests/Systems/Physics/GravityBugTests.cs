@@ -1,7 +1,14 @@
 using System;
 using System.Numerics;
 using Match3.Core.Config;
-using Match3.Core.Interfaces;
+using Match3.Core.Systems.Core;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Input;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.Physics;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
+using Match3.Core.View;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
@@ -28,11 +35,11 @@ public class GravityBugTests
     }
 
     [Fact]
-    public void StackedTiles_ShouldFallTogether_Start()
+    public void StackedTiles_ShouldFallTogether_End()
     {
         // Arrange
         var state = new GameState(1, 5, 3, new StubRandom());
-        var gravity = new RealtimeGravitySystem(new Match3Config());
+        var gravity = new RealtimeGravitySystem(new Match3Config(), new StubRandom());
         
         // Setup:
         // Y=4: Ground
@@ -63,7 +70,7 @@ public class GravityBugTests
     {
         // Arrange
         var state = new GameState(1, 10, 3, new StubRandom());
-        var gravity = new RealtimeGravitySystem(new Match3Config());
+        var gravity = new RealtimeGravitySystem(new Match3Config(), new StubRandom());
 
         // Setup:
         // Tile B at Y=3.5 (Falling). Logically at Y=3.

@@ -3,7 +3,14 @@ using System.Collections.Generic;
 using Match3.Core;
 using Match3.Core.Utility;
 using Match3.Core.Config;
-using Match3.Core.Interfaces;
+using Match3.Core.Systems.Core;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Input;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.Physics;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
+using Match3.Core.View;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
@@ -14,6 +21,8 @@ using Match3.Core.Systems.Matching;
 using Match3.Core.Systems.Matching.Generation;
 using Match3.Core.Systems.PowerUps;
 using Match3.Core.Systems.Scoring;
+using Match3.Core.Systems.Physics;
+using Match3.Core.Systems.Core;
 using Match3.Random;
 
 namespace Match3.Editor.Logic
@@ -55,17 +64,31 @@ namespace Match3.Editor.Logic
             var tileGen = new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill));
             var bombRegistry = BombEffectRegistry.CreateDefault();
 
+            // New Systems
+            var physics = new RealtimeGravitySystem(engineConfig, seedManager.GetRandom(RandomDomain.Physics));
+            var refill = new RealtimeRefillSystem(tileGen);
+            var matchFinder = new ClassicMatchFinder(new BombGenerator());
+            var matchProcessor = new StandardMatchProcessor(scoreSystem, bombRegistry);
+            var powerUpHandler = new PowerUpHandler(scoreSystem);
+            
+            var gameLoop = new AsyncGameLoopSystem(physics, refill, matchFinder, matchProcessor, powerUpHandler);
+            var interaction = new InteractionSystem(inputSystem, _logger);
+            var animation = new AnimationSystem(engineConfig);
+            var boardInit = new BoardInitializer(tileGen);
+            var botSystem = new BotSystem(matchFinder);
+
             _engine = new Match3Engine(
                 engineConfig,
                 seedManager.GetRandom(RandomDomain.Main),
                 view,
                 _logger,
                 inputSystem,
-                new ClassicMatchFinder(new BombGenerator()),
-                new StandardMatchProcessor(scoreSystem, bombRegistry),
-                new PowerUpHandler(scoreSystem),
-                scoreSystem,
-                tileGen,
+                gameLoop,
+                interaction,
+                animation,
+                boardInit,
+                matchFinder,
+                botSystem,
                 initialConfig
             );
 

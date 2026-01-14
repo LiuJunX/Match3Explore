@@ -2,7 +2,14 @@ using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
 using Match3.Core.Utility;
-using Match3.Core.Interfaces;
+using Match3.Core.Systems.Core;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Input;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.Physics;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
+using Match3.Core.View;
 using System;
 
 namespace Match3.Core.Systems.Input;
@@ -10,7 +17,7 @@ namespace Match3.Core.Systems.Input;
 /// <summary>
 /// Handles user input interactions (Taps, Swipes) and manages selection state.
 /// </summary>
-public class InteractionSystem
+public class InteractionSystem : IInteractionSystem
 {
     private readonly IInputSystem _inputSystem;
     private readonly IGameLogger _logger;

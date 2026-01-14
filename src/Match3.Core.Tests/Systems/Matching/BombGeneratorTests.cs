@@ -197,9 +197,81 @@ namespace Match3.Core.Tests.Systems.Matching
 
             // Should be under 200ms (currently might take 2s+)
             Assert.True(sw.ElapsedMilliseconds < 200, $"Performance check failed: {sw.ElapsedMilliseconds}ms");
-            
+
             // Should verify some bombs are generated
             Assert.Contains(results, g => g.SpawnBombType == BombType.Color);
+        }
+
+        [Fact]
+        public void Generate_4x4Block_ShouldCreate4Rockets()
+        {
+            // 4x4 = 16 cells
+            // Options:
+            // - 4 horizontal Rockets (4 lines of 4) = 4 × 40 = 160
+            // - 4 vertical Rockets (4 columns of 4) = 4 × 40 = 160
+            // - UFOs: max 4 non-overlapping 2x2 = 4 × 20 = 80
+            // Optimal: 4 Rockets (160)
+
+            var rows = new[]
+            {
+                "A A A A",
+                "A A A A",
+                "A A A A",
+                "A A A A"
+            };
+            var component = ParseGrid(rows);
+
+            var results = _generator.Generate(component);
+
+            // Count Rocket bombs
+            int rocketCount = 0;
+            foreach (var g in results)
+            {
+                if (g.SpawnBombType.IsRocket())
+                    rocketCount++;
+            }
+
+            // Should generate 4 Rockets (optimal partition)
+            Assert.Equal(4, rocketCount);
+        }
+
+        [Fact]
+        public void Generate_6x6Block_ShouldCreate7Rainbows()
+        {
+            // 6x6 = 36 cells, theoretical max = 36/5 = 7.2 -> 7 Rainbows
+            // Optimal layout:
+            //   0 1 2 3 4 5
+            // 0 H H H H H V  <- Row 0: H=horizontal 5-line (0-4), V=vertical 5-line (col 5)
+            // 1 H H H H H V
+            // 2 H H H H H V
+            // 3 H H H H H V
+            // 4 H H H H H V
+            // 5 H H H H H .  <- Row 5: horizontal 5-line (0-4), 1 leftover
+            // = 6 horizontal Rainbows + 1 vertical Rainbow = 7 Rainbows
+
+            var rows = new[]
+            {
+                "A A A A A A",
+                "A A A A A A",
+                "A A A A A A",
+                "A A A A A A",
+                "A A A A A A",
+                "A A A A A A"
+            };
+            var component = ParseGrid(rows);
+
+            var results = _generator.Generate(component);
+
+            // Count Rainbow bombs
+            int rainbowCount = 0;
+            foreach (var g in results)
+            {
+                if (g.SpawnBombType == BombType.Color)
+                    rainbowCount++;
+            }
+
+            // Should generate exactly 7 Rainbows (optimal partition)
+            Assert.Equal(7, rainbowCount);
         }
     }
 }

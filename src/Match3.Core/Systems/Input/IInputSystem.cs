@@ -2,7 +2,7 @@ using System;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
 
-namespace Match3.Core.Interfaces;
+namespace Match3.Core.Systems.Input;
 
 /// <summary>
 /// Handles user input interactions and validation.

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
 
-namespace Match3.Core.Interfaces;
+namespace Match3.Core.Systems.PowerUps;
 
 /// <summary>
 /// Defines the behavior of a specific bomb type when it explodes.

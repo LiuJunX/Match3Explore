@@ -1,6 +1,13 @@
 using System.Text;
 using Match3.Core.Config;
-using Match3.Core.Interfaces;
+using Match3.Core.Systems.Core;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Input;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.Physics;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
+using Match3.Core.View;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
@@ -111,7 +118,7 @@ public class RefillStressTests
         int height = 10;
         var state = new GameState(1, height, 3, new StubRandom());
         var refill = new RealtimeRefillSystem(new StubTileGenerator());
-        var gravity = new RealtimeGravitySystem(new Match3Config());
+        var gravity = new RealtimeGravitySystem(new Match3Config(), new StubRandom());
 
         // 2. Simulate loop
         float dt = 0.016f;
@@ -133,6 +140,50 @@ public class RefillStressTests
             Assert.NotEqual(TileType.None, tile.Type);
             Assert.False(tile.IsFalling, $"Tile at {y} is still falling at {tile.Position.Y}");
             Assert.Equal((float)y, tile.Position.Y, 0.1f);
+        }
+    }
+
+    [Fact]
+    public void Refill_ShouldMaintainSpacing_OverMultipleFrames()
+    {
+        // 1. Setup board with a falling tile at (0, 1)
+        int height = 5;
+        var state = new GameState(1, height, 3, new StubRandom());
+        var refill = new RealtimeRefillSystem(new StubTileGenerator());
+        var gravity = new RealtimeGravitySystem(new Match3Config(), new StubRandom());
+
+        // Place a tile at (0, 1) falling at speed 2.0f (matching spawn speed)
+        // Logical position (0, 1), Physical Y = 0.5f
+        var fallingTile = new Tile(100, TileType.Red, 0, 1);
+        fallingTile.Position = new Vector2(0, 0.5f);
+        fallingTile.Velocity = new Vector2(0, 2.0f); // Match spawn velocity
+        fallingTile.IsFalling = true;
+        state.SetTile(0, 1, fallingTile);
+
+        // Ensure (0, 0) is empty
+        state.SetTile(0, 0, new Tile(0, TileType.None, 0, 0));
+
+        // 2. Run Refill once to spawn the new tile
+        refill.Update(ref state);
+        var newTile = state.GetTile(0, 0);
+        
+        // Initial check
+        Assert.NotEqual(TileType.None, newTile.Type);
+        Assert.Equal(fallingTile.Position.Y - 1.0f, newTile.Position.Y, 0.001f);
+
+        // 3. Run simulation loop for a few frames
+        float dt = 0.016f;
+        // Run just 1 frame first to verify immediate behavior
+        for (int i = 0; i < 5; i++)
+        {
+            refill.Update(ref state);
+            gravity.Update(ref state, dt);
+            
+            var bottom = state.GetTile(0, 1);
+            var top = state.GetTile(0, 0);
+
+            float distance = bottom.Position.Y - top.Position.Y;
+            Assert.True(Math.Abs(distance - 1.0f) < 0.1f, $"Frame {i}: Distance {distance} (Top {top.Position.Y}, Bot {bottom.Position.Y})");
         }
     }
 

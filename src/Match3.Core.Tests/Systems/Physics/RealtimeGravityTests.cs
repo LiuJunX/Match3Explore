@@ -31,7 +31,7 @@ public class RealtimeGravityTests
         var tile = new Tile(100, TileType.Red, 0, 0);
         state.SetTile(0, 0, tile);
         
-        var physics = new RealtimeGravitySystem(new Match3Config());
+        var physics = new RealtimeGravitySystem(new Match3Config { GravitySpeed = 35.0f }, new StubRandom());
         
         // Act
         // Simulate 0.05s (Reduced dt to prevent logical swap at high speed)
@@ -59,7 +59,7 @@ public class RealtimeGravityTests
         state.SetTile(0, 0, new Tile(1, TileType.Red, 0, 0));
         state.SetTile(0, 1, new Tile(2, TileType.None, 0, 1));
         
-        var physics = new RealtimeGravitySystem(new Match3Config());
+        var physics = new RealtimeGravitySystem(new Match3Config { GravitySpeed = 35.0f }, new StubRandom());
         
         // Act
         // Simulate enough time to fall 1 unit.
@@ -82,5 +82,116 @@ public class RealtimeGravityTests
         Assert.Equal(1.0f, tileAt1.Position.Y, 0.001f); // Should be exactly at 1.0
         Assert.False(tileAt1.IsFalling, "Tile should have stopped");
         Assert.Equal(0f, tileAt1.Velocity.Y);
+    }
+
+    [Fact]
+    public void Update_ShouldSlideDiagonal()
+    {
+        // Arrange
+        // Grid 3x3
+        // (1,0) = Red (Falling)
+        // (1,1) = Suspended/Obstacle
+        // (0,1) = None (Target)
+        // (2,1) = Obstacle
+        var state = new GameState(3, 3, 5, new StubRandom());
+        
+        // Setup Suspended Tile at (1,1) to force slide
+        var obstacle = new Tile(9, TileType.Green, 1, 1);
+        obstacle.IsSuspended = true; 
+        state.SetTile(1, 1, obstacle);
+        
+        // Target at (0,1) is empty
+        state.SetTile(0, 1, new Tile(0, TileType.None, 0, 1));
+        
+        // Falling tile at (1,0)
+        state.SetTile(1, 0, new Tile(1, TileType.Red, 1, 0));
+
+        // Block Right side (2,1) to force Left Slide
+        state.SetTile(2, 1, new Tile(8, TileType.Blue, 2, 1));
+
+        // Block (0,2) so it stops at (0,1)
+        state.SetTile(0, 2, new Tile(10, TileType.Green, 0, 2));
+
+        var physics = new RealtimeGravitySystem(new Match3Config { GravitySpeed = 35.0f }, new StubRandom());
+
+        // Act
+        float dt = 0.016f;
+        for(int i=0; i<40; i++) // ~0.64s
+        {
+            physics.Update(ref state, dt);
+        }
+
+        // Assert
+        // Tile should have moved from (1,0) to (0,1)
+        var tileAtTarget = state.GetTile(0, 1);
+        
+        Assert.Equal(TileType.Red, tileAtTarget.Type);
+        Assert.Equal(1.0f, tileAtTarget.Position.Y, 0.05f); // Allow small epsilon for sliding snap
+        Assert.Equal(0.0f, tileAtTarget.Position.X, 0.05f);
+    }
+
+    [Fact]
+    public void Update_ShouldFallSmoothlyFromCellToCell()
+    {
+        // Arrange
+        var state = new GameState(1, 2, 5, new StubRandom());
+        // (0,0) = Red, (0,1) = None
+        state.SetTile(0, 0, new Tile(1, TileType.Red, 0, 0));
+        state.SetTile(0, 1, new Tile(2, TileType.None, 0, 1));
+
+        var config = new Match3Config { GravitySpeed = 35.0f, MaxFallSpeed = 20.0f };
+        var physics = new RealtimeGravitySystem(config, new StubRandom());
+        
+        float dt = 0.016f;
+        float previousY = 0f;
+        bool startedFalling = false;
+        bool reachedBottom = false;
+
+        // Act & Assert Loop
+        for (int i = 0; i < 60; i++) // Run for 1 second (plenty of time)
+        {
+            physics.Update(ref state, dt);
+            
+            // Check tile position
+            // Since the tile might logically move from (0,0) to (0,1) during the process,
+            // we need to check both slots to find where the tile is.
+            var tile0 = state.GetTile(0, 0);
+            var tile1 = state.GetTile(0, 1);
+            
+            Tile currentTile;
+            if (tile0.Type == TileType.Red) currentTile = tile0;
+            else if (tile1.Type == TileType.Red) currentTile = tile1;
+            else 
+            {
+                Assert.Fail("Tile disappeared!");
+                return;
+            }
+
+            // Verify Smoothness
+            if (currentTile.IsFalling)
+            {
+                startedFalling = true;
+                Assert.True(currentTile.Position.Y >= previousY, $"Tile moved backwards at frame {i}: Prev={previousY}, Curr={currentTile.Position.Y}");
+                
+                // Max movement per frame check (approx check to ensure no teleporting)
+                // Max speed 20. dt=0.016. Max delta ~ 0.32.
+                // We use 0.35f to be strict but allow slight floating point variance.
+                float deltaY = currentTile.Position.Y - previousY;
+                Assert.True(deltaY <= 0.35f, $"Tile teleported at frame {i}: Delta={deltaY}");
+            }
+            else if (startedFalling && currentTile.Position.Y >= 1.0f - 0.001f)
+            {
+                reachedBottom = true;
+                Assert.Equal(1.0f, currentTile.Position.Y, 0.001f);
+                Assert.Equal(0f, currentTile.Velocity.Y);
+            }
+
+            previousY = currentTile.Position.Y;
+            
+            if (reachedBottom) break;
+        }
+
+        Assert.True(startedFalling, "Tile never started falling");
+        Assert.True(reachedBottom, "Tile never reached the bottom (1.0)");
     }
 }

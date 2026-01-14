@@ -3,7 +3,7 @@ using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
 using Match3.Core.Systems.Matching.Generation;
 
-namespace Match3.Core.Interfaces;
+namespace Match3.Core.Systems.Matching;
 
 public interface IShapeRule
 {

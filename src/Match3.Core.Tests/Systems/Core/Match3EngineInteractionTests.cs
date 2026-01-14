@@ -3,7 +3,14 @@ using System.Collections.Generic;
 using System.Reflection;
 using Match3.Core;
 using Match3.Core.Config;
-using Match3.Core.Interfaces;
+using Match3.Core.Systems.Core;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Input;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.Physics;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
+using Match3.Core.View;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
 using Match3.Core.Models.Gameplay;
@@ -44,21 +51,49 @@ public class Match3EngineInteractionTests
         public void TriggerSwipe(Position p, Direction d) => SwipeDetected?.Invoke(p, d);
     }
 
-    private class SpyPowerUpHandler : IPowerUpHandler
+    private class StubAsyncGameLoopSystem : IAsyncGameLoopSystem
     {
         public bool ActivateBombCalled { get; private set; }
         public Position? LastBombPosition { get; private set; }
+
+        public void Update(ref GameState state, float dt) { }
 
         public void ActivateBomb(ref GameState state, Position p)
         {
             ActivateBombCalled = true;
             LastBombPosition = p;
         }
+    }
 
-        public void ProcessSpecialMove(ref GameState state, Position p1, Position p2, out int points)
+    private class StubInteractionSystem : IInteractionSystem
+    {
+        public string StatusMessage => "Stub";
+        public bool ShouldSucceed { get; set; } = true;
+        public Move? MoveToReturn { get; set; } = null;
+
+        public bool TryHandleTap(ref GameState state, Position p, bool isInteractive, out Move? move)
         {
-            points = 0;
+            move = MoveToReturn;
+            return ShouldSucceed;
         }
+
+        public bool TryHandleSwipe(ref GameState state, Position from, Direction direction, bool isInteractive, out Move? move)
+        {
+            move = MoveToReturn;
+            return ShouldSucceed;
+        }
+    }
+
+    private class StubAnimationSystem : IAnimationSystem
+    {
+        public bool IsVisuallyStable => true;
+        public bool Animate(ref GameState state, float dt) => true;
+        public bool IsVisualAtTarget(in GameState state, Position p) => true;
+    }
+
+    private class StubBoardInitializer : IBoardInitializer
+    {
+        public void Initialize(ref GameState state, LevelConfig? levelConfig) { }
     }
 
     private class StubGameView : IGameView
@@ -100,28 +135,35 @@ public class Match3EngineInteractionTests
         public bool HasMatches(in GameState state) => HasMatchResult;
     }
 
+    private class StubBotSystem : IBotSystem
+    {
+        public bool TryGetRandomMove(ref GameState state, IInteractionSystem interactionSystem, out Move move)
+        {
+            move = default;
+            return false;
+        }
+    }
+
     [Fact]
     public void OnTap_WithBomb_ShouldActivateBomb()
     {
         // Arrange
         var config = new Match3Config(8, 8, 5);
         var inputStub = new StubInputSystem();
-        var powerUpSpy = new SpyPowerUpHandler();
+        var gameLoopStub = new StubAsyncGameLoopSystem();
+        var interactionStub = new StubInteractionSystem();
+        var animationStub = new StubAnimationSystem();
+        var boardInitStub = new StubBoardInitializer();
+        var matchFinderStub = new StubMatchFinder();
+        var botSystemStub = new StubBotSystem();
         
-        // Minimal valid dependencies
         var random = new StubRandom();
         var view = new StubGameView();
         var logger = new StubLogger();
-        var tileGen = new StandardTileGenerator(random);
-        var score = new StandardScoreSystem();
-        var bombGen = new Match3.Core.Systems.Matching.Generation.BombGenerator();
-        var matchFinder = new ClassicMatchFinder(bombGen);
-        var bombRegistry = BombEffectRegistry.CreateDefault();
-        var matchProcessor = new StandardMatchProcessor(score, bombRegistry);
         
         var engine = new Match3Engine(
             config, random, view, logger, inputStub, 
-            matchFinder, matchProcessor, powerUpSpy, score, tileGen
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
         );
 
         // Inject a Bomb into State using Reflection
@@ -137,8 +179,8 @@ public class Match3EngineInteractionTests
         engine.OnTap(new Position(0, 0));
 
         // Assert
-        Assert.True(powerUpSpy.ActivateBombCalled, "ActivateBomb should be called when tapping a bomb");
-        Assert.Equal(new Position(0, 0), powerUpSpy.LastBombPosition);
+        Assert.True(gameLoopStub.ActivateBombCalled, "ActivateBomb should be called when tapping a bomb");
+        Assert.Equal(new Position(0, 0), gameLoopStub.LastBombPosition);
     }
 
     [Fact]
@@ -147,21 +189,20 @@ public class Match3EngineInteractionTests
         // Arrange
         var config = new Match3Config(8, 8, 5);
         var inputStub = new StubInputSystem();
-        var powerUpSpy = new SpyPowerUpHandler();
+        var gameLoopStub = new StubAsyncGameLoopSystem();
+        var interactionStub = new StubInteractionSystem();
+        var animationStub = new StubAnimationSystem();
+        var boardInitStub = new StubBoardInitializer();
+        var matchFinderStub = new StubMatchFinder();
+        var botSystemStub = new StubBotSystem();
         
         var random = new StubRandom();
         var view = new StubGameView();
         var logger = new StubLogger();
-        var tileGen = new StandardTileGenerator(random);
-        var score = new StandardScoreSystem();
-        var bombGen = new Match3.Core.Systems.Matching.Generation.BombGenerator();
-        var matchFinder = new ClassicMatchFinder(bombGen);
-        var bombRegistry = BombEffectRegistry.CreateDefault();
-        var matchProcessor = new StandardMatchProcessor(score, bombRegistry);
         
         var engine = new Match3Engine(
             config, random, view, logger, inputStub, 
-            matchFinder, matchProcessor, powerUpSpy, score, tileGen
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
         );
 
         // Inject a Normal Tile at (0,0)
@@ -174,7 +215,7 @@ public class Match3EngineInteractionTests
         engine.OnTap(new Position(0, 0));
 
         // Assert
-        Assert.False(powerUpSpy.ActivateBombCalled, "ActivateBomb should NOT be called when tapping a normal tile");
+        Assert.False(gameLoopStub.ActivateBombCalled, "ActivateBomb should NOT be called when tapping a normal tile");
     }
 
     [Fact]
@@ -183,19 +224,23 @@ public class Match3EngineInteractionTests
         // Arrange
         var config = new Match3Config(8, 8, 5);
         var inputStub = new StubInputSystem();
-        var powerUpSpy = new SpyPowerUpHandler();
+        var gameLoopStub = new StubAsyncGameLoopSystem();
+        var interactionStub = new StubInteractionSystem();
+        var animationStub = new StubAnimationSystem();
+        var boardInitStub = new StubBoardInitializer();
+        var matchFinderStub = new StubMatchFinder { HasMatchResult = true }; // Simulate valid match
+        var botSystemStub = new StubBotSystem();
+        
         var random = new StubRandom();
         var view = new StubGameView();
         var logger = new StubLogger();
-        var tileGen = new StandardTileGenerator(random);
-        var score = new StandardScoreSystem();
-        var matchFinderStub = new StubMatchFinder { HasMatchResult = true }; // Simulate valid match
-        var bombRegistry = BombEffectRegistry.CreateDefault();
-        var matchProcessor = new StandardMatchProcessor(score, bombRegistry);
+        
+        // Setup Interaction to return a valid move
+        interactionStub.MoveToReturn = new Move(new Position(0, 0), new Position(1, 0));
         
         var engine = new Match3Engine(
             config, random, view, logger, inputStub, 
-            matchFinderStub, matchProcessor, powerUpSpy, score, tileGen
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
         );
 
         // Inject tiles
@@ -208,6 +253,7 @@ public class Match3EngineInteractionTests
         state.SetTile(1, 0, t2);
 
         // Act
+        // Trigger swipe. InteractionSystem.TryHandleSwipe will return true and the Move.
         inputStub.TriggerSwipe(new Position(0, 0), Direction.Right);
 
         // Assert

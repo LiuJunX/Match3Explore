@@ -4,7 +4,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using Match3.Core;
 using Match3.Core.Config;
-using Match3.Core.Interfaces;
+using Match3.Core.Systems.Core;
+using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Input;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.Physics;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Scoring;
+using Match3.Core.View;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
@@ -14,6 +21,8 @@ using Match3.Core.Systems.Matching;
 using Match3.Core.Systems.Matching.Generation;
 using Match3.Core.Systems.PowerUps;
 using Match3.Core.Systems.Scoring;
+using Match3.Core.Systems.Core;
+using Match3.Core.Systems.Physics;
 using Match3.Core.Utility;
 using Microsoft.Extensions.Logging;
 using Match3.Random;
@@ -24,6 +33,7 @@ public class Match3GameService : IDisposable
 {
     private readonly ILogger<Match3GameService> _appLogger;
     private Match3Engine? _engine;
+    private Match3Config? _config;
     private StandardInputSystem? _inputSystem;
     private bool _isAutoPlaying;
     private float _gameSpeed = 1.0f;
@@ -38,11 +48,12 @@ public class Match3GameService : IDisposable
     }
 
     public Match3Engine? Engine => _engine;
+    public Match3Config? Config => _config;
     public bool IsAutoPlaying => _isAutoPlaying;
-    public float GameSpeed 
-    { 
-        get => _gameSpeed; 
-        set => _gameSpeed = Math.Clamp(value, 0.1f, 5.0f); 
+    public float GameSpeed
+    {
+        get => _gameSpeed;
+        set => _gameSpeed = Math.Clamp(value, 0.1f, 5.0f);
     }
     public int LastMatchesCount { get; private set; }
 
@@ -66,7 +77,8 @@ public class Match3GameService : IDisposable
         var view = new ServiceGameView(this);
         
         var gameLogger = new MicrosoftGameLogger(_appLogger);
-        var config = new Match3Config(Width, Height, 6);
+        _config = new Match3Config(Width, Height, 6);
+        var config = _config;
 
         var tileGenerator = new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill));
         var bombGenerator = new Match3.Core.Systems.Matching.Generation.BombGenerator();
@@ -78,17 +90,27 @@ public class Match3GameService : IDisposable
         _inputSystem = new StandardInputSystem();
         _inputSystem.Configure(CellSize);
 
+        // New Systems for DI
+        var physics = new RealtimeGravitySystem(config, seedManager.GetRandom(RandomDomain.Physics));
+        var refill = new RealtimeRefillSystem(tileGenerator);
+        var gameLoop = new AsyncGameLoopSystem(physics, refill, matchFinder, matchProcessor, powerUpHandler);
+        var interaction = new InteractionSystem(_inputSystem, gameLogger);
+        var animation = new AnimationSystem(config);
+        var boardInit = new BoardInitializer(tileGenerator);
+        var botSystem = new BotSystem(matchFinder);
+
         _engine = new Match3Engine(
             config,
             rng, 
             view,
             gameLogger,
             _inputSystem,
+            gameLoop,
+            interaction,
+            animation,
+            boardInit,
             matchFinder,
-            matchProcessor,
-            powerUpHandler,
-            scoreSystem,
-            tileGenerator,
+            botSystem,
             levelConfig
         );
         

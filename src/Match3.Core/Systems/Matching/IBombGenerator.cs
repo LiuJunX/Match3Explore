@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
+using Match3.Random;
 
-namespace Match3.Core.Interfaces;
+namespace Match3.Core.Systems.Matching;
 
 /// <summary>
 /// Responsible for analyzing connected components and generating match groups with appropriate bomb types.
@@ -16,6 +17,7 @@ public interface IBombGenerator
     /// </summary>
     /// <param name="component">The set of connected positions of the same color.</param>
     /// <param name="foci">Optional priority positions (e.g., user swap/input positions) for bomb generation.</param>
+    /// <param name="random">Random source for position selection. If null, uses first available position.</param>
     /// <returns>A list of valid MatchGroups. Returns empty list if no valid match is found.</returns>
-    List<MatchGroup> Generate(HashSet<Position> component, IEnumerable<Position>? foci);
+    List<MatchGroup> Generate(HashSet<Position> component, IEnumerable<Position>? foci = null, IRandom? random = null);
 }
