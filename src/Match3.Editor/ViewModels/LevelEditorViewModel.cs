@@ -176,7 +176,7 @@ namespace Match3.Editor.ViewModels
             TileType.None
         };
 
-        public IReadOnlyList<TileType> TilePaletteTypes => _tilePaletteTypes;
+        public static IReadOnlyList<TileType> TilePaletteTypes => _tilePaletteTypes;
 
         public static string GetTileBackground(TileType t)
         {

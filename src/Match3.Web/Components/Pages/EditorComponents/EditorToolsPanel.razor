@@ -7,7 +7,7 @@
     <div class="p-3 border-bottom">
         <h6 class="text-uppercase text-muted small fw-bold mb-3">Palette</h6>
         <div class="d-grid gap-2" style="grid-template-columns: repeat(4, 1fr);">
-            @foreach (var type in VM.TilePaletteTypes)
+            @foreach (var type in LevelEditorViewModel.TilePaletteTypes)
             {
                 <button class="btn p-0 border position-relative @(VM.SelectedType == type ? "border-primary border-3" : "")"
                         style="height: 48px; background: @LevelEditorViewModel.GetTileBackground(type); box-shadow: @(VM.SelectedType == type ? "inset 0 0 0 1px rgba(255,255,255,0.5)" : "none")"

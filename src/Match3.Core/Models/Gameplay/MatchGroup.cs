@@ -17,9 +17,9 @@ public enum MatchShape
 
 public class MatchGroup
 {
-    public TileType Type;
-    public HashSet<Position> Positions = new HashSet<Position>();
-    public MatchShape Shape;
-    public Position? BombOrigin; // Where to spawn the bomb (usually the swap position)
-    public BombType SpawnBombType = BombType.None;
+    public TileType Type { get; set; }
+    public HashSet<Position> Positions { get; set; } = new HashSet<Position>();
+    public MatchShape Shape { get; set; }
+    public Position? BombOrigin { get; set; } // Where to spawn the bomb (usually the swap position)
+    public BombType SpawnBombType { get; set; } = BombType.None;
 }
