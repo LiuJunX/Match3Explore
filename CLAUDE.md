@@ -14,7 +14,7 @@ This project uses shared coding standards maintained in `.trae/rules/project_rul
 
 ### Architecture Red Lines
 - `Match3.Core` must NEVER reference `Match3.Web`
-- Use `Pools.Rent<T>()` for hot-path objects (no `new T()` in loops)
+- Use `Pools.ObtainList<T>()` / `Pools.ObtainHashSet<T>()` for hot-path collections, release with `Pools.Release()`
 - Use `Match3.Random` interfaces (no `System.Random`)
 - Logic classes must remain stateless
 
