@@ -73,9 +73,11 @@ public struct SpawnContext
     public int RemainingMoves;      // 剩余步数
     public float GoalProgress;      // 目标完成度 (0.0~1.0)
     public int FailedAttempts;      // 连续失败次数
-    public bool InFlowState;        // 是否处于心流状态
+    public bool InFlowState;        // 是否处于心流状态 (Phase 2 预留)
 }
 ```
+
+> **注意**: `InFlowState` 字段在 Phase 1 中未使用，预留给 Phase 2 的更复杂策略。
 
 ---
 
@@ -98,14 +100,15 @@ graph TD
     H -- No --> I[Balance 策略]
 ```
 
-### 3.2 四种生成策略
+### 3.2 三种生成策略
 
 | 策略 | 触发条件 | 行为 |
 | :--- | :--- | :--- |
-| **Help** | 失败≥3次 / 最后几步 / 低难度 | 生成能形成消除的颜色 |
-| **Challenge** | 高难度 / 玩家进展顺利 | 避免生成能消除的颜色 |
-| **Balance** | 中等难度 | 平衡各颜色分布（稀有色权重高） |
-| **Neutral** | 默认 | 纯随机生成 |
+| **Help** | 失败≥3次 / 最后几步 / 低难度(<0.3) | 生成能形成消除的颜色 |
+| **Challenge** | 高难度(>0.7) / 玩家进展顺利 | 避免生成能消除的颜色 |
+| **Balance** | 中等难度(0.3~0.7) | 平衡各颜色分布（稀有色权重高） |
+
+> **注意**: 代码中还定义了 `Neutral` 策略（纯随机），但当前实现中默认使用 `Balance`，`Neutral` 仅作为 switch 的兜底分支。
 
 ### 3.3 Help 策略详解
 
@@ -127,7 +130,7 @@ private TileType SpawnHelpful(ref GameState state, int spawnX, int colorCount)
     for (int i = 0; i < colorCount; i++)
         if (wouldMatch[i]) return Colors[i];
 
-    // 3. 其次生成能形成近消除的
+    // 3. 其次生成能形成近消除的（恰好 2 连）
     int targetY = BoardAnalyzer.SimulateDropTarget(ref state, spawnX);
     for (int i = 0; i < colorCount; i++)
         if (BoardAnalyzer.WouldCreateNearMatch(ref state, spawnX, targetY, Colors[i]))
@@ -156,13 +159,14 @@ private TileType SpawnChallenging(ref GameState state, int spawnX, int colorCoun
     var commonColor = BoardAnalyzer.FindMostCommonColor(ref state, colorCount);
     int commonIndex = BoardAnalyzer.GetColorIndex(commonColor);
 
-    if (commonIndex >= 0 && wouldNotMatch[commonIndex])
+    if (commonIndex >= 0 && commonIndex < colorCount && wouldNotMatch[commonIndex])
         return commonColor;
 
     // 其他不会消除的颜色
     for (int i = 0; i < colorCount; i++)
         if (wouldNotMatch[i]) return Colors[i];
 
+    // 所有颜色都会消除时，退化为随机
     return SpawnRandom(ref state, colorCount);
 }
 ```
@@ -174,6 +178,7 @@ private TileType SpawnChallenging(ref GameState state, int spawnX, int colorCoun
 ```csharp
 private TileType SpawnBalanced(ref GameState state, int spawnX, int colorCount)
 {
+    // 统计各颜色数量
     Span<int> counts = stackalloc int[6];
     BoardAnalyzer.GetColorDistribution(ref state, counts);
 
@@ -187,9 +192,15 @@ private TileType SpawnBalanced(ref GameState state, int spawnX, int colorCount)
         totalWeight += weights[i];
     }
 
+    // 边界检查：权重为零时退化为随机
+    if (totalWeight <= 0)
+        return SpawnRandom(ref state, colorCount);
+
     // 加权随机选择
+    var rng = _rng ?? state.Random;
     int roll = rng.Next(0, totalWeight);
     int cumulative = 0;
+
     for (int i = 0; i < colorCount; i++)
     {
         cumulative += weights[i];
@@ -202,25 +213,102 @@ private TileType SpawnBalanced(ref GameState state, int spawnX, int colorCount)
 
 ---
 
-## 4. 棋盘分析器 (Board Analyzer)
+## 4. 案例分析 (Case Studies)
+
+### 案例 A：玩家挣扎场景
+
+**情境**：玩家在同一关卡失败了 3 次，剩余 10 步，目标完成度 40%。
+
+```
+SpawnContext:
+  FailedAttempts = 3  ← 触发 Help
+  RemainingMoves = 10
+  GoalProgress = 0.4
+  TargetDifficulty = 0.5
+
+棋盘状态 (列 2 需要生成):
+  Col:  0   1   2   3   4
+       [R] [R] [ ] [B] [G]   ← Row 0 (生成点)
+       [B] [G] [R] [R] [Y]
+       [Y] [B] [G] [B] [R]
+
+分析:
+  - 如果生成 Red，会形成 (0,0)-(1,0)-(2,0) 三连 ✓
+  - Help 策略会优先选择 Red
+
+结果: 生成 Red，立即触发消除，帮助玩家
+```
+
+### 案例 B：玩家顺利场景
+
+**情境**：玩家进展顺利，目标完成度 80%，还剩 8 步。
+
+```
+SpawnContext:
+  FailedAttempts = 0
+  RemainingMoves = 8
+  GoalProgress = 0.8  ← 触发 Challenge (>0.7 且 moves>5)
+  TargetDifficulty = 0.5
+
+棋盘状态 (列 2 需要生成):
+  Col:  0   1   2   3   4
+       [R] [R] [ ] [B] [G]
+       ...
+
+分析:
+  - Red 会形成消除，Challenge 策略会避开
+  - 系统查找最多的颜色（假设是 Blue）
+  - 如果 Blue 不会消除，生成 Blue
+
+结果: 生成 Blue，避免轻松消除，增加挑战
+```
+
+### 案例 C：中等难度场景
+
+**情境**：正常游戏流程，难度 0.5。
+
+```
+SpawnContext:
+  FailedAttempts = 0
+  RemainingMoves = 15
+  GoalProgress = 0.5
+  TargetDifficulty = 0.5  ← 触发 Balance
+
+棋盘颜色分布:
+  Red: 12, Green: 8, Blue: 15, Yellow: 5, Purple: 10, Orange: 14
+
+权重计算:
+  Red:    100/(12+1) = 7
+  Green:  100/(8+1)  = 11
+  Blue:   100/(15+1) = 6
+  Yellow: 100/(5+1)  = 16  ← 最高权重
+  Purple: 100/(10+1) = 9
+  Orange: 100/(14+1) = 6
+
+结果: Yellow 有最高概率被选中，平衡颜色分布
+```
+
+---
+
+## 5. 棋盘分析器 (Board Analyzer)
 
 `BoardAnalyzer` 是一个静态工具类，提供棋盘状态分析功能。
 
-### 4.1 核心方法
+### 5.1 核心方法
 
-| 方法 | 用途 |
-| :--- | :--- |
-| `GetColorDistribution` | 统计各颜色数量 |
-| `SimulateDropTarget` | 预判方块落点 Y 坐标 |
-| `WouldCreateMatch` | 检测是否会形成 3 连 |
-| `WouldCreateNearMatch` | 检测是否会形成 2 连 |
-| `FindMatchingColors` | 找出能消除的颜色 |
-| `FindNonMatchingColors` | 找出不能消除的颜色 |
-| `FindRarestColor` | 找最稀有的颜色 |
-| `FindMostCommonColor` | 找最多的颜色 |
-| `CalculateMatchPotential` | 计算棋盘消除潜力 |
+| 方法 | 用途 | 复杂度 |
+| :--- | :--- | :--- |
+| `GetColorDistribution` | 统计各颜色数量 | O(W×H) |
+| `SimulateDropTarget` | 预判方块落点 Y 坐标 | O(H) |
+| `WouldCreateMatch` | 检测是否会形成 3 连 | O(W+H) |
+| `WouldCreateNearMatch` | 检测是否会恰好形成 2 连 | O(W+H) |
+| `FindMatchingColors` | 找出能消除的颜色 | O(6×(W+H)) |
+| `FindNonMatchingColors` | 找出不能消除的颜色 | O(6×(W+H)) |
+| `FindRarestColor` | 找最稀有的颜色 | O(W×H) |
+| `FindMostCommonColor` | 找最多的颜色 | O(W×H) |
+| `CalculateMatchPotential` | 计算棋盘消除潜力 | O(W×H) |
 
-### 4.2 性能优化
+### 5.2 性能优化
 
 所有方法都使用 `Span<T>` 和 `stackalloc` 实现零内存分配：
 
@@ -233,9 +321,9 @@ BoardAnalyzer.GetColorDistribution(ref state, counts);
 
 ---
 
-## 5. 适配器 (Adapters)
+## 6. 适配器 (Adapters)
 
-### 5.1 SpawnModelAdapter
+### 6.1 SpawnModelAdapter
 
 将 `ISpawnModel` 适配为 `ITileGenerator`，用于兼容现有系统。
 
@@ -254,7 +342,7 @@ public class SpawnModelAdapter : ITileGenerator
 }
 ```
 
-### 5.2 LegacySpawnModel
+### 6.2 LegacySpawnModel
 
 将旧的 `ITileGenerator` 包装为 `ISpawnModel`，用于渐进式迁移。
 
@@ -270,9 +358,31 @@ public class LegacySpawnModel : ISpawnModel
 
 ---
 
-## 6. 集成指南 (Integration Guide)
+## 7. 已知限制 (Known Limitations)
 
-### 6.1 当前状态
+### Phase 1 当前限制
+
+| 限制 | 描述 | 计划解决版本 |
+| :--- | :--- | :--- |
+| **静态落点预判** | `SimulateDropTarget` 只分析当前静态位置，不考虑正在掉落的方块 | Phase 2 |
+| **无连锁预判** | 不预测生成后可能触发的连锁反应 | Phase 2 |
+| **InFlowState 未使用** | 心流状态字段预留但未实现 | Phase 2 |
+| **无历史分析** | 不记录和分析历史生成序列 | Phase 2 |
+| **单点决策** | 每次只决策单个生成点，不考虑多列协同 | Phase 3 |
+
+### 边界情况处理
+
+| 情况 | 处理方式 |
+| :--- | :--- |
+| `colorCount <= 0` | 返回 `TileType.None` |
+| 所有颜色都会形成消除 | Challenge 策略退化为随机 |
+| `totalWeight <= 0` | Balance 策略退化为随机 |
+
+---
+
+## 8. 集成指南 (Integration Guide)
+
+### 8.1 当前状态
 
 ```
 RealtimeRefillSystem
@@ -281,7 +391,7 @@ RealtimeRefillSystem
   ITileGenerator (StandardTileGenerator)  ← 现有实现
 ```
 
-### 6.2 目标状态
+### 8.2 目标状态
 
 ```
 RealtimeRefillSystem
@@ -293,7 +403,7 @@ RealtimeRefillSystem
   SpawnContext (from GameState/Level)
 ```
 
-### 6.3 集成步骤
+### 8.3 集成步骤
 
 1. **修改 `GameState`**：添加 `SpawnContext` 字段
 2. **修改 `RealtimeRefillSystem`**：注入 `ISpawnModel`
@@ -302,19 +412,22 @@ RealtimeRefillSystem
 
 ---
 
-## 7. 未来规划 (Future Roadmap)
+## 9. 未来规划 (Future Roadmap)
 
 ### Phase 2: 混合模型 (Hybrid Model)
 
 - 结合规则和统计数据
 - 分析历史生成序列
-- 更精确的掉落预判（考虑连锁反应）
+- 更精确的掉落预判（考虑正在掉落的方块）
+- 连锁反应模拟
+- 使用 `InFlowState` 进行心流检测
 
 ### Phase 3: 强化学习模型 (RL Model)
 
 - 使用 SAC/PPO 算法训练
 - 基于玩家行为数据
 - 实现真正的动态难度调节
+- 多列协同决策
 
 ### 研究参考
 
@@ -324,7 +437,7 @@ RealtimeRefillSystem
 
 ---
 
-## 8. 文件结构 (File Structure)
+## 10. 文件结构 (File Structure)
 
 ```
 src/Match3.Core/Systems/Spawning/

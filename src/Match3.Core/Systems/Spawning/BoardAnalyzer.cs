@@ -104,28 +104,33 @@ public static class BoardAnalyzer
     }
 
     /// <summary>
-    /// Checks if placing a color at (x, y) would create a "near match" (2 in a row with potential).
+    /// Checks if placing a color at (x, y) would create a "near match" (2 in a row).
+    /// A near match means placing this tile creates a pair that needs only 1 more to complete.
     /// This is useful for creating tension without immediate resolution.
     /// </summary>
     public static bool WouldCreateNearMatch(ref GameState state, int x, int y, TileType color)
     {
-        // Check horizontal pairs
+        // Check horizontal: need at least 1 adjacent same-color tile
         int left = 0, right = 0;
         for (int dx = 1; x - dx >= 0 && state.GetType(x - dx, y) == color; dx++)
             left++;
         for (int dx = 1; x + dx < state.Width && state.GetType(x + dx, y) == color; dx++)
             right++;
 
-        if (left + right >= 1) return true;
+        // left + right >= 1 means we'd form at least a pair (2 tiles total including this one)
+        // But we don't want 3+ (that's a match, not near-match)
+        int hTotal = left + right + 1;
+        if (hTotal == 2) return true;  // Exactly a pair
 
-        // Check vertical pairs
+        // Check vertical
         int up = 0, down = 0;
         for (int dy = 1; y - dy >= 0 && state.GetType(x, y - dy) == color; dy++)
             up++;
         for (int dy = 1; y + dy < state.Height && state.GetType(x, y + dy) == color; dy++)
             down++;
 
-        return up + down >= 1;
+        int vTotal = up + down + 1;
+        return vTotal == 2;  // Exactly a pair
     }
 
     /// <summary>
