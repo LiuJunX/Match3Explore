@@ -2,7 +2,7 @@
 
 | 文档状态 | 作者 | 日期 | 对应版本 |
 | :--- | :--- | :--- | :--- |
-| **Phase 1 Implemented** | AI Assistant | 2026-01-14 | v0.1 (Rule-Based) |
+| **Phase 1 Integrated** | AI Assistant | 2026-01-14 | v0.1 (Rule-Based) |
 
 ## 1. 概述 (Overview)
 
@@ -382,33 +382,40 @@ public class LegacySpawnModel : ISpawnModel
 
 ## 8. 集成指南 (Integration Guide)
 
-### 8.1 当前状态
+### 8.1 当前状态 (已集成)
 
 ```
 RealtimeRefillSystem
        │
        ↓
-  ITileGenerator (StandardTileGenerator)  ← 现有实现
-```
-
-### 8.2 目标状态
-
-```
-RealtimeRefillSystem
+  ISpawnModel (RuleBasedSpawnModel)       ← 已集成
        │
        ↓
-  ISpawnModel (RuleBasedSpawnModel)       ← 新实现
+  SpawnContext (from GameState)
        │
-       ↓
-  SpawnContext (from GameState/Level)
+       ├── TargetDifficulty  ← 从 LevelConfig 初始化
+       ├── RemainingMoves    ← MoveLimit - MoveCount
+       ├── GoalProgress      ← TODO: 目标系统
+       └── FailedAttempts    ← TODO: 会话跟踪
 ```
 
-### 8.3 集成步骤
+### 8.2 已完成的集成
 
-1. **修改 `GameState`**：添加 `SpawnContext` 字段
-2. **修改 `RealtimeRefillSystem`**：注入 `ISpawnModel`
-3. **修改引擎初始化**：创建并注入 `RuleBasedSpawnModel`
-4. **关卡配置**：在 `LevelConfig` 中添加 `TargetDifficulty`
+| 组件 | 改动 |
+| :--- | :--- |
+| `LevelConfig` | 添加 `TargetDifficulty` 属性 (默认 0.5) |
+| `GameState` | 添加 `MoveLimit`, `TargetDifficulty` 字段 |
+| `BoardInitializer` | 从 LevelConfig 初始化 GameState 的难度字段 |
+| `RealtimeRefillSystem` | 依赖从 `ITileGenerator` 改为 `ISpawnModel` |
+| `Match3GameService` | 创建 `RuleBasedSpawnModel` 实例 |
+| `EditorConfigPanel` | 添加难度滑块 UI (0% - 100%) |
+
+### 8.3 待集成项
+
+| 项目 | 说明 |
+| :--- | :--- |
+| `GoalProgress` | 当前硬编码为 0，需要与目标系统集成 |
+| `FailedAttempts` | 当前硬编码为 0，需要会话级别跟踪 |
 
 ---
 

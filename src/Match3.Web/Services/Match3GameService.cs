@@ -21,6 +21,7 @@ using Match3.Core.Systems.Matching;
 using Match3.Core.Systems.Matching.Generation;
 using Match3.Core.Systems.PowerUps;
 using Match3.Core.Systems.Scoring;
+using Match3.Core.Systems.Spawning;
 using Match3.Core.Systems.Core;
 using Match3.Core.Systems.Physics;
 using Match3.Core.Utility;
@@ -81,6 +82,7 @@ public class Match3GameService : IDisposable
         var config = _config;
 
         var tileGenerator = new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill));
+        var spawnModel = new RuleBasedSpawnModel(seedManager.GetRandom(RandomDomain.Refill));
         var bombGenerator = new Match3.Core.Systems.Matching.Generation.BombGenerator();
         var matchFinder = new ClassicMatchFinder(bombGenerator);
         var scoreSystem = new StandardScoreSystem();
@@ -92,9 +94,10 @@ public class Match3GameService : IDisposable
 
         // New Systems for DI
         var physics = new RealtimeGravitySystem(config, seedManager.GetRandom(RandomDomain.Physics));
-        var refill = new RealtimeRefillSystem(tileGenerator);
+        var refill = new RealtimeRefillSystem(spawnModel);
+
         var gameLoop = new AsyncGameLoopSystem(physics, refill, matchFinder, matchProcessor, powerUpHandler);
-        var interaction = new InteractionSystem(_inputSystem, gameLogger);
+        var interaction = new InteractionSystem(gameLogger);
         var animation = new AnimationSystem(config);
         var boardInit = new BoardInitializer(tileGenerator);
         var botSystem = new BotSystem(matchFinder);
@@ -104,7 +107,6 @@ public class Match3GameService : IDisposable
             rng, 
             view,
             gameLogger,
-            _inputSystem,
             gameLoop,
             interaction,
             animation,
@@ -114,6 +116,13 @@ public class Match3GameService : IDisposable
             levelConfig
         );
         
+        // Bind Input Events to Engine Intents
+        if (_inputSystem != null)
+        {
+            _inputSystem.TapDetected += OnInputTap;
+            _inputSystem.SwipeDetected += OnInputSwipe;
+        }
+
         LastMatchesCount = 0;
         _isAutoPlaying = false;
         
@@ -121,8 +130,23 @@ public class Match3GameService : IDisposable
         NotifyStateChanged();
     }
     
+    private void OnInputTap(Position p)
+    {
+        _engine?.EnqueueIntent(new Match3.Core.Models.Input.TapIntent(p));
+    }
+    
+    private void OnInputSwipe(Position from, Direction dir)
+    {
+        _engine?.EnqueueIntent(new Match3.Core.Models.Input.SwipeIntent(from, dir));
+    }
+
     public void ResetGame()
     {
+        if (_inputSystem != null)
+        {
+            _inputSystem.TapDetected -= OnInputTap;
+            _inputSystem.SwipeDetected -= OnInputSwipe;
+        }
         StartNewGame();
     }
 
@@ -193,6 +217,11 @@ public class Match3GameService : IDisposable
     public void Dispose()
     {
         _disposed = true;
+        if (_inputSystem != null)
+        {
+            _inputSystem.TapDetected -= OnInputTap;
+            _inputSystem.SwipeDetected -= OnInputSwipe;
+        }
         StopLoop();
     }
     

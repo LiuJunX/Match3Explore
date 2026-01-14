@@ -12,6 +12,12 @@ public class LevelConfig
     public BombType[] Bombs { get; set; }
     public int MoveLimit { get; set; } = 20;
 
+    /// <summary>
+    /// Target difficulty for spawn model (0.0 = easy, 1.0 = hard).
+    /// Default 0.5 for medium difficulty.
+    /// </summary>
+    public float TargetDifficulty { get; set; } = 0.5f;
+
     public LevelConfig()
     {
         Grid = new TileType[Width * Height];

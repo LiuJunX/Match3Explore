@@ -23,6 +23,10 @@ public struct GameState
     public long MoveCount;
     public long NextTileId;
 
+    // Difficulty control fields (for SpawnModel)
+    public int MoveLimit;
+    public float TargetDifficulty;
+
     /// <summary>
     /// The currently selected position for swapping.
     /// Part of the Input State.
@@ -43,6 +47,8 @@ public struct GameState
         Score = 0;
         MoveCount = 0;
         NextTileId = 1;
+        MoveLimit = 20;  // Default, should be set from LevelConfig
+        TargetDifficulty = 0.5f;  // Default medium
         SelectedPosition = Position.Invalid;
         Random = random;
     }
@@ -53,6 +59,8 @@ public struct GameState
         clone.Score = Score;
         clone.MoveCount = MoveCount;
         clone.NextTileId = NextTileId;
+        clone.MoveLimit = MoveLimit;
+        clone.TargetDifficulty = TargetDifficulty;
         clone.SelectedPosition = SelectedPosition;
         Array.Copy(Grid, clone.Grid, Grid.Length);
         // Note: IRandom is shared reference here. 
@@ -67,4 +75,12 @@ public struct GameState
     public TileType GetType(int x, int y) => Grid[y * Width + x].Type;
 
     public int Index(int x, int y) => y * Width + x;
+
+    /// <summary>
+    /// Checks if a position is within the grid boundaries.
+    /// </summary>
+    public bool IsValid(Position p)
+    {
+        return p.X >= 0 && p.X < Width && p.Y >= 0 && p.Y < Height;
+    }
 }

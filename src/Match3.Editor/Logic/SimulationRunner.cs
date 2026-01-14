@@ -22,6 +22,7 @@ using Match3.Core.Systems.Matching.Generation;
 using Match3.Core.Systems.PowerUps;
 using Match3.Core.Systems.Scoring;
 using Match3.Core.Systems.Physics;
+using Match3.Core.Systems.Spawning;
 using Match3.Core.Systems.Core;
 using Match3.Random;
 
@@ -62,17 +63,18 @@ namespace Match3.Editor.Logic
             var scoreSystem = new StandardScoreSystem();
             var inputSystem = new StandardInputSystem();
             var tileGen = new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill));
+            var spawnModel = new RuleBasedSpawnModel(seedManager.GetRandom(RandomDomain.Refill));
             var bombRegistry = BombEffectRegistry.CreateDefault();
 
             // New Systems
             var physics = new RealtimeGravitySystem(engineConfig, seedManager.GetRandom(RandomDomain.Physics));
-            var refill = new RealtimeRefillSystem(tileGen);
+            var refill = new RealtimeRefillSystem(spawnModel);
             var matchFinder = new ClassicMatchFinder(new BombGenerator());
             var matchProcessor = new StandardMatchProcessor(scoreSystem, bombRegistry);
             var powerUpHandler = new PowerUpHandler(scoreSystem);
             
             var gameLoop = new AsyncGameLoopSystem(physics, refill, matchFinder, matchProcessor, powerUpHandler);
-            var interaction = new InteractionSystem(inputSystem, _logger);
+            var interaction = new InteractionSystem(_logger);
             var animation = new AnimationSystem(engineConfig);
             var boardInit = new BoardInitializer(tileGen);
             var botSystem = new BotSystem(matchFinder);
@@ -82,7 +84,6 @@ namespace Match3.Editor.Logic
                 seedManager.GetRandom(RandomDomain.Main),
                 view,
                 _logger,
-                inputSystem,
                 gameLoop,
                 interaction,
                 animation,
@@ -118,7 +119,7 @@ namespace Match3.Editor.Logic
         {
             if (_isRecording && _engine != null)
             {
-                _engine.OnTap(new Position(x, y));
+                _engine.EnqueueIntent(new Match3.Core.Models.Input.TapIntent(new Position(x, y)));
             }
         }
 

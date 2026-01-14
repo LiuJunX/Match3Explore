@@ -12,6 +12,7 @@ using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
 using Match3.Core.Systems.Core;
 using Match3.Core.Systems.Physics;
+using Match3.Core.Systems.Spawning;
 using Match3.Random;
 using Xunit;
 
@@ -25,9 +26,9 @@ public class AsyncGameLoopTests
         public bool IsStable(in GameState state) => true;
     }
 
-    private class StubTileGenerator : ITileGenerator
+    private class StubSpawnModel : ISpawnModel
     {
-        public TileType GenerateNonMatchingTile(ref GameState state, int x, int y) => TileType.Blue;
+        public TileType Predict(ref GameState state, int spawnX, in SpawnContext context) => TileType.Blue;
     }
 
     private class MockMatchFinder : IMatchFinder
@@ -71,8 +72,8 @@ public class AsyncGameLoopTests
         // Arrange
         var state = new GameState(8, 8, 5, new StubRandom());
         var physics = new StubPhysics();
-        var generator = new StubTileGenerator();
-        var refill = new RealtimeRefillSystem(generator);
+        var spawnModel = new StubSpawnModel();
+        var refill = new RealtimeRefillSystem(spawnModel);
         var finder = new MockMatchFinder();
         var processor = new SpyMatchProcessor();
         var powerUp = new StubPowerUp();

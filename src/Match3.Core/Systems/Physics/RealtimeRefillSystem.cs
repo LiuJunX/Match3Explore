@@ -1,36 +1,39 @@
+using System;
 using System.Numerics;
-using Match3.Core.Systems.Core;
-using Match3.Core.Systems.Generation;
-using Match3.Core.Systems.Input;
-using Match3.Core.Systems.Matching;
-using Match3.Core.Systems.Physics;
-using Match3.Core.Systems.PowerUps;
-using Match3.Core.Systems.Scoring;
-using Match3.Core.View;
 using Match3.Core.Models.Enums;
-using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
+using Match3.Core.Systems.Spawning;
 
 namespace Match3.Core.Systems.Physics;
 
 public class RealtimeRefillSystem
 {
-    private readonly ITileGenerator _tileGenerator;
+    private readonly ISpawnModel _spawnModel;
 
-    public RealtimeRefillSystem(ITileGenerator tileGenerator)
+    public RealtimeRefillSystem(ISpawnModel spawnModel)
     {
-        _tileGenerator = tileGenerator;
+        _spawnModel = spawnModel;
     }
 
     public void Update(ref GameState state)
     {
+        // Build SpawnContext from current game state
+        var context = new SpawnContext
+        {
+            TargetDifficulty = state.TargetDifficulty,
+            RemainingMoves = Math.Max(0, state.MoveLimit - (int)state.MoveCount),
+            GoalProgress = 0f,      // TODO: Integrate with goal system
+            FailedAttempts = 0,     // TODO: Track from session
+            InFlowState = false     // Reserved for Phase 2
+        };
+
         for (int x = 0; x < state.Width; x++)
         {
             // Only spawn if the spawn point (0) is empty
             if (state.GetTile(x, 0).Type == TileType.None)
             {
-                // Spawn a new tile at the top
-                var type = _tileGenerator.GenerateNonMatchingTile(ref state, x, 0);
+                // Spawn a new tile at the top using the spawn model
+                var type = _spawnModel.Predict(ref state, x, in context);
                 var tile = new Tile(state.NextTileId++, type, x, 0);
                 
                 // Calculate start position

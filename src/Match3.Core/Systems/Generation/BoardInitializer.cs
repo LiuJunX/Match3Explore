@@ -25,6 +25,10 @@ public class BoardInitializer : IBoardInitializer
     {
         if (levelConfig != null)
         {
+            // Initialize difficulty settings from level config
+            state.MoveLimit = levelConfig.MoveLimit;
+            state.TargetDifficulty = levelConfig.TargetDifficulty;
+
             for (int i = 0; i < levelConfig.Grid.Length; i++)
             {
                 int x = i % levelConfig.Width;

@@ -12,6 +12,7 @@ using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
 using Match3.Core.Models.Grid;
 using Match3.Core.Systems.Physics;
+using Match3.Core.Systems.Spawning;
 using Xunit;
 using Xunit.Abstractions;
 using System.Numerics;
@@ -27,9 +28,9 @@ public class RefillStressTests
         _output = output;
     }
 
-    private class StubTileGenerator : ITileGenerator
+    private class StubSpawnModel : ISpawnModel
     {
-        public TileType GenerateNonMatchingTile(ref GameState state, int x, int y) => TileType.Blue;
+        public TileType Predict(ref GameState state, int spawnX, in SpawnContext context) => TileType.Blue;
     }
 
     private class StubRandom : Match3.Random.IRandom
@@ -63,7 +64,7 @@ public class RefillStressTests
         // 1. Setup empty board
         int height = 5;
         var state = new GameState(1, height, 3, new StubRandom());
-        var refill = new RealtimeRefillSystem(new StubTileGenerator());
+        var refill = new RealtimeRefillSystem(new StubSpawnModel());
         
         // 2. Run refill once
         refill.Update(ref state);
@@ -88,7 +89,7 @@ public class RefillStressTests
         // 1. Setup board with a falling tile at (0, 1)
         int height = 5;
         var state = new GameState(1, height, 3, new StubRandom());
-        var refill = new RealtimeRefillSystem(new StubTileGenerator());
+        var refill = new RealtimeRefillSystem(new StubSpawnModel());
 
         // Place a tile at (0, 1) that has fallen slightly
         // Logical position is (0, 1), Physical position is 0.5f
@@ -117,7 +118,7 @@ public class RefillStressTests
         // 1. Setup empty board
         int height = 10;
         var state = new GameState(1, height, 3, new StubRandom());
-        var refill = new RealtimeRefillSystem(new StubTileGenerator());
+        var refill = new RealtimeRefillSystem(new StubSpawnModel());
         var gravity = new RealtimeGravitySystem(new Match3Config(), new StubRandom());
 
         // 2. Simulate loop
@@ -149,7 +150,7 @@ public class RefillStressTests
         // 1. Setup board with a falling tile at (0, 1)
         int height = 5;
         var state = new GameState(1, height, 3, new StubRandom());
-        var refill = new RealtimeRefillSystem(new StubTileGenerator());
+        var refill = new RealtimeRefillSystem(new StubSpawnModel());
         var gravity = new RealtimeGravitySystem(new Match3Config(), new StubRandom());
 
         // Place a tile at (0, 1) falling at speed 2.0f (matching spawn speed)
@@ -201,4 +202,60 @@ public class RefillStressTests
         }
         return true;
     }
+
+    #region Integration Tests with RuleBasedSpawnModel
+
+    [Fact]
+    public void Refill_WithRuleBasedSpawnModel_UsesSpawnContext()
+    {
+        // Arrange: Create state with difficulty settings
+        var state = new GameState(3, 3, 6, new StubRandom());
+        state.TargetDifficulty = 0.5f;
+        state.MoveLimit = 20;
+        state.MoveCount = 5;
+
+        var spawnModel = new RuleBasedSpawnModel(new StubRandom());
+        var refill = new RealtimeRefillSystem(spawnModel);
+
+        // Act: Run refill
+        refill.Update(ref state);
+
+        // Assert: Top row should have spawned tiles
+        for (int x = 0; x < state.Width; x++)
+        {
+            var tile = state.GetTile(x, 0);
+            Assert.NotEqual(TileType.None, tile.Type);
+            Assert.True(tile.IsFalling);
+        }
+    }
+
+    [Fact]
+    public void Refill_WithRuleBasedSpawnModel_RemainingMovesCalculatedCorrectly()
+    {
+        // Arrange: MoveLimit=20, MoveCount=18 => RemainingMoves=2 (should trigger Help)
+        var state = new GameState(5, 5, 6, new StubRandom());
+        state.TargetDifficulty = 0.5f;
+        state.MoveLimit = 20;
+        state.MoveCount = 18;
+
+        // Setup potential match: if Red spawned at column 2, it would match
+        state.SetTile(0, 0, new Tile(1, TileType.Red, 0, 0));
+        state.SetTile(1, 0, new Tile(2, TileType.Red, 1, 0));
+        state.SetTile(2, 0, new Tile(0, TileType.None, 2, 0)); // Empty spawn point
+
+        var spawnModel = new RuleBasedSpawnModel(new StubRandom());
+        var refill = new RealtimeRefillSystem(spawnModel);
+
+        // Act
+        refill.Update(ref state);
+
+        // Assert: With only 2 moves left and GoalProgress=0, Help mode should trigger
+        // Help mode tries to spawn colors that create matches
+        var spawnedTile = state.GetTile(2, 0);
+        Assert.NotEqual(TileType.None, spawnedTile.Type);
+        // In Help mode, Red should be spawned to complete the match
+        Assert.Equal(TileType.Red, spawnedTile.Type);
+    }
+
+    #endregion
 }
