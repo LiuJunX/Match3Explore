@@ -9,11 +9,10 @@
         <div class="d-grid gap-2" style="grid-template-columns: repeat(4, 1fr);">
             @foreach (var type in Enum.GetValues<TileType>())
             {
-                <button class="btn p-0 border position-relative @(VM.SelectedType == type ? "border-primary border-3" : "")" 
+                <button class="btn p-0 border position-relative @(VM.SelectedType == type ? "border-primary border-3" : "")"
                         style="height: 48px; background-color: @GetColor(type); box-shadow: @(VM.SelectedType == type ? "inset 0 0 0 1px rgba(255,255,255,0.5)" : "none")"
                         @onclick="() => VM.SelectedType = type"
-                        title="@type"
-                        disabled="@(VM.IsRecording && !VM.IsAssertionMode)">
+                        title="@type">
                     @if (VM.SelectedType == type) { <span class="position-absolute top-50 start-50 translate-middle text-white small">✓</span> }
                 </button>
             }
@@ -25,11 +24,10 @@
         <div class="d-grid gap-2" style="grid-template-columns: repeat(3, 1fr);">
             @foreach (var bomb in (BombType[])Enum.GetValues(typeof(BombType)))
             {
-                <button class="btn btn-outline-secondary p-1 d-flex flex-column align-items-center justify-content-center @(VM.SelectedBomb == bomb ? "active" : "")" 
+                <button class="btn btn-outline-secondary p-1 d-flex flex-column align-items-center justify-content-center @(VM.SelectedBomb == bomb ? "active" : "")"
                         style="height: 60px;"
                         @onclick="() => VM.SelectedBomb = bomb"
-                        title="@bomb"
-                        disabled="@(VM.IsRecording && !VM.IsAssertionMode)">
+                        title="@bomb">
                     <span class="fs-4">@GetBombIcon(bomb)</span>
                     <span style="font-size: 10px;">@bomb</span>
                 </button>

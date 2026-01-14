@@ -10,8 +10,7 @@
     <!-- Toolbar Overlay -->
     <div class="position-absolute top-0 start-50 translate-middle-x mt-3 bg-white shadow-sm rounded-pill px-3 py-1 d-flex gap-3 align-items-center z-index-10 border" style="z-index: 100;">
         <div class="small fw-bold text-muted">
-            @if(VM.IsRecording) { <span>🔴 RECORDING</span> }
-            else if(VM.IsAssertionMode) { <span>🎯 VERIFYING</span> }
+            @if(VM.IsAssertionMode) { <span>🎯 VERIFYING</span> }
             else { <span>✏️ EDITING</span> }
         </div>
         <div class="vr"></div>
@@ -36,21 +35,15 @@
                 var index = i;
                 var x = i % width;
                 var y = i / width;
-                var displayType = GetTileType(index);
-                var displayBomb = GetBomb(index);
-                var isSelected = VM.IsRecording && VM.SimulationController?.SelectedPosition == new Position(x, y);
+                var displayType = VM.ActiveLevelConfig.Grid[index];
+                var displayBomb = index < VM.ActiveBombs.Length ? VM.ActiveBombs[index] : BombType.None;
 
-                <div class="position-absolute border border-light" 
+                <div class="position-absolute border border-light"
                      style="left: @(x * tileSize)px; top: @(y * tileSize)px; width: @(tileSize)px; height: @(tileSize)px; background-color: @GetColor(displayType); cursor: @(VM.IsAssertionMode ? "crosshair" : "pointer"); transition: transform 0.1s;"
                      @onmousedown="() => StartDrawing(index)"
                      @onmouseenter="() => PaintTile(index)"
                      @ondragstart:preventDefault="true">
-                     
-                     @if (isSelected)
-                     {
-                         <div class="position-absolute top-0 start-0 w-100 h-100 border border-3 border-white shadow-sm" style="z-index: 5;"></div>
-                     }
-                     
+
                     <div class="w-100 h-100 d-flex align-items-center justify-content-center" style="pointer-events: none;">
                     </div>
                     
@@ -105,7 +98,7 @@
     {
         VM.HandleGridClick(index);
 
-        if (!VM.IsRecording && !VM.IsAssertionMode)
+        if (!VM.IsAssertionMode)
         {
             IsDrawing = true;
         }
@@ -113,7 +106,7 @@
 
     private void PaintTile(int index)
     {
-        if (IsDrawing && !VM.IsRecording && !VM.IsAssertionMode)
+        if (IsDrawing && !VM.IsAssertionMode)
         {
             VM.PaintTile(index);
         }
@@ -122,34 +115,6 @@
     private void StopDrawing()
     {
         IsDrawing = false;
-    }
-
-    private TileType GetTileType(int index)
-    {
-        if (VM.IsRecording && VM.SimulationController != null)
-        {
-            var w = VM.ActiveLevelConfig.Width;
-            try 
-            {
-                return VM.SimulationController.State.GetType(index % w, index / w);
-            }
-            catch { return TileType.None; }
-        }
-        return VM.ActiveLevelConfig.Grid[index];
-    }
-
-    private BombType GetBomb(int index)
-    {
-        if (VM.IsRecording && VM.SimulationController != null)
-        {
-            var w = VM.ActiveLevelConfig.Width;
-            try
-            {
-                return VM.SimulationController.State.GetTile(index % w, index / w).Bomb;
-            }
-            catch { return BombType.None; }
-        }
-        return index >= 0 && index < VM.ActiveBombs.Length ? VM.ActiveBombs[index] : BombType.None;
     }
 
     public void Dispose()

@@ -1,24 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
-using Match3.Core;
-using Match3.Core.Utility;
 using Match3.Core.Config;
-using Match3.Core.Systems.Core;
-using Match3.Core.Systems.Generation;
-using Match3.Core.Systems.Input;
-using Match3.Core.Systems.Matching;
-using Match3.Core.Systems.Physics;
-using Match3.Core.Systems.PowerUps;
-using Match3.Core.Systems.Scoring;
-using Match3.Core.View;
-using Match3.Core.Scenarios;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
-using Match3.Core.Models.Grid;
+using Match3.Core.Scenarios;
 using Match3.Editor.Interfaces;
 using Match3.Editor.Logic;
 
@@ -27,14 +16,11 @@ namespace Match3.Editor.ViewModels
     public class LevelEditorViewModel : INotifyPropertyChanged, IDisposable
     {
         private readonly IPlatformService _platform;
-        private readonly IFileSystemService _fileSystem;
         private readonly IJsonService _jsonService;
-        private readonly IGameLogger _logger;
         private readonly IScenarioService _scenarioService;
 
         private readonly EditorSession _session;
         private readonly GridManipulator _gridManipulator;
-        private readonly SimulationRunner _simulationRunner;
 
         // --- Core State (Delegated to Session) ---
         public EditorMode CurrentMode
@@ -139,15 +125,26 @@ namespace Match3.Editor.ViewModels
             set { _jsonOutput = value; OnPropertyChanged(nameof(JsonOutput)); }
         }
 
-        // IsRecording is now derived from SimulationRunner, but for UI binding we might need a local property
-        // that updates when Runner updates.
-        public bool IsRecording => _simulationRunner.IsRecording;
-
         private bool _isAssertionMode;
         public bool IsAssertionMode
         {
             get => _isAssertionMode;
             set { _isAssertionMode = value; OnPropertyChanged(nameof(IsAssertionMode)); }
+        }
+
+        // --- Tab State ---
+        private int _activeTabIndex = 0;
+        public int ActiveTabIndex
+        {
+            get => _activeTabIndex;
+            set
+            {
+                if (_activeTabIndex != value)
+                {
+                    _activeTabIndex = value;
+                    OnPropertyChanged(nameof(ActiveTabIndex));
+                }
+            }
         }
 
         // --- File Browser State ---
@@ -164,45 +161,34 @@ namespace Match3.Editor.ViewModels
 
         // --- Computed Properties ---
         public LevelConfig ActiveLevelConfig => _session.ActiveLevelConfig;
-        
-        public BombType[] ActiveBombs => ActiveLevelConfig.Bombs;
 
-        // --- Simulation ---
-        public Match3Engine? SimulationController => _simulationRunner.Engine;
+        public BombType[] ActiveBombs => ActiveLevelConfig.Bombs;
 
         public event PropertyChangedEventHandler? PropertyChanged;
         public event Action? OnRequestRepaint;
 
         public LevelEditorViewModel(
-            IPlatformService platform, 
-            IFileSystemService fileSystem, 
+            IPlatformService platform,
             IJsonService jsonService,
-            IGameLogger logger,
             IScenarioService scenarioService)
         {
             _platform = platform;
-            _fileSystem = fileSystem;
             _jsonService = jsonService;
-            _logger = logger;
             _scenarioService = scenarioService;
-            
+
             _session = new EditorSession();
             _gridManipulator = new GridManipulator();
-            _simulationRunner = new SimulationRunner(logger);
 
             _session.PropertyChanged += OnSessionPropertyChanged;
-            _simulationRunner.OnRepaintRequired += RequestRepaint;
 
             // Initialize default state
             _session.EnsureDefaultLevel();
-            GenerateRandomLevel(); // Fill it
+            GenerateRandomLevel();
         }
 
         public void Dispose()
         {
             _session.PropertyChanged -= OnSessionPropertyChanged;
-            _simulationRunner.OnRepaintRequired -= RequestRepaint;
-            _simulationRunner.Dispose();
         }
 
         private void OnSessionPropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -238,8 +224,7 @@ namespace Match3.Editor.ViewModels
                 EditorWidth = _session.CurrentLevel.Width;
                 EditorHeight = _session.CurrentLevel.Height;
             }
-            _simulationRunner.StopRecording();
-            OnPropertyChanged(nameof(IsRecording));
+            IsAssertionMode = false;
         }
 
         public void GenerateRandomLevel()
@@ -270,11 +255,6 @@ namespace Match3.Editor.ViewModels
         public void ToggleAssertionMode()
         {
             IsAssertionMode = !IsAssertionMode;
-            if (IsAssertionMode)
-            {
-                _simulationRunner.StopRecording();
-                OnPropertyChanged(nameof(IsRecording));
-            }
         }
 
         public void HandleGridClick(int index)
@@ -284,7 +264,7 @@ namespace Match3.Editor.ViewModels
                 var w = ActiveLevelConfig.Width;
                 var x = index % w;
                 var y = index / w;
-                
+
                 var existing = _session.CurrentScenario.Assertions.FirstOrDefault(a => a.X == x && a.Y == y);
                 if (existing != null)
                 {
@@ -294,7 +274,7 @@ namespace Match3.Editor.ViewModels
                 {
                     var type = AssertColor ? SelectedType : (TileType?)null;
                     var bomb = AssertBomb ? SelectedBomb : (BombType?)null;
-                    
+
                     _session.CurrentScenario.Assertions.Add(new ScenarioAssertion
                     {
                         X = x, Y = y,
@@ -307,15 +287,7 @@ namespace Match3.Editor.ViewModels
                 return;
             }
 
-            if (IsRecording && SimulationController != null)
-            {
-                var w = ActiveLevelConfig.Width;
-                _simulationRunner.HandleInput(index % w, index / w);
-            }
-            else
-            {
-                PaintTile(index);
-            }
+            PaintTile(index);
         }
 
         public void PaintTile(int index)
@@ -518,31 +490,6 @@ namespace Match3.Editor.ViewModels
             {
                 await _platform.ShowAlertAsync("Error", "Failed to delete: " + ex.Message);
             }
-        }
-
-        // --- Simulation ---
-
-        public void StartRecording()
-        {
-            IsAssertionMode = false;
-            _simulationRunner.StartRecording(_session.ActiveLevelConfig, _session.CurrentScenario);
-            OnPropertyChanged(nameof(IsRecording));
-        }
-
-        public void StopRecording()
-        {
-            _simulationRunner.StopRecording();
-            OnPropertyChanged(nameof(IsRecording));
-        }
-
-        public void UpdateSimulation(float dt)
-        {
-            // SimulationRunner handles its own timer, but if called manually, we could forward it.
-            // For backward compatibility with the Razor file if it still calls it.
-            // But since SimulationRunner has its own timer, calling this might double-update if not careful.
-            // The Razor file should stop calling this.
-            // However, to avoid breaking compilation of Razor file immediately:
-            // _simulationRunner.Update(dt); // If we exposed it.
         }
     }
 }

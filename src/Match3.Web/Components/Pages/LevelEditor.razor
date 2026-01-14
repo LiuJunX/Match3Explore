@@ -24,18 +24,10 @@
 </div>
 
 @code {
-    private System.Threading.Timer? _timer;
-
     protected override void OnInitialized()
     {
-        // Subscribe to VM changes to handle mode switching and other updates
         VM.PropertyChanged += OnVmPropertyChanged;
-
-        // Initial load of scenario tree
         VM.RefreshScenarioList();
-        
-        // Timer for simulation loop
-        _timer = new System.Threading.Timer(OnTimerTick, null, 16, 16);
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -43,18 +35,8 @@
         InvokeAsync(StateHasChanged);
     }
 
-    private void OnTimerTick(object? state)
-    {
-        if (VM.IsRecording)
-        {
-            VM.UpdateSimulation(0.016f);
-            InvokeAsync(StateHasChanged);
-        }
-    }
-
     public void Dispose()
     {
         VM.PropertyChanged -= OnVmPropertyChanged;
-        _timer?.Dispose();
     }
 }
