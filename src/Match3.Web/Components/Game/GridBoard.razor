@@ -19,7 +19,8 @@
                     var py = y;
                     <div class="cell-bg" 
                          style="left: @(x * Match3GameService.CellSize)px; top: @(y * Match3GameService.CellSize)px;"
-                         @onpointerdown="e => HandlePointerDown(e, px, py)">
+                         @onpointerdown="e => HandlePointerDown(e, px, py)"
+                         @onpointerup="HandlePointerUp">
                     </div>
                 }
             }
@@ -35,7 +36,8 @@
                     
                     <div @key="tile.Id" class="tile @(isSelected ? "selected" : "")" 
                          style="transform: translate(@(tile.Position.X * Match3GameService.CellSize)px, @(tile.Position.Y * Match3GameService.CellSize)px);"
-                         @onpointerdown="e => HandlePointerDown(e, (int)Math.Round(tile.Position.X), (int)Math.Round(tile.Position.Y))">
+                         @onpointerdown="e => HandlePointerDown(e, (int)Math.Round(tile.Position.X), (int)Math.Round(tile.Position.Y))"
+                         @onpointerup="HandlePointerUp">
                          <div class="tile-inner">
                             <span class="tile-base">@GetTileBaseIcon(tile)</span>
                             @if (HasBombOverlay(tile))
