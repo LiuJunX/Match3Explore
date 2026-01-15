@@ -363,8 +363,3 @@ public sealed class ScenarioLibraryService : IScenarioService
         return (parent.TrimEnd('/') + "/" + child).Replace('\\', '/');
     }
 }
-
-    // Moved to Match3.Editor.ViewModels
-    // public sealed record ScenarioFileEntry(string RelativePath, string Name, ScenarioMetadata Metadata, long SizeBytes);
-    // public sealed record ScenarioFolderNode(string Name, string RelativePath, IReadOnlyList<ScenarioFolderNode> Folders, IReadOnlyList<ScenarioFileEntry> Files);
-

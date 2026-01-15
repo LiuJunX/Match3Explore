@@ -18,7 +18,3 @@ public record TapIntent(Position Position) : InputIntent;
 /// Represents a swipe gesture from a specific position in a direction.
 /// </summary>
 public record SwipeIntent(Position From, Direction Direction) : InputIntent;
-
-// Future:
-// public record AutoPlayIntent(bool Enabled) : InputIntent;
-// public record DebugCommandIntent(string Command, string[] Args) : InputIntent;
