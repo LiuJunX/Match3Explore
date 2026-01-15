@@ -1,7 +1,44 @@
 # Match3 Core Architecture
 
 ## Overview
-The Match3 Core is the heart of the game engine, designed with a **Slot-Based Layered Architecture**. It strictly adheres to the principle of separation of concerns, ensuring that game logic is decoupled from the view layer.
+The Match3 Core is the heart of the game engine, designed with a **Slot-Based Layered Architecture** and **Event-Sourced Simulation**. It strictly adheres to the principle of separation of concerns, ensuring that game logic is decoupled from the view layer.
+
+### Architecture Layers
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         AI Agent                                 │
+│                    (直接调用 Core)                               │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+┌────────────────────────────┼────────────────────────────────────┐
+│                    Match3.Core                                   │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                  SimulationEngine                        │    │
+│  │  • Tick(dt) → TickResult + Events                       │    │
+│  │  • RunUntilStable() → 高速模拟                          │    │
+│  │  • Clone() → 并行模拟                                   │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                             │                                    │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
+│  │ Physics  │  │Projectile│  │ Matching │  │  Refill  │        │
+│  │ System   │  │ System   │  │  System  │  │  System  │        │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
+│                             │                                    │
+│                    GameEvent Stream                              │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+┌────────────────────────────┼────────────────────────────────────┐
+│               Match3.Presentation                                │
+│  • EventInterpreter (事件 → 动画)                               │
+│  • AnimationTimeline (时序管理)                                 │
+│  • VisualState (插值位置)                                       │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+┌────────────────────────────┼────────────────────────────────────┐
+│                  Match3.Web / Unity                              │
+│                    (平台渲染)                                    │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ## 1. Grid System
 The game board is represented by `Match3Grid`, which manages a 2D array of `Match3Cell` objects. Unlike traditional single-layer grids, each cell is a **multi-layered container**.
@@ -42,6 +79,97 @@ All items on the grid implement specific interfaces to define their behavior.
 - **GravitySystem**: Moves items in the `Unit` layer (and attached `Dynamic` covers) down to empty spaces.
 - **InteractionSystem**: Handles swaps between `Unit` elements, respecting `Cover` constraints.
 
-## 4. Key Design Decisions
+## 4. Event Sourcing & Simulation
+
+### Event System (`Match3.Core.Events`)
+All state changes produce `GameEvent` records for presentation layer consumption.
+
+| Event Type | Description |
+| :--- | :--- |
+| `TileMovedEvent` | Tile position changed (gravity, swap) |
+| `TileDestroyedEvent` | Tile cleared from grid |
+| `TileSpawnedEvent` | New tile created (refill) |
+| `MatchDetectedEvent` | Match pattern found |
+| `ProjectileLaunchedEvent` | Projectile launched |
+| `ProjectileImpactEvent` | Projectile hit target |
+| `BombActivatedEvent` | Bomb explosion triggered |
+| `ScoreAddedEvent` | Score changed |
+
+### Event Collectors
+- **`BufferedEventCollector`**: Collects events for presentation (human play)
+- **`NullEventCollector`**: Zero-overhead collector for AI simulation
+
+### Simulation Engine (`Match3.Core.Simulation`)
+Tick-based simulation with configurable time step.
+
+```csharp
+// Human play mode (16ms fixed step, events enabled)
+var config = SimulationConfig.ForHumanPlay();
+
+// AI mode (100ms step, events disabled)
+var config = SimulationConfig.ForAI();
+```
+
+**Key Methods**:
+- `Tick(deltaTime)` → Execute single simulation step
+- `RunUntilStable()` → High-speed simulation until stable
+- `Clone()` → Create parallel simulation branch for AI
+
+## 5. Projectile System (`Match3.Core.Systems.Projectiles`)
+Continuous physics for flying entities (UFO, missiles).
+
+### Projectile Phases
+| Phase | Description |
+| :--- | :--- |
+| `Takeoff` | Vertical rise animation (0.3s) |
+| `Flight` | Moving towards target (12 units/s) |
+| `Impact` | Effect application |
+
+### Targeting Modes
+- **FixedCell**: Target fixed grid position
+- **Dynamic**: Re-evaluate best target each tick
+- **TrackTile**: Track specific tile by ID
+
+## 6. Presentation Layer (`Match3.Presentation`)
+Decoupled animation system driven by game events.
+
+### Components
+- **`VisualState`**: Interpolated visual positions, scales, effects
+- **`AnimationTimeline`**: Manages animation sequencing
+- **`EventInterpreter`**: Converts `GameEvent` → Animations
+
+### Animation Types
+- `TileMoveAnimation` - Tile movement (gravity, swap)
+- `TileDestroyAnimation` - Tile destruction (shrink + fade)
+- `ProjectileAnimation` - Projectile flight
+
+## 7. AI Service (`Match3.Core.AI`)
+High-speed simulation for move evaluation and difficulty analysis.
+
+### Key Interfaces
+```csharp
+public interface IAIService
+{
+    IReadOnlyList<Move> GetValidMoves(in GameState state);
+    MovePreview PreviewMove(in GameState state, Move move);
+    Move? GetBestMove(in GameState state);
+    DifficultyAnalysis AnalyzeDifficulty(in GameState state);
+}
+```
+
+### Strategies
+- **GreedyStrategy**: Maximize immediate score
+- **BombPriorityStrategy**: Prioritize bomb creation/activation
+
+### Difficulty Analysis
+- Valid move count
+- Score potential (average/max)
+- Cascade depth
+- Board health indicators
+
+## 8. Key Design Decisions
 - **OOP over Pure DOD**: We use classes (`Match3Cell`) and interfaces to handle the complexity of multi-layered interactions, favoring maintainability and flexibility over raw struct-array performance for this specific component.
 - **Unified Damage**: Clearing a block, breaking ice, or spreading jelly are all treated as `TakeDamage` events.
+- **Event Sourcing**: All state changes produce events, enabling replay, AI analysis, and decoupled presentation.
+- **Tick-Based Simulation**: Fixed time step (16ms default) enables deterministic simulation and time-based animations.
+- **Zero-Overhead AI**: `NullEventCollector` allows AI to run simulations without event allocation overhead.

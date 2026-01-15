@@ -79,6 +79,68 @@ To ensure long-term maintainability and AI-collaboration efficiency, all new fea
     *   `IFileSystemService` for file operations
     *   `IPlatformService` for platform-specific features
 
+## 8. Event Sourcing Pattern
+
+### Event Collection
+*   **Interface**: `IEventCollector`
+*   **Human Play**: Use `BufferedEventCollector` to capture events for presentation
+*   **AI Mode**: Use `NullEventCollector.Instance` (zero allocation)
+
+```csharp
+// Emit events only when collector is enabled
+if (events.IsEnabled)
+{
+    events.Emit(new TileMovedEvent { ... });
+}
+```
+
+### Event Types
+All events inherit from `GameEvent` which provides:
+*   `Tick`: Simulation tick when event occurred
+*   `SimulationTime`: Elapsed simulation time in seconds
+
+**Best Practices**:
+1.  **Check IsEnabled**: Always check `events.IsEnabled` before creating event objects
+2.  **Immutable Events**: Use `record` types with `init` setters
+3.  **Position Types**: Use `Vector2` for continuous positions, `Position` for grid positions
+
+## 9. Simulation Engine Pattern
+
+### Tick-Based Updates
+*   **Fixed Time Step**: Use `SimulationConfig.FixedDeltaTime` (default 0.016s)
+*   **Deterministic**: Same inputs produce same outputs across platforms
+
+```csharp
+// Single tick execution
+var result = engine.Tick();
+
+// Run until stable (AI mode)
+var result = engine.RunUntilStable();
+```
+
+### Cloning for AI
+*   Use `engine.Clone()` to create parallel simulation branches
+*   Cloned engines use `NullEventCollector` by default
+*   Provide deterministic `IRandom` for reproducible results
+
+## 10. Projectile System Pattern
+
+### Projectile Lifecycle
+1.  **Launch**: `projectileSystem.Launch(projectile, tick, simTime, events)`
+2.  **Update**: Called each tick via `projectileSystem.Update(...)`
+3.  **Impact**: When `Update()` returns affected positions, process impacts
+
+### Custom Projectiles
+Extend `Projectile` base class:
+```csharp
+public class MyProjectile : Projectile
+{
+    public override bool Update(ref GameState state, float dt, ...) { ... }
+    public override HashSet<Position> ApplyEffect(ref GameState state) { ... }
+}
+```
+
 ## Related Documents
 *   Code Style: `docs/02-guides/coding-standards.md`
 *   Testing Guidelines: `docs/testing-guidelines.md`
+*   Architecture Overview: `docs/01-architecture/overview.md`

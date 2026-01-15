@@ -12,6 +12,11 @@ alwaysApply: true
 
 ## 1. Project Structure
 - `Match3.Core` - 纯业务逻辑，无 UI 依赖，定义接口与核心流程
+  - `Events/` - 事件溯源系统（GameEvent、IEventCollector）
+  - `Simulation/` - Tick 驱动模拟引擎
+  - `Systems/Projectiles/` - 投射物系统（UFO 等）
+  - `AI/` - AI 服务与难度分析
+- `Match3.Presentation` - 表现层（动画、视觉状态、事件解释器）
 - `Match3.Random` - 统一随机入口（IRandom、SeedManager、RandomDomain）
 - `Match3.Web` - Blazor 应用与视图层（IGameView、输入意图）
 - `Match3.Editor` - 跨平台编辑器逻辑（无 UI 框架依赖）
@@ -60,6 +65,8 @@ alwaysApply: true
 - **PROHIBITED**: `System.Random` → Use `Match3.Random`
 - **PROHIBITED**: `Match3.Core` referencing `Match3.Web`
 - **PROHIBITED**: State in Logic classes → State belongs in Structs
+- **PROHIBITED**: Creating events without checking `IsEnabled` → Always check `events.IsEnabled` first
+- **PROHIBITED**: Presentation logic in Core → Use EventInterpreter in Match3.Presentation
 
 ## 10. Modularization
 遵循 `docs/01-architecture/core-patterns.md` §6（真源）

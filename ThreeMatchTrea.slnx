@@ -3,6 +3,7 @@
     <Project Path="src/Match3.ConfigTool/Match3.ConfigTool.csproj" />
     <Project Path="src/Match3.Core/Match3.Core.csproj" />
     <Project Path="src/Match3.Editor.Tests/Match3.Editor.Tests.csproj" />
+    <Project Path="src/Match3.Presentation/Match3.Presentation.csproj" />
     <Project Path="src/Match3.Random.Tests/Match3.Random.Tests.csproj" />
     <Project Path="src/Match3.Random/Match3.Random.csproj" />
     <Project Path="src/Match3.Core.Tests/Match3.Core.Tests.csproj" />

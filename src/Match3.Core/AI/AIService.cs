@@ -1,0 +1,424 @@
+using System;
+using System.Collections.Generic;
+using Match3.Core.AI.Strategies;
+using Match3.Core.Events;
+using Match3.Core.Models.Enums;
+using Match3.Core.Models.Grid;
+using Match3.Core.Simulation;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.Physics;
+using Match3.Core.Systems.PowerUps;
+using Match3.Core.Utility.Pools;
+using Match3.Random;
+
+namespace Match3.Core.AI;
+
+/// <summary>
+/// AI service implementation using high-speed simulation.
+/// </summary>
+public sealed class AIService : IAIService
+{
+    private readonly SimulationConfig _config;
+    private readonly IPhysicsSimulation _physics;
+    private readonly RealtimeRefillSystem _refill;
+    private readonly IMatchFinder _matchFinder;
+    private readonly IMatchProcessor _matchProcessor;
+    private readonly IPowerUpHandler _powerUpHandler;
+    private readonly Func<IRandom> _randomFactory;
+
+    private IAIStrategy _strategy;
+
+    /// <summary>
+    /// Creates a new AI service.
+    /// </summary>
+    public AIService(
+        IPhysicsSimulation physics,
+        RealtimeRefillSystem refill,
+        IMatchFinder matchFinder,
+        IMatchProcessor matchProcessor,
+        IPowerUpHandler powerUpHandler,
+        Func<IRandom> randomFactory,
+        IAIStrategy? strategy = null)
+    {
+        _config = SimulationConfig.ForAI();
+        _physics = physics ?? throw new ArgumentNullException(nameof(physics));
+        _refill = refill ?? throw new ArgumentNullException(nameof(refill));
+        _matchFinder = matchFinder ?? throw new ArgumentNullException(nameof(matchFinder));
+        _matchProcessor = matchProcessor ?? throw new ArgumentNullException(nameof(matchProcessor));
+        _powerUpHandler = powerUpHandler ?? throw new ArgumentNullException(nameof(powerUpHandler));
+        _randomFactory = randomFactory ?? throw new ArgumentNullException(nameof(randomFactory));
+        _strategy = strategy ?? new GreedyStrategy();
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<Move> GetValidMoves(in GameState state)
+    {
+        var moves = Pools.ObtainList<Move>();
+
+        // Check all horizontal swaps
+        for (int y = 0; y < state.Height; y++)
+        {
+            for (int x = 0; x < state.Width - 1; x++)
+            {
+                var from = new Position(x, y);
+                var to = new Position(x + 1, y);
+
+                if (IsValidSwap(in state, from, to))
+                {
+                    moves.Add(new Move(from, to));
+                }
+            }
+        }
+
+        // Check all vertical swaps
+        for (int y = 0; y < state.Height - 1; y++)
+        {
+            for (int x = 0; x < state.Width; x++)
+            {
+                var from = new Position(x, y);
+                var to = new Position(x, y + 1);
+
+                if (IsValidSwap(in state, from, to))
+                {
+                    moves.Add(new Move(from, to));
+                }
+            }
+        }
+
+        return moves;
+    }
+
+    /// <inheritdoc />
+    public float EvaluateState(in GameState state)
+    {
+        float score = 0;
+
+        // Base score from current game score
+        score += state.Score * 0.1f;
+
+        // Count bombs (valuable)
+        for (int y = 0; y < state.Height; y++)
+        {
+            for (int x = 0; x < state.Width; x++)
+            {
+                var tile = state.GetTile(x, y);
+                if (tile.Bomb != BombType.None)
+                {
+                    score += 100f; // Each bomb is valuable
+                }
+            }
+        }
+
+        // Penalize deadlock situations
+        var moves = GetValidMoves(in state);
+        if (moves.Count == 0)
+        {
+            score -= 1000f; // Deadlock penalty
+        }
+        else
+        {
+            score += moves.Count * 5f; // More options = better
+        }
+        Pools.Release((List<Move>)moves);
+
+        return score;
+    }
+
+    /// <inheritdoc />
+    public MovePreview PreviewMove(in GameState state, Move move)
+    {
+        // Clone state for simulation
+        var clonedState = state.Clone();
+        clonedState.Random = _randomFactory();
+
+        // Create simulation engine
+        using var engine = new SimulationEngine(
+            clonedState,
+            _config,
+            _physics,
+            _refill,
+            _matchFinder,
+            _matchProcessor,
+            _powerUpHandler,
+            null,
+            NullEventCollector.Instance);
+
+        // Apply the move
+        engine.ApplyMove(move.From, move.To);
+
+        // Run until stable
+        var result = engine.RunUntilStable();
+
+        return new MovePreview
+        {
+            Move = move,
+            TickCount = result.TickCount,
+            ScoreGained = result.ScoreGained,
+            TilesCleared = result.TilesCleared,
+            MatchesProcessed = result.MatchesProcessed,
+            BombsActivated = result.BombsActivated,
+            MaxCascadeDepth = result.MaxCascadeDepth,
+            FinalState = result.FinalState
+        };
+    }
+
+    /// <inheritdoc />
+    public Move? GetBestMove(in GameState state)
+    {
+        var moves = GetValidMoves(in state);
+        if (moves.Count == 0)
+        {
+            Pools.Release((List<Move>)moves);
+            return null;
+        }
+
+        Move bestMove = default;
+        float bestScore = float.MinValue;
+
+        foreach (var move in moves)
+        {
+            var preview = PreviewMove(in state, move);
+            float score = _strategy.ScoreMove(in state, move, preview);
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestMove = move;
+            }
+        }
+
+        Pools.Release((List<Move>)moves);
+        return bestMove;
+    }
+
+    /// <inheritdoc />
+    public DifficultyAnalysis AnalyzeDifficulty(in GameState state)
+    {
+        var moves = GetValidMoves(in state);
+        var previews = new List<MovePreview>();
+
+        // Preview all moves
+        foreach (var move in moves)
+        {
+            previews.Add(PreviewMove(in state, move));
+        }
+
+        Pools.Release((List<Move>)moves);
+
+        // Calculate statistics
+        int validMoveCount = 0;
+        int bombCreatingMoves = 0;
+        long totalScore = 0;
+        long maxScore = 0;
+        float totalCascade = 0;
+        int maxCascade = 0;
+
+        foreach (var preview in previews)
+        {
+            if (preview.IsValidMove)
+            {
+                validMoveCount++;
+                totalScore += preview.ScoreGained;
+                totalCascade += preview.MaxCascadeDepth;
+
+                if (preview.ScoreGained > maxScore)
+                    maxScore = preview.ScoreGained;
+
+                if (preview.MaxCascadeDepth > maxCascade)
+                    maxCascade = preview.MaxCascadeDepth;
+
+                // Heuristic: large matches likely create bombs
+                if (preview.TilesCleared >= 4)
+                    bombCreatingMoves++;
+            }
+        }
+
+        float avgScore = validMoveCount > 0 ? (float)totalScore / validMoveCount : 0;
+        float avgCascade = validMoveCount > 0 ? totalCascade / validMoveCount : 0;
+
+        // Calculate difficulty score
+        float difficultyScore = CalculateDifficultyScore(validMoveCount, avgScore, maxScore, avgCascade);
+        var category = CategorizeDifficulty(validMoveCount, difficultyScore);
+
+        // Get top moves
+        previews.Sort((a, b) =>
+        {
+            float scoreA = a.IsValidMove ? a.ScoreGained : -1000;
+            float scoreB = b.IsValidMove ? b.ScoreGained : -1000;
+            return scoreB.CompareTo(scoreA);
+        });
+
+        var topMoves = previews.Count > 5 ? previews.GetRange(0, 5) : previews;
+
+        return new DifficultyAnalysis
+        {
+            ValidMoveCount = validMoveCount,
+            BombCreatingMoves = bombCreatingMoves,
+            AverageScorePotential = avgScore,
+            MaxScorePotential = maxScore,
+            AverageCascadeDepth = avgCascade,
+            MaxCascadeDepth = maxCascade,
+            DifficultyScore = difficultyScore,
+            Category = category,
+            BestMove = topMoves.Count > 0 && topMoves[0].IsValidMove ? topMoves[0].Move : null,
+            TopMoves = topMoves,
+            Health = AnalyzeBoardHealth(in state)
+        };
+    }
+
+    /// <inheritdoc />
+    public void SetStrategy(IAIStrategy strategy)
+    {
+        _strategy = strategy ?? new GreedyStrategy();
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<MovePreview> GetAllMovePreviews(in GameState state)
+    {
+        var moves = GetValidMoves(in state);
+        var previews = new List<MovePreview>();
+
+        foreach (var move in moves)
+        {
+            previews.Add(PreviewMove(in state, move));
+        }
+
+        Pools.Release((List<Move>)moves);
+        return previews;
+    }
+
+    private bool IsValidSwap(in GameState state, Position from, Position to)
+    {
+        var tileFrom = state.GetTile(from.X, from.Y);
+        var tileTo = state.GetTile(to.X, to.Y);
+
+        // Can't swap empty tiles
+        if (tileFrom.Type == TileType.None || tileTo.Type == TileType.None)
+            return false;
+
+        // Can't swap falling tiles
+        if (tileFrom.IsFalling || tileTo.IsFalling)
+            return false;
+
+        // Check if swap would create a match
+        // (simplified: we use preview for accurate check)
+        return true;
+    }
+
+    private float CalculateDifficultyScore(int moveCount, float avgScore, long maxScore, float avgCascade)
+    {
+        // Higher score = harder
+        float score = 50f; // Base difficulty
+
+        // Fewer moves = harder
+        if (moveCount == 0)
+            return 100f;
+        else if (moveCount < 3)
+            score += 30f;
+        else if (moveCount < 5)
+            score += 15f;
+        else if (moveCount > 10)
+            score -= 15f;
+
+        // Lower average score = harder
+        if (avgScore < 50)
+            score += 20f;
+        else if (avgScore < 100)
+            score += 10f;
+        else if (avgScore > 300)
+            score -= 20f;
+
+        // Lower cascade potential = harder
+        if (avgCascade < 1)
+            score += 10f;
+        else if (avgCascade > 2)
+            score -= 10f;
+
+        return Math.Clamp(score, 0f, 100f);
+    }
+
+    private DifficultyCategory CategorizeDifficulty(int moveCount, float difficultyScore)
+    {
+        if (moveCount == 0)
+            return DifficultyCategory.Deadlock;
+
+        return difficultyScore switch
+        {
+            >= 80 => DifficultyCategory.VeryHard,
+            >= 60 => DifficultyCategory.Hard,
+            >= 40 => DifficultyCategory.Medium,
+            >= 20 => DifficultyCategory.Easy,
+            _ => DifficultyCategory.VeryEasy
+        };
+    }
+
+    private BoardHealth AnalyzeBoardHealth(in GameState state)
+    {
+        int bombCount = 0;
+        var typeCounts = new Dictionary<TileType, int>();
+        int isolatedCount = 0;
+
+        for (int y = 0; y < state.Height; y++)
+        {
+            for (int x = 0; x < state.Width; x++)
+            {
+                var tile = state.GetTile(x, y);
+                if (tile.Type == TileType.None) continue;
+
+                if (tile.Bomb != BombType.None)
+                    bombCount++;
+
+                if (!typeCounts.ContainsKey(tile.Type))
+                    typeCounts[tile.Type] = 0;
+                typeCounts[tile.Type]++;
+
+                // Check if isolated (no adjacent same-type)
+                bool hasAdjacent = false;
+                foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
+                {
+                    int nx = x + dx, ny = y + dy;
+                    if (nx >= 0 && nx < state.Width && ny >= 0 && ny < state.Height)
+                    {
+                        var neighbor = state.GetTile(nx, ny);
+                        if (neighbor.Type == tile.Type)
+                        {
+                            hasAdjacent = true;
+                            break;
+                        }
+                    }
+                }
+                if (!hasAdjacent)
+                    isolatedCount++;
+            }
+        }
+
+        // Calculate variance
+        float mean = 0;
+        if (typeCounts.Count > 0)
+        {
+            foreach (var count in typeCounts.Values)
+                mean += count;
+            mean /= typeCounts.Count;
+        }
+
+        float variance = 0;
+        if (typeCounts.Count > 0)
+        {
+            foreach (var count in typeCounts.Values)
+            {
+                float diff = count - mean;
+                variance += diff * diff;
+            }
+            variance /= typeCounts.Count;
+        }
+
+        return new BoardHealth
+        {
+            ExistingBombs = bombCount,
+            TypeDistributionVariance = variance,
+            IsolatedTiles = isolatedCount,
+            ClusterCount = 0, // Would need flood fill for accurate count
+            AverageClusterSize = 0
+        };
+    }
+}
