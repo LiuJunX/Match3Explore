@@ -1,6 +1,6 @@
 ---
 allowed-tools: Read, Grep, Glob, Edit
-description: 扫描并清理代码问题（未使用 using、格式问题等）
+description: Scan and fix code issues like unused imports
 ---
 
 # 代码清理

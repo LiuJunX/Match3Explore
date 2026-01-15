@@ -1,6 +1,6 @@
 ---
 allowed-tools: Read, Grep, Glob, Bash(dotnet:*)
-description: 运行完整的代码质量和测试检查
+description: Run full code quality and test checks
 ---
 
 # 完整项目检查
