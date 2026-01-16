@@ -103,6 +103,7 @@ public class Match3GameService : IDisposable
         var scoreSystem = new StandardScoreSystem();
         var bombRegistry = BombEffectRegistry.CreateDefault();
         var matchProcessor = new StandardMatchProcessor(scoreSystem, bombRegistry);
+        var explosionSystem = new ExplosionSystem();
         var powerUpHandler = new PowerUpHandler(scoreSystem);
         var physics = new RealtimeGravitySystem(config, seedManager.GetRandom(RandomDomain.Physics));
         var refill = new RealtimeRefillSystem(spawnModel);
@@ -128,7 +129,8 @@ public class Match3GameService : IDisposable
             matchProcessor,
             powerUpHandler,
             projectileSystem,
-            _eventCollector
+            _eventCollector,
+            explosionSystem
         );
 
         // Sync visual state from initial game state

@@ -9,9 +9,26 @@ public struct Tile
     public BombType Bomb;
     public Vector2 Position; // Logic position (World Space), e.g. (3, 4.5)
     public Vector2 Velocity; // Physics velocity
-    public bool IsSuspended; // If true, gravity ignores this tile (e.g. matched and exploding)
-    public bool IsFalling; // If true, currently moving down
+    public TileState State;  // Physics/lifecycle state flags
     public long Id;
+
+    /// <summary>
+    /// Whether tile is suspended (gravity ignored). Backward compatible property.
+    /// </summary>
+    public bool IsSuspended
+    {
+        get => (State & TileState.Suspended) != 0;
+        set => State = value ? State | TileState.Suspended : State & ~TileState.Suspended;
+    }
+
+    /// <summary>
+    /// Whether tile is currently falling. Backward compatible property.
+    /// </summary>
+    public bool IsFalling
+    {
+        get => (State & TileState.Falling) != 0;
+        set => State = value ? State | TileState.Falling : State & ~TileState.Falling;
+    }
 
     public Tile(long id, TileType type, int x, int y, BombType bomb = BombType.None)
     {
@@ -20,10 +37,9 @@ public struct Tile
         Bomb = bomb;
         Position = new Vector2(x, y);
         Velocity = Vector2.Zero;
-        IsSuspended = false;
-        IsFalling = false;
+        State = TileState.None;
     }
-    
+
     public Tile(long id, TileType type, Vector2 position, BombType bomb = BombType.None)
     {
         Id = id;
@@ -31,7 +47,6 @@ public struct Tile
         Bomb = bomb;
         Position = position;
         Velocity = Vector2.Zero;
-        IsSuspended = false;
-        IsFalling = false;
+        State = TileState.None;
     }
 }

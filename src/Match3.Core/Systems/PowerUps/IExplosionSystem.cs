@@ -1,0 +1,22 @@
+using Match3.Core.Events;
+using Match3.Core.Models.Grid;
+using Match3.Core.Models.Gameplay;
+
+namespace Match3.Core.Systems.PowerUps;
+
+public interface IExplosionSystem
+{
+    void CreateExplosion(ref GameState state, Position origin, int radius);
+    void CreateTargetedExplosion(ref GameState state, Position origin, System.Collections.Generic.IEnumerable<Position> targets);
+    
+    void Update(
+        ref GameState state, 
+        float deltaTime, 
+        long tick, 
+        float simTime, 
+        IEventCollector eventCollector,
+        System.Collections.Generic.List<Position> triggeredBombs);
+        
+    bool HasActiveExplosions { get; }
+    void Reset();
+}

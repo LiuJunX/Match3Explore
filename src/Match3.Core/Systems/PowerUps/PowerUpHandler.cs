@@ -18,7 +18,10 @@ public class PowerUpHandler : IPowerUpHandler
     {
     }
 
-    public PowerUpHandler(IScoreSystem scoreSystem, BombComboHandler comboHandler, BombEffectRegistry effectRegistry)
+    public PowerUpHandler(
+        IScoreSystem scoreSystem, 
+        BombComboHandler comboHandler, 
+        BombEffectRegistry effectRegistry)
     {
         _scoreSystem = scoreSystem;
         _comboHandler = comboHandler;
@@ -40,7 +43,6 @@ public class PowerUpHandler : IPowerUpHandler
         {
             if (_comboHandler.TryApplyCombo(ref state, p1, p2, affected))
             {
-                // 清除所有受影响的方块
                 ClearAffectedTiles(ref state, affected);
                 return;
             }

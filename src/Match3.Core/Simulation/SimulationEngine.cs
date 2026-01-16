@@ -26,6 +26,7 @@ public sealed class SimulationEngine : IDisposable
     private readonly IMatchProcessor _matchProcessor;
     private readonly IPowerUpHandler _powerUpHandler;
     private readonly IProjectileSystem _projectileSystem;
+    private readonly IExplosionSystem _explosionSystem;
 
     private IEventCollector _eventCollector;
     private long _currentTick;
@@ -67,7 +68,8 @@ public sealed class SimulationEngine : IDisposable
         IMatchProcessor matchProcessor,
         IPowerUpHandler powerUpHandler,
         IProjectileSystem? projectileSystem = null,
-        IEventCollector? eventCollector = null)
+        IEventCollector? eventCollector = null,
+        IExplosionSystem? explosionSystem = null)
     {
         State = initialState;
         _config = config ?? new SimulationConfig();
@@ -78,6 +80,7 @@ public sealed class SimulationEngine : IDisposable
         _powerUpHandler = powerUpHandler ?? throw new ArgumentNullException(nameof(powerUpHandler));
         _projectileSystem = projectileSystem ?? new ProjectileSystem();
         _eventCollector = eventCollector ?? NullEventCollector.Instance;
+        _explosionSystem = explosionSystem ?? new ExplosionSystem();
 
         _currentTick = 0;
         _elapsedTime = 0f;
@@ -116,6 +119,30 @@ public sealed class SimulationEngine : IDisposable
             _tilesCleared += projectileAffected.Count;
         }
         Pools.Release(projectileAffected);
+
+        // Update explosions
+        var triggeredBombs = Pools.ObtainList<Position>();
+        try
+        {
+            _explosionSystem.Update(
+                ref state,
+                deltaTime,
+                _currentTick,
+                _elapsedTime,
+                _eventCollector,
+                triggeredBombs);
+
+            // Handle triggered bombs
+            foreach (var pos in triggeredBombs)
+            {
+                _powerUpHandler.ActivateBomb(ref state, pos);
+                _bombsActivated++;
+            }
+        }
+        finally
+        {
+            Pools.Release(triggeredBombs);
+        }
 
         // 3. Physics (gravity)
         _physics.Update(ref state, deltaTime);
@@ -246,6 +273,7 @@ public sealed class SimulationEngine : IDisposable
         var state = State;
         return _physics.IsStable(in state)
             && !_projectileSystem.HasActiveProjectiles
+            && !_explosionSystem.HasActiveExplosions
             && !HasPendingMatches();
     }
 
@@ -269,7 +297,8 @@ public sealed class SimulationEngine : IDisposable
             _matchProcessor,
             _powerUpHandler,
             new ProjectileSystem(), // Each clone gets its own projectile system
-            NullEventCollector.Instance // Clones always use null collector
+            NullEventCollector.Instance, // Clones always use null collector
+            new ExplosionSystem() // Each clone gets its own explosion system
         );
     }
 

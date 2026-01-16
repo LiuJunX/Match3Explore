@@ -194,4 +194,65 @@ public class RealtimeGravityTests
         Assert.True(startedFalling, "Tile never started falling");
         Assert.True(reachedBottom, "Tile never reached the bottom (1.0)");
     }
+
+    [Fact]
+    public void Update_SameSeed_ProducesDeterministicResults()
+    {
+        // Arrange - Two identical systems with same seed
+        const int seed = 12345;
+        var random1 = new DefaultRandom(seed);
+        var random2 = new DefaultRandom(seed);
+
+        var config = new Match3Config(8, 8, 6) { GravitySpeed = 35.0f };
+        var physics1 = new RealtimeGravitySystem(config, random1);
+        var physics2 = new RealtimeGravitySystem(config, random2);
+
+        // Create identical initial states with multiple tiles needing to fall
+        var state1 = CreateMultiColumnState(new StubRandom());
+        var state2 = CreateMultiColumnState(new StubRandom());
+
+        // Act - Run both systems for multiple frames
+        const float dt = 0.016f;
+        for (int i = 0; i < 30; i++)
+        {
+            physics1.Update(ref state1, dt);
+            physics2.Update(ref state2, dt);
+        }
+
+        // Assert - Both states should be identical
+        for (int y = 0; y < 8; y++)
+        {
+            for (int x = 0; x < 8; x++)
+            {
+                var tile1 = state1.GetTile(x, y);
+                var tile2 = state2.GetTile(x, y);
+
+                Assert.Equal(tile1.Type, tile2.Type);
+                Assert.Equal(tile1.Position.X, tile2.Position.X, 0.001f);
+                Assert.Equal(tile1.Position.Y, tile2.Position.Y, 0.001f);
+                Assert.Equal(tile1.IsFalling, tile2.IsFalling);
+            }
+        }
+    }
+
+    private static GameState CreateMultiColumnState(IRandom rng)
+    {
+        var state = new GameState(8, 8, 6, rng);
+
+        // Clear board
+        for (int y = 0; y < 8; y++)
+            for (int x = 0; x < 8; x++)
+                state.SetTile(x, y, new Tile(0, TileType.None, x, y));
+
+        // Place tiles at top that need to fall (creates column competition)
+        long id = 1;
+        for (int x = 0; x < 8; x++)
+        {
+            // Place 2 tiles per column at top
+            state.SetTile(x, 0, new Tile(id++, TileType.Red, x, 0));
+            state.SetTile(x, 1, new Tile(id++, TileType.Blue, x, 1));
+        }
+
+        return state;
+    }
 }
