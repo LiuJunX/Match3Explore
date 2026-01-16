@@ -329,18 +329,22 @@ public class ShapeRuleTests
         [Fact]
         public void Detect_TShape_ShouldDetectTNT()
         {
-            // T-shape: 3 horizontal + 3 vertical with 1 overlap = 5 unique cells
+            // T-shape: 4 horizontal + 3 vertical with 1 overlap = 6 unique cells
+            // This is NOT a Plus because horizontal line has 4 cells (not 3)
+            //     (1,0)
+            // (0,1)(1,1)(2,1)(3,1)
+            //     (1,2)
             var component = new HashSet<Position>
             {
-                // Horizontal: (0,1), (1,1), (2,1)
-                new Position(0, 1), new Position(1, 1), new Position(2, 1),
+                // Horizontal: (0,1), (1,1), (2,1), (3,1) - 4 cells
+                new Position(0, 1), new Position(1, 1), new Position(2, 1), new Position(3, 1),
                 // Vertical: (1,0), (1,1), (1,2) - (1,1) is overlap
                 new Position(1, 0), new Position(1, 2)
             };
 
             var hLine = new HashSet<Position>
             {
-                new Position(0, 1), new Position(1, 1), new Position(2, 1)
+                new Position(0, 1), new Position(1, 1), new Position(2, 1), new Position(3, 1)
             };
             var vLine = new HashSet<Position>
             {
@@ -391,9 +395,13 @@ public class ShapeRuleTests
         [Fact]
         public void Detect_TNTWeight_ShouldBe60()
         {
+            // T-shape with 4 horizontal cells (NOT a Plus)
+            //     (1,0)
+            // (0,1)(1,1)(2,1)(3,1)
+            //     (1,2)
             var hLine = new HashSet<Position>
             {
-                new Position(0, 1), new Position(1, 1), new Position(2, 1)
+                new Position(0, 1), new Position(1, 1), new Position(2, 1), new Position(3, 1)
             };
             var vLine = new HashSet<Position>
             {
@@ -546,10 +554,14 @@ public class ShapeRuleTests
         [Fact]
         public void DetectAll_TShape_ShouldDetectTNT()
         {
+            // T-shape with 4 horizontal cells (NOT a Plus)
+            //     (1,0)
+            // (0,1)(1,1)(2,1)(3,1)
+            //     (1,2)
             var component = new HashSet<Position>
             {
-                // T-shape
-                new Position(0, 1), new Position(1, 1), new Position(2, 1),
+                // T-shape with 4 horizontal cells
+                new Position(0, 1), new Position(1, 1), new Position(2, 1), new Position(3, 1),
                 new Position(1, 0), new Position(1, 2)
             };
             var results = new List<DetectedShape>();

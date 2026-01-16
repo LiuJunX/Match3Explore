@@ -10,8 +10,14 @@ namespace Match3.Core.Models.Gameplay
         public BombType Type { get; set; }
         public HashSet<Position>? Cells { get; set; } // Managed by Pool
         public int Weight { get; set; }
-        public MatchShape Shape { get; set; } 
-        
+        public MatchShape Shape { get; set; }
+
+        /// <summary>
+        /// For Cross shapes (T/L/+), this is the intersection point where horizontal and vertical lines meet.
+        /// Used for absorption rules: scraps must be collinear with this point to be absorbed.
+        /// </summary>
+        public Position? Intersection { get; set; }
+
         // For debugging/logging
         public string DebugName => $"{Type} ({Cells?.Count ?? 0})";
 
@@ -22,6 +28,7 @@ namespace Match3.Core.Models.Gameplay
             Type = BombType.None;
             Weight = 0;
             Shape = MatchShape.Simple3;
+            Intersection = null;
         }
     }
 }

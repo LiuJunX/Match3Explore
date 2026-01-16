@@ -382,24 +382,43 @@ public class InvalidShapeTests
     }
 
     [Fact]
-    public void LShape_HorizontalLine4_PlusOneAbove_AbsorbsStrayIntoBomb()
+    public void LShape_HorizontalLine4_PlusOneAbove_ShouldMatchOnly4()
     {
         // . . A .
         // A A A A
-        // Note: For 4+ lines that generate bombs, stray cells connected to the
-        // bomb shape are absorbed (intentional behavior for bomb matches).
+        // Pure lines (4-line) should NOT absorb stray cells.
         var component = new HashSet<Position>
         {
-            new(2, 0),                              // Stray cell above - will be absorbed
+            new(2, 0),                              // Stray cell above - NOT absorbed
             new(0, 1), new(1, 1), new(2, 1), new(3, 1)  // Valid 4-line → generates rocket
         };
 
         var results = _generator.Generate(component);
 
         Assert.Single(results);
-        // Stray cell IS absorbed into bomb match (expected behavior)
+        // Pure 4-line should NOT absorb stray cell
+        Assert.Equal(4, results[0].Positions.Count);
+        Assert.DoesNotContain(new Position(2, 0), results[0].Positions);
+    }
+
+    [Fact]
+    public void LShape_HorizontalLine5_PlusOneAbove_ShouldMatchOnly5()
+    {
+        // . . A . .
+        // A A A A A
+        // Pure 5-line should NOT absorb stray cells.
+        var component = new HashSet<Position>
+        {
+            new(2, 0),                                      // Stray cell above - NOT absorbed
+            new(0, 1), new(1, 1), new(2, 1), new(3, 1), new(4, 1)  // Valid 5-line → generates rainbow
+        };
+
+        var results = _generator.Generate(component);
+
+        Assert.Single(results);
+        // Pure 5-line should NOT absorb stray cell
         Assert.Equal(5, results[0].Positions.Count);
-        Assert.Contains(new Position(2, 0), results[0].Positions);
+        Assert.DoesNotContain(new Position(2, 0), results[0].Positions);
     }
 
     #endregion

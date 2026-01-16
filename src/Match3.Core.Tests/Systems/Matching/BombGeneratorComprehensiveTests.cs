@@ -720,7 +720,9 @@ namespace Match3.Core.Tests.Systems.Matching
             // A A A A A
             //         A
             //         A
-            // 7 cells: 1 horizontal Rainbow (5) + 2 orphans
+            // 7 cells: 1 horizontal Rainbow (5) at y=0
+            // The 2 perpendicular scraps at (4,1) and (4,2) are NOT absorbed
+            // because Line shapes only absorb collinear + continuous scraps
             var component = ParseGrid(
                 "A A A A A",
                 "        A",
@@ -729,17 +731,19 @@ namespace Match3.Core.Tests.Systems.Matching
             var results = _generator.Generate(component);
 
             Assert.Contains(results, g => g.SpawnBombType == BombType.Color);
-            Assert.Equal(7, results.Sum(g => g.Positions.Count));
+            // Only Rainbow's 5 cells are matched, perpendicular scraps not absorbed
+            Assert.Equal(5, results.Sum(g => g.Positions.Count));
         }
 
         [Fact]
         public void IrregularShape_Staircase_ShouldPartition()
         {
-            // A
-            // A A
-            //   A A
-            //     A
-            // 6 cells, no good bomb patterns
+            // After ParseGrid removes spaces:
+            // Row 0: "A" → (0,0)
+            // Row 1: "AA" → (0,1), (1,1)
+            // Row 2: "AA" → (0,2), (1,2)
+            // Row 3: "A" → (0,3)
+            // This creates a vertical Line4 at x=0: (0,0)-(0,1)-(0,2)-(0,3)
             var component = ParseGrid(
                 "A    ",
                 "A A  ",
@@ -748,8 +752,11 @@ namespace Match3.Core.Tests.Systems.Matching
             );
             var results = _generator.Generate(component);
 
-            // Should handle gracefully
-            Assert.Equal(6, results.Sum(g => g.Positions.Count));
+            // Line4 detected at x=0 (4 cells) → Horizontal Rocket
+            // Remaining scraps (1,1), (1,2) are perpendicular to the line, not absorbed
+            Assert.Single(results);
+            Assert.Equal(BombType.Horizontal, results[0].SpawnBombType);
+            Assert.Equal(4, results[0].Positions.Count);
         }
 
         [Fact]
@@ -758,7 +765,9 @@ namespace Match3.Core.Tests.Systems.Matching
             // A A A
             //   A
             //   A A A
-            // 7 cells: could form 2 separate 3-matches or something better
+            // 7 cells: forms a T-shape (top horizontal + vertical)
+            // T-shape intersection at (1,0), union = 5 cells
+            // Remaining scraps (2,2) and (3,2) don't form a valid line (only 2 cells)
             var component = ParseGrid(
                 "A A A  ",
                 "  A    ",
@@ -766,7 +775,8 @@ namespace Match3.Core.Tests.Systems.Matching
             );
             var results = _generator.Generate(component);
 
-            Assert.Equal(7, results.Sum(g => g.Positions.Count));
+            // T-shape detected with 5 cells
+            Assert.Equal(5, results.Sum(g => g.Positions.Count));
         }
 
         #endregion

@@ -120,8 +120,8 @@ namespace Match3.Core.Tests.Systems.Matching
             // A A . . .
             // A A A A A
             // (0,0) to (4,0) is Line 5
-            // (0,1), (1,1) -> On top of 0,0 and 1,0
-            
+            // (0,1), (1,1) -> On top of 0,0 and 1,0 (perpendicular to line)
+
             var component = new HashSet<Position>
             {
                 new Position(0, 0), new Position(1, 0), new Position(2, 0), new Position(3, 0), new Position(4, 0),
@@ -132,14 +132,14 @@ namespace Match3.Core.Tests.Systems.Matching
             var results = _generator.Generate(component);
 
             // Assert
-            // Expectation: 1 Rainbow (Weight 130). 
-            // Alternatives: Rocket(40) + UFO(20) = 60.
-            // Rainbow wins.
-            
+            // Expectation: 1 Rainbow (Weight 130) with 5 cells.
+            // The 2 perpendicular scraps (0,1) and (1,1) are NOT absorbed
+            // because Line shapes only absorb collinear + continuous scraps.
+
             Assert.Single(results);
             var group = results[0];
             Assert.Equal(BombType.Color, group.SpawnBombType);
-            Assert.Equal(7, group.Positions.Count); // Scrap absorption should take all 7
+            Assert.Equal(5, group.Positions.Count); // Only the line, no perpendicular scraps
         }
 
         [Fact]
