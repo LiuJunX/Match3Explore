@@ -7,7 +7,6 @@ using Match3.Core.Systems.Physics;
 using Match3.Core.Systems.PowerUps;
 using Match3.Core.Systems.Projectiles;
 using Match3.Core.Systems.Swap;
-using Match3.Core.Utility.Pools;
 
 namespace Match3.Core.Simulation;
 
@@ -19,13 +18,11 @@ public sealed class SimulationEngine : IDisposable
 {
     private readonly SimulationConfig _config;
     private readonly IPhysicsSimulation _physics;
-    private readonly RealtimeRefillSystem _refill;
+    private readonly IRefillSystem _refill;
     private readonly IMatchFinder _matchFinder;
     private readonly IMatchProcessor _matchProcessor;
     private readonly IPowerUpHandler _powerUpHandler;
-    private readonly IProjectileSystem _projectileSystem;
-    private readonly IExplosionSystem _explosionSystem;
-    private readonly SimulationMatchHandler _matchHandler;
+    private readonly SimulationOrchestrator _orchestrator;
     private readonly ISwapOperations _swapOperations;
 
     private IEventCollector _eventCollector;
@@ -76,7 +73,7 @@ public sealed class SimulationEngine : IDisposable
         GameState initialState,
         SimulationConfig config,
         IPhysicsSimulation physics,
-        RealtimeRefillSystem refill,
+        IRefillSystem refill,
         IMatchFinder matchFinder,
         IMatchProcessor matchProcessor,
         IPowerUpHandler powerUpHandler,
@@ -91,10 +88,17 @@ public sealed class SimulationEngine : IDisposable
         _matchFinder = matchFinder ?? throw new ArgumentNullException(nameof(matchFinder));
         _matchProcessor = matchProcessor ?? throw new ArgumentNullException(nameof(matchProcessor));
         _powerUpHandler = powerUpHandler ?? throw new ArgumentNullException(nameof(powerUpHandler));
-        _projectileSystem = projectileSystem ?? new ProjectileSystem();
         _eventCollector = eventCollector ?? NullEventCollector.Instance;
-        _explosionSystem = explosionSystem ?? new ExplosionSystem();
-        _matchHandler = new SimulationMatchHandler(_matchFinder, _matchProcessor);
+
+        // Create orchestrator to coordinate subsystems
+        _orchestrator = new SimulationOrchestrator(
+            physics,
+            refill,
+            matchFinder,
+            matchProcessor,
+            powerUpHandler,
+            projectileSystem ?? new ProjectileSystem(),
+            explosionSystem ?? new ExplosionSystem());
 
         // Initialize shared swap operations with instant context
         var swapContext = new InstantSwapContext(SwapAnimationDuration);
@@ -125,8 +129,8 @@ public sealed class SimulationEngine : IDisposable
                 CurrentTick = _currentTick,
                 ElapsedTime = _elapsedTime,
                 IsStable = IsStable(),
-                HasActiveProjectiles = _projectileSystem.HasActiveProjectiles,
-                HasFallingTiles = !_physics.IsStable(in currentState),
+                HasActiveProjectiles = _orchestrator.HasActiveProjectiles,
+                HasFallingTiles = !_orchestrator.IsPhysicsStable(in currentState),
                 HasPendingMatches = HasPendingMatches(),
                 DeltaTime = 0f
             };
@@ -144,52 +148,30 @@ public sealed class SimulationEngine : IDisposable
             _eventCollector);
 
         // 1. Refill empty columns
-        _refill.Update(ref state);
+        _orchestrator.ProcessRefill(ref state);
 
         // 2. Update projectiles
-        var projectileAffected = _projectileSystem.Update(
+        var projectileCount = _orchestrator.UpdateProjectiles(
             ref state,
             deltaTime,
             _currentTick,
             _elapsedTime,
             _eventCollector);
+        _tilesCleared += projectileCount;
 
-        // Process tiles affected by projectile impacts
-        if (projectileAffected.Count > 0)
-        {
-            _matchHandler.ProcessProjectileImpacts(ref state, projectileAffected, _currentTick, _elapsedTime, _eventCollector);
-            _tilesCleared += projectileAffected.Count;
-        }
-        Pools.Release(projectileAffected);
+        // 3. Update explosions
+        var bombCount = _orchestrator.UpdateExplosions(
+            ref state,
+            deltaTime,
+            _currentTick,
+            _elapsedTime,
+            _eventCollector);
+        _bombsActivated += bombCount;
 
-        // Update explosions
-        var triggeredBombs = Pools.ObtainList<Position>();
-        try
-        {
-            _explosionSystem.Update(
-                ref state,
-                deltaTime,
-                _currentTick,
-                _elapsedTime,
-                _eventCollector,
-                triggeredBombs);
+        // 4. Physics (gravity)
+        _orchestrator.UpdatePhysics(ref state, deltaTime);
 
-            // Handle triggered bombs
-            foreach (var pos in triggeredBombs)
-            {
-                _powerUpHandler.ActivateBomb(ref state, pos);
-                _bombsActivated++;
-            }
-        }
-        finally
-        {
-            Pools.Release(triggeredBombs);
-        }
-
-        // 3. Physics (gravity)
-        _physics.Update(ref state, deltaTime);
-
-        // 4. Process stable matches (skip during swap animation to let tiles visually complete swap)
+        // 5. Process stable matches (skip during swap animation to let tiles visually complete swap)
         if (!_pendingMoveState.NeedsValidation)
         {
             // Pass swap positions as foci for bomb generation priority
@@ -199,7 +181,7 @@ public sealed class SimulationEngine : IDisposable
                 foci = new[] { _lastSwapFrom, _lastSwapTo };
             }
 
-            var matchCount = _matchHandler.ProcessStableMatches(ref state, _currentTick, _elapsedTime, _eventCollector, foci);
+            var matchCount = _orchestrator.ProcessMatches(ref state, _currentTick, _elapsedTime, _eventCollector, foci);
             if (matchCount > 0)
             {
                 _matchesProcessed += matchCount;
@@ -210,7 +192,7 @@ public sealed class SimulationEngine : IDisposable
             }
         }
 
-        // 5. Update tick counter
+        // 6. Update tick counter
         _currentTick++;
         _elapsedTime += deltaTime;
 
@@ -223,8 +205,8 @@ public sealed class SimulationEngine : IDisposable
             CurrentTick = _currentTick,
             ElapsedTime = _elapsedTime,
             IsStable = isStable,
-            HasActiveProjectiles = _projectileSystem.HasActiveProjectiles,
-            HasFallingTiles = !_physics.IsStable(in state),
+            HasActiveProjectiles = _orchestrator.HasActiveProjectiles,
+            HasFallingTiles = !_orchestrator.IsPhysicsStable(in state),
             HasPendingMatches = HasPendingMatches(),
             DeltaTime = deltaTime
         };
@@ -422,9 +404,9 @@ public sealed class SimulationEngine : IDisposable
     public bool IsStable()
     {
         var state = State;
-        return _physics.IsStable(in state)
-            && !_projectileSystem.HasActiveProjectiles
-            && !_explosionSystem.HasActiveExplosions
+        return _orchestrator.IsPhysicsStable(in state)
+            && !_orchestrator.HasActiveProjectiles
+            && !_orchestrator.HasActiveExplosions
             && !HasPendingMatches()
             && !_pendingMoveState.HasPending;
     }
@@ -459,13 +441,13 @@ public sealed class SimulationEngine : IDisposable
     /// </summary>
     public void LaunchProjectile(Projectile projectile)
     {
-        _projectileSystem.Launch(projectile, _currentTick, _elapsedTime, _eventCollector);
+        _orchestrator.ProjectileSystem.Launch(projectile, _currentTick, _elapsedTime, _eventCollector);
     }
 
     /// <summary>
     /// Gets the projectile system for advanced usage.
     /// </summary>
-    public IProjectileSystem ProjectileSystem => _projectileSystem;
+    public IProjectileSystem ProjectileSystem => _orchestrator.ProjectileSystem;
 
     /// <summary>
     /// Set a new event collector.
@@ -491,7 +473,7 @@ public sealed class SimulationEngine : IDisposable
     private bool HasPendingMatches()
     {
         var state = State;
-        return _matchHandler.HasPendingMatches(in state);
+        return _orchestrator.HasPendingMatches(in state);
     }
 
     public void Dispose()

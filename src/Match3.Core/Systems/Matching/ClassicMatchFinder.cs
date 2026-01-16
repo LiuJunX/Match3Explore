@@ -6,6 +6,10 @@ using Match3.Core.Utility.Pools;
 
 namespace Match3.Core.Systems.Matching;
 
+/// <summary>
+/// Standard match finder implementation using flood-fill algorithm.
+/// Note: Prefer using StandardMatchFinder for new code (same implementation, standardized name).
+/// </summary>
 public class ClassicMatchFinder : IMatchFinder
 {
     private readonly IBombGenerator _bombGenerator;
@@ -177,5 +181,17 @@ public class ClassicMatchFinder : IMatchFinder
             Pools.Release(g);
         }
         Pools.Release(groups);
+    }
+}
+
+/// <summary>
+/// Standard match finder implementation.
+/// This is an alias for ClassicMatchFinder with a standardized name.
+/// </summary>
+public class StandardMatchFinder : ClassicMatchFinder
+{
+    public StandardMatchFinder(IBombGenerator bombGenerator)
+        : base(bombGenerator)
+    {
     }
 }

@@ -7,43 +7,30 @@ using Match3.Random;
 namespace Match3.Core.Systems.Physics;
 
 /// <summary>
-/// Resolves gravity targets for falling tiles.
-/// Extracted from RealtimeGravitySystem to reduce class size.
+/// Default implementation of IGravityTargetResolver.
+/// Resolves gravity targets for falling tiles with diagonal slide support.
 /// </summary>
-internal sealed class GravityTargetResolver
+public sealed class GravityTargetResolver : IGravityTargetResolver
 {
     private const float FallingFollowDistance = 1.0f;
 
     private readonly IRandom _random;
     private readonly HashSet<int> _reservedSlots;
 
-    public GravityTargetResolver(IRandom random, HashSet<int> reservedSlots)
+    public GravityTargetResolver(IRandom random)
     {
         _random = random;
-        _reservedSlots = reservedSlots;
+        _reservedSlots = new HashSet<int>();
     }
 
-    /// <summary>
-    /// Target information for a tile's movement.
-    /// </summary>
-    public readonly struct TargetInfo
+    /// <inheritdoc />
+    public void ClearReservations()
     {
-        public readonly Vector2 Position;
-        public readonly float InheritedVelocityY;
-        public readonly bool FoundDynamicTarget;
-
-        public TargetInfo(Vector2 position, float inheritedVelocityY, bool foundDynamicTarget)
-        {
-            Position = position;
-            InheritedVelocityY = inheritedVelocityY;
-            FoundDynamicTarget = foundDynamicTarget;
-        }
+        _reservedSlots.Clear();
     }
 
-    /// <summary>
-    /// Determine the target position for a tile.
-    /// </summary>
-    public TargetInfo DetermineTarget(ref GameState state, int x, int y)
+    /// <inheritdoc />
+    public IGravityTargetResolver.TargetInfo DetermineTarget(ref GameState state, int x, int y)
     {
         int checkY = y + 1;
 
@@ -59,7 +46,7 @@ internal sealed class GravityTargetResolver
             var below = state.GetTile(x, checkY);
             if (below.Type != TileType.None && below.IsFalling && below.Velocity.Y > 0)
             {
-                return new TargetInfo(
+                return new IGravityTargetResolver.TargetInfo(
                     new Vector2(x, below.Position.Y - FallingFollowDistance),
                     below.Velocity.Y,
                     true
@@ -74,14 +61,14 @@ internal sealed class GravityTargetResolver
             }
 
             // If blocked by a normal tile, stay put.
-            return new TargetInfo(new Vector2(x, y), 0f, false);
+            return new IGravityTargetResolver.TargetInfo(new Vector2(x, y), 0f, false);
         }
 
         // Bottom of grid
-        return new TargetInfo(new Vector2(x, y), 0f, false);
+        return new IGravityTargetResolver.TargetInfo(new Vector2(x, y), 0f, false);
     }
 
-    private TargetInfo FindLowestVerticalTarget(ref GameState state, int x, int startY)
+    private IGravityTargetResolver.TargetInfo FindLowestVerticalTarget(ref GameState state, int x, int startY)
     {
         int floorY = startY;
 
@@ -97,7 +84,7 @@ internal sealed class GravityTargetResolver
                 if (below.IsFalling)
                 {
                     ReserveSlot(x, floorY, state.Width);
-                    return new TargetInfo(
+                    return new IGravityTargetResolver.TargetInfo(
                         new Vector2(x, below.Position.Y - FallingFollowDistance),
                         below.Velocity.Y,
                         true
@@ -108,10 +95,10 @@ internal sealed class GravityTargetResolver
         }
 
         ReserveSlot(x, floorY, state.Width);
-        return new TargetInfo(new Vector2(x, floorY), 0f, false);
+        return new IGravityTargetResolver.TargetInfo(new Vector2(x, floorY), 0f, false);
     }
 
-    private TargetInfo FindDiagonalTarget(ref GameState state, int x, int checkY, int originalY)
+    private IGravityTargetResolver.TargetInfo FindDiagonalTarget(ref GameState state, int x, int checkY, int originalY)
     {
         bool canLeft = x > 0 && CanMoveTo(ref state, x - 1, checkY) && IsOverheadClear(ref state, x - 1, originalY);
         bool canRight = x < state.Width - 1 && CanMoveTo(ref state, x + 1, checkY) && IsOverheadClear(ref state, x + 1, originalY);
@@ -134,10 +121,10 @@ internal sealed class GravityTargetResolver
         if (targetX != -1)
         {
             ReserveSlot(targetX, checkY, state.Width);
-            return new TargetInfo(new Vector2(targetX, checkY), 0f, false);
+            return new IGravityTargetResolver.TargetInfo(new Vector2(targetX, checkY), 0f, false);
         }
 
-        return new TargetInfo(new Vector2(x, originalY), 0f, false);
+        return new IGravityTargetResolver.TargetInfo(new Vector2(x, originalY), 0f, false);
     }
 
     private bool CanMoveTo(ref GameState state, int x, int y)

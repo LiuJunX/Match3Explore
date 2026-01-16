@@ -9,6 +9,10 @@ using Match3.Random;
 
 namespace Match3.Core.Systems.Physics;
 
+/// <summary>
+/// Standard physics simulation with gravity, diagonal slide, and tile following.
+/// Note: Prefer using StandardGravitySystem for new code (same implementation, standardized name).
+/// </summary>
 public class RealtimeGravitySystem : IPhysicsSimulation
 {
     private const float SnapThreshold = 0.01f;
@@ -20,17 +24,21 @@ public class RealtimeGravitySystem : IPhysicsSimulation
     private readonly IRandom _random;
 
     // Frame buffers
-    private readonly HashSet<int> _reservedSlots = new HashSet<int>();
     private readonly HashSet<int> _newlyOccupiedSlots = new HashSet<int>();
 
     // Target resolver
-    private readonly GravityTargetResolver _targetResolver;
+    private readonly IGravityTargetResolver _targetResolver;
 
     public RealtimeGravitySystem(Match3Config config, IRandom random)
+        : this(config, random, new GravityTargetResolver(random))
+    {
+    }
+
+    public RealtimeGravitySystem(Match3Config config, IRandom random, IGravityTargetResolver targetResolver)
     {
         _config = config;
         _random = random;
-        _targetResolver = new GravityTargetResolver(random, _reservedSlots);
+        _targetResolver = targetResolver;
     }
 
     public void Update(ref GameState state, float deltaTime)
@@ -57,7 +65,7 @@ public class RealtimeGravitySystem : IPhysicsSimulation
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ResetFrameBuffers()
     {
-        _reservedSlots.Clear();
+        _targetResolver.ClearReservations();
         _newlyOccupiedSlots.Clear();
     }
 
@@ -123,7 +131,7 @@ public class RealtimeGravitySystem : IPhysicsSimulation
         return false;
     }
 
-    private void SimulatePhysics(ref Tile tile, GravityTargetResolver.TargetInfo target, float dt)
+    private void SimulatePhysics(ref Tile tile, IGravityTargetResolver.TargetInfo target, float dt)
     {
         ApplyHorizontalMotion(ref tile, target.Position.X, dt);
         ApplyVerticalMotion(ref tile, target, dt);
@@ -148,7 +156,7 @@ public class RealtimeGravitySystem : IPhysicsSimulation
         }
     }
 
-    private void ApplyVerticalMotion(ref Tile tile, GravityTargetResolver.TargetInfo target, float dt)
+    private void ApplyVerticalMotion(ref Tile tile, IGravityTargetResolver.TargetInfo target, float dt)
     {
         if (tile.Position.Y < target.Position.Y - FloorSnapDistance)
         {
@@ -182,7 +190,7 @@ public class RealtimeGravitySystem : IPhysicsSimulation
         }
     }
 
-    private void SnapToTargetY(ref Tile tile, GravityTargetResolver.TargetInfo target)
+    private void SnapToTargetY(ref Tile tile, IGravityTargetResolver.TargetInfo target)
     {
         tile.Position.Y = target.Position.Y;
 
@@ -260,5 +268,22 @@ public class RealtimeGravitySystem : IPhysicsSimulation
                Math.Abs(tile.Velocity.X) <= SnapThreshold &&
                Math.Abs(tile.Position.Y - y) <= SnapThreshold &&
                Math.Abs(tile.Position.X - x) <= SnapThreshold;
+    }
+}
+
+/// <summary>
+/// Standard physics simulation with gravity.
+/// This is an alias for RealtimeGravitySystem with a standardized name.
+/// </summary>
+public class StandardGravitySystem : RealtimeGravitySystem
+{
+    public StandardGravitySystem(Match3Config config, IRandom random)
+        : base(config, random)
+    {
+    }
+
+    public StandardGravitySystem(Match3Config config, IRandom random, IGravityTargetResolver targetResolver)
+        : base(config, random, targetResolver)
+    {
     }
 }

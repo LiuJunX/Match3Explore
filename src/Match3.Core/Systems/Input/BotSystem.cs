@@ -39,10 +39,10 @@ public class BotSystem : IBotSystem
                      if (candidate.HasValue)
                      {
                           // Check if this move creates a match
-                          SwapTiles(ref state, candidate.Value.From, candidate.Value.To);
-                          bool hasMatch = _matchFinder.HasMatchAt(in state, candidate.Value.From) || 
+                          SwapTilesForCheck(ref state, candidate.Value.From, candidate.Value.To);
+                          bool hasMatch = _matchFinder.HasMatchAt(in state, candidate.Value.From) ||
                                           _matchFinder.HasMatchAt(in state, candidate.Value.To);
-                          SwapTiles(ref state, candidate.Value.From, candidate.Value.To); // Swap back
+                          SwapTilesForCheck(ref state, candidate.Value.From, candidate.Value.To); // Swap back
 
                           if (hasMatch)
                           {
@@ -56,20 +56,17 @@ public class BotSystem : IBotSystem
         return false;
     }
     
-    private void SwapTiles(ref GameState state, Position a, Position b)
+    /// <summary>
+    /// Swap tiles in grid for match checking only.
+    /// Does NOT modify Tile.Position to avoid conflicts with AnimationSystem.
+    /// </summary>
+    private static void SwapTilesForCheck(ref GameState state, Position a, Position b)
     {
         var idxA = a.Y * state.Width + a.X;
         var idxB = b.Y * state.Width + b.X;
-        var tA = state.Grid[idxA];
-        var tB = state.Grid[idxB];
 
-        // Swap positions
-        var tempPos = tA.Position;
-        tA.Position = tB.Position;
-        tB.Position = tempPos;
-
-        // Swap in grid
-        state.Grid[idxA] = tB;
-        state.Grid[idxB] = tA;
+        // Only swap grid positions, not Tile.Position
+        // This is safe because MatchFinder only checks tile types in grid
+        (state.Grid[idxA], state.Grid[idxB]) = (state.Grid[idxB], state.Grid[idxA]);
     }
 }

@@ -6,7 +6,10 @@ using Match3.Core.Systems.Spawning;
 
 namespace Match3.Core.Systems.Physics;
 
-public class RealtimeRefillSystem
+/// <summary>
+/// Default refill system that spawns new tiles at the top of each column.
+/// </summary>
+public class RealtimeRefillSystem : IRefillSystem
 {
     private readonly ISpawnModel _spawnModel;
 

@@ -9,7 +9,19 @@ namespace Match3.Core.Systems.Matching.Generation;
 
 public class BombGenerator : IBombGenerator
 {
-    private readonly ShapeDetector _detector = new();
+    private readonly IShapeDetector _detector;
+    private readonly IBombPlacementSelector _placementSelector;
+
+    public BombGenerator()
+        : this(new ShapeDetector(), new DefaultBombPlacementSelector())
+    {
+    }
+
+    public BombGenerator(IShapeDetector detector, IBombPlacementSelector placementSelector)
+    {
+        _detector = detector;
+        _placementSelector = placementSelector;
+    }
 
     public List<MatchGroup> Generate(HashSet<Position> component, IEnumerable<Position>? foci = null, IRandom? random = null)
     {
@@ -208,7 +220,6 @@ public class BombGenerator : IBombGenerator
         var results = Pools.ObtainList<MatchGroup>();
         var finalUsed = Pools.ObtainHashSet<Position>();
         var orphans = Pools.ObtainList<Position>();
-        var matchingFoci = Pools.ObtainList<Position>();
 
         try
         {
@@ -223,68 +234,8 @@ public class BombGenerator : IBombGenerator
                 group.SpawnBombType = shape.Type;
                 group.Type = TileType.None; // Set by caller
 
-                // Determine Bomb Origin
-                Position? origin = null;
-
-                // Priority 1: Player operation positions (foci)
-                matchingFoci.Clear();
-                if (foci != null)
-                {
-                    foreach (var f in foci)
-                    {
-                        if (shape.Cells!.Contains(f))
-                        {
-                            matchingFoci.Add(f);
-                        }
-                    }
-                }
-
-                if (matchingFoci.Count == 1)
-                {
-                    origin = matchingFoci[0];
-                }
-                else if (matchingFoci.Count > 1)
-                {
-                    if (random != null)
-                    {
-                        int idx2 = random.Next(0, matchingFoci.Count);
-                        origin = matchingFoci[idx2];
-                    }
-                    else
-                    {
-                        origin = matchingFoci[0];
-                    }
-                }
-
-                // Priority 2: Random position from shape cells
-                if (origin == null && shape.Cells!.Count > 0)
-                {
-                    var cellList = Pools.ObtainList<Position>();
-                    try
-                    {
-                        foreach (var c in shape.Cells) cellList.Add(c);
-                        cellList.Sort((a, b) =>
-                        {
-                            int cmp = a.Y.CompareTo(b.Y);
-                            return cmp != 0 ? cmp : a.X.CompareTo(b.X);
-                        });
-
-                        if (random != null)
-                        {
-                            int idx3 = random.Next(0, cellList.Count);
-                            origin = cellList[idx3];
-                        }
-                        else
-                        {
-                            origin = cellList[0];
-                        }
-                    }
-                    finally
-                    {
-                        Pools.Release(cellList);
-                    }
-                }
-                group.BombOrigin = origin;
+                // Use placement selector for bomb origin
+                group.BombOrigin = _placementSelector.SelectBombPosition(shape.Cells!, foci, random);
 
                 results.Add(group);
             }
@@ -316,7 +267,6 @@ public class BombGenerator : IBombGenerator
         {
             Pools.Release(finalUsed);
             Pools.Release(orphans);
-            Pools.Release(matchingFoci);
         }
     }
 }

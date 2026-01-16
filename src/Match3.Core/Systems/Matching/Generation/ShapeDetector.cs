@@ -15,7 +15,7 @@ using Match3.Core.Utility.Pools;
 
 namespace Match3.Core.Systems.Matching.Generation;
 
-public class ShapeDetector
+public class ShapeDetector : IShapeDetector
 {
     private readonly List<IShapeRule> _rules = new();
 
