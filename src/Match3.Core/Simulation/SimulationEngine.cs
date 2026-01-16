@@ -1,10 +1,6 @@
 using System;
-using System.Collections.Generic;
 using Match3.Core.Events;
-using Match3.Core.Events.Enums;
-using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
-using Match3.Core.Models.Gameplay;
 using Match3.Core.Systems.Matching;
 using Match3.Core.Systems.Physics;
 using Match3.Core.Systems.PowerUps;
@@ -27,6 +23,7 @@ public sealed class SimulationEngine : IDisposable
     private readonly IPowerUpHandler _powerUpHandler;
     private readonly IProjectileSystem _projectileSystem;
     private readonly IExplosionSystem _explosionSystem;
+    private readonly SimulationMatchHandler _matchHandler;
 
     private IEventCollector _eventCollector;
     private long _currentTick;
@@ -81,6 +78,7 @@ public sealed class SimulationEngine : IDisposable
         _projectileSystem = projectileSystem ?? new ProjectileSystem();
         _eventCollector = eventCollector ?? NullEventCollector.Instance;
         _explosionSystem = explosionSystem ?? new ExplosionSystem();
+        _matchHandler = new SimulationMatchHandler(_matchFinder, _matchProcessor);
 
         _currentTick = 0;
         _elapsedTime = 0f;
@@ -115,7 +113,7 @@ public sealed class SimulationEngine : IDisposable
         // Process tiles affected by projectile impacts
         if (projectileAffected.Count > 0)
         {
-            ProcessProjectileImpacts(ref state, projectileAffected);
+            _matchHandler.ProcessProjectileImpacts(ref state, projectileAffected, _currentTick, _elapsedTime, _eventCollector);
             _tilesCleared += projectileAffected.Count;
         }
         Pools.Release(projectileAffected);
@@ -148,10 +146,11 @@ public sealed class SimulationEngine : IDisposable
         _physics.Update(ref state, deltaTime);
 
         // 4. Process stable matches
-        var matchCount = ProcessStableMatches(ref state);
+        var matchCount = _matchHandler.ProcessStableMatches(ref state, _currentTick, _elapsedTime, _eventCollector);
         if (matchCount > 0)
         {
             _matchesProcessed += matchCount;
+            _cascadeDepth++;
         }
 
         // 5. Update tick counter
@@ -336,125 +335,10 @@ public sealed class SimulationEngine : IDisposable
         _cascadeDepth = 0;
     }
 
-    private void ProcessProjectileImpacts(ref GameState state, HashSet<Position> affectedPositions)
-    {
-        foreach (var pos in affectedPositions)
-        {
-            if (!state.IsValid(pos)) continue;
-
-            var tile = state.GetTile(pos.X, pos.Y);
-            if (tile.Type == TileType.None) continue;
-
-            // Emit destruction event
-            if (_eventCollector.IsEnabled)
-            {
-                _eventCollector.Emit(new TileDestroyedEvent
-                {
-                    Tick = _currentTick,
-                    SimulationTime = _elapsedTime,
-                    TileId = tile.Id,
-                    GridPosition = pos,
-                    Type = tile.Type,
-                    Bomb = tile.Bomb,
-                    Reason = DestroyReason.Projectile
-                });
-            }
-
-            // Clear the tile
-            state.SetTile(pos.X, pos.Y, new Tile());
-        }
-    }
-
-    private int ProcessStableMatches(ref GameState state)
-    {
-        var allMatches = _matchFinder.FindMatchGroups(state);
-        if (allMatches.Count == 0) return 0;
-
-        var stableGroups = Pools.ObtainList<MatchGroup>();
-        int processed = 0;
-
-        try
-        {
-            foreach (var group in allMatches)
-            {
-                if (IsGroupStable(ref state, group))
-                {
-                    stableGroups.Add(group);
-
-                    // Emit match event
-                    if (_eventCollector.IsEnabled)
-                    {
-                        var positions = new List<Position>(group.Positions);
-                        _eventCollector.Emit(new MatchDetectedEvent
-                        {
-                            Tick = _currentTick,
-                            SimulationTime = _elapsedTime,
-                            Type = group.Type,
-                            Positions = positions,
-                            Shape = DetermineMatchShape(group),
-                            TileCount = group.Positions.Count
-                        });
-                    }
-                }
-            }
-
-            if (stableGroups.Count > 0)
-            {
-                // Emit destruction events before tiles are cleared
-                if (_eventCollector.IsEnabled)
-                {
-                    foreach (var group in stableGroups)
-                    {
-                        foreach (var pos in group.Positions)
-                        {
-                            // Skip position that will spawn a bomb
-                            if (group.BombOrigin.HasValue && group.BombOrigin.Value == pos)
-                                continue;
-
-                            var tile = state.GetTile(pos.X, pos.Y);
-                            if (tile.Type == TileType.None) continue;
-
-                            _eventCollector.Emit(new TileDestroyedEvent
-                            {
-                                Tick = _currentTick,
-                                SimulationTime = _elapsedTime,
-                                TileId = tile.Id,
-                                GridPosition = pos,
-                                Type = tile.Type,
-                                Bomb = tile.Bomb,
-                                Reason = DestroyReason.Match
-                            });
-                        }
-                    }
-                }
-
-                processed = stableGroups.Count;
-                _matchProcessor.ProcessMatches(ref state, stableGroups);
-                _cascadeDepth++;
-            }
-        }
-        finally
-        {
-            Pools.Release(stableGroups);
-        }
-
-        return processed;
-    }
-
-    private bool IsGroupStable(ref GameState state, MatchGroup group)
-    {
-        foreach (var p in group.Positions)
-        {
-            var tile = state.GetTile(p.X, p.Y);
-            if (tile.IsFalling) return false;
-        }
-        return true;
-    }
-
     private bool HasPendingMatches()
     {
         var state = State;
-        return _matchFinder.HasMatches(in state);
+        return _matchHandler.HasPendingMatches(in state);
     }
 
     private void SwapTiles(ref GameState state, Position a, Position b)
@@ -468,21 +352,6 @@ public sealed class SimulationEngine : IDisposable
         // Update positions
         state.Grid[idxA].Position = new System.Numerics.Vector2(a.X, a.Y);
         state.Grid[idxB].Position = new System.Numerics.Vector2(b.X, b.Y);
-    }
-
-    private MatchShape DetermineMatchShape(MatchGroup group)
-    {
-        // Use the shape from the group if already determined
-        if (group.Shape != default)
-            return group.Shape;
-
-        // Fallback: Simple heuristic based on count
-        return group.Positions.Count switch
-        {
-            <= 3 => MatchShape.Simple3,
-            4 => MatchShape.Line4Horizontal,
-            _ => MatchShape.Line5  // 5 or more
-        };
     }
 
     public void Dispose()

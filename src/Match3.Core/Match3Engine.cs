@@ -80,7 +80,7 @@ public sealed class Match3Engine : IDisposable
         _state = new GameState(_config.Width, _config.Height, _config.TileTypesCount, rng);
         boardInitializer.Initialize(ref _state, levelConfig);
         
-        _logger.LogInfo($"Match3Engine initialized with size {_config.Width}x{_config.Height}");
+        _logger.LogInfo("Match3Engine initialized with size {0}x{1}", _config.Width, _config.Height);
     }
 
     public void Dispose()

@@ -356,118 +356,14 @@ public class BombComboHandler
 
     #region 辅助方法
 
-    private BombType GetEffectiveBombType(Tile tile)
-    {
-        if (tile.Type == TileType.Rainbow || tile.Bomb == BombType.Color)
-            return BombType.Color;
-        return tile.Bomb;
-    }
-
-    private bool IsRocket(BombType type)
-    {
-        return type == BombType.Horizontal || type == BombType.Vertical;
-    }
-
-    private bool IsColorBombWithNormalTile(Tile t1, Tile t2)
-    {
-        bool t1IsColorBomb = t1.Type == TileType.Rainbow || t1.Bomb == BombType.Color;
-        bool t2IsColorBomb = t2.Type == TileType.Rainbow || t2.Bomb == BombType.Color;
-        bool t1IsNormal = !t1IsColorBomb && t1.Bomb == BombType.None && t1.Type != TileType.None && t1.Type != TileType.Bomb;
-        bool t2IsNormal = !t2IsColorBomb && t2.Bomb == BombType.None && t2.Type != TileType.None && t2.Type != TileType.Bomb;
-
-        return (t1IsColorBomb && t2IsNormal) || (t2IsColorBomb && t1IsNormal);
-    }
-
-    private void ApplySmallCross(in GameState state, Position center, HashSet<Position> affected)
-    {
-        affected.Add(center);
-        if (center.X > 0) affected.Add(new Position(center.X - 1, center.Y));
-        if (center.X < state.Width - 1) affected.Add(new Position(center.X + 1, center.Y));
-        if (center.Y > 0) affected.Add(new Position(center.X, center.Y - 1));
-        if (center.Y < state.Height - 1) affected.Add(new Position(center.X, center.Y + 1));
-    }
-
-    private void ApplyArea(in GameState state, Position center, int radius, HashSet<Position> affected)
-    {
-        for (int dy = -radius; dy <= radius; dy++)
-        {
-            for (int dx = -radius; dx <= radius; dx++)
-            {
-                int x = center.X + dx;
-                int y = center.Y + dy;
-                if (x >= 0 && x < state.Width && y >= 0 && y < state.Height)
-                {
-                    affected.Add(new Position(x, y));
-                }
-            }
-        }
-    }
-
-    private Position? GetRandomTarget(ref GameState state, Position exclude, HashSet<Position> alreadyAffected)
-    {
-        var candidates = Pools.ObtainList<Position>();
-        try
-        {
-            for (int y = 0; y < state.Height; y++)
-            {
-                for (int x = 0; x < state.Width; x++)
-                {
-                    var pos = new Position(x, y);
-                    if (pos.X == exclude.X && pos.Y == exclude.Y) continue;
-                    if (alreadyAffected.Contains(pos)) continue;
-                    if (state.GetType(x, y) != TileType.None)
-                    {
-                        candidates.Add(pos);
-                    }
-                }
-            }
-
-            if (candidates.Count > 0)
-            {
-                int idx = state.Random.Next(0, candidates.Count);
-                return candidates[idx];
-            }
-            return null;
-        }
-        finally
-        {
-            Pools.Release(candidates);
-        }
-    }
-
-    private TileType FindMostFrequentColor(ref GameState state)
-    {
-        var counts = Pools.Obtain<Dictionary<TileType, int>>();
-        try
-        {
-            for (int i = 0; i < state.Grid.Length; i++)
-            {
-                var t = state.Grid[i];
-                if (t.Type != TileType.None && t.Type != TileType.Rainbow && t.Type != TileType.Bomb)
-                {
-                    if (!counts.ContainsKey(t.Type)) counts[t.Type] = 0;
-                    counts[t.Type]++;
-                }
-            }
-
-            TileType maxType = TileType.None;
-            int maxCount = -1;
-            foreach (var kvp in counts)
-            {
-                if (kvp.Value > maxCount)
-                {
-                    maxCount = kvp.Value;
-                    maxType = kvp.Key;
-                }
-            }
-            return maxType;
-        }
-        finally
-        {
-            counts.Clear();
-            Pools.Release(counts);
-        }
-    }
+    // Delegated to BombComboHelpers static class
+    private static BombType GetEffectiveBombType(Tile tile) => BombComboHelpers.GetEffectiveBombType(tile);
+    private static bool IsRocket(BombType type) => BombComboHelpers.IsRocket(type);
+    private static bool IsColorBombWithNormalTile(Tile t1, Tile t2) => BombComboHelpers.IsColorBombWithNormalTile(t1, t2);
+    private static void ApplySmallCross(in GameState state, Position center, HashSet<Position> affected) => BombComboHelpers.ApplySmallCross(state, center, affected);
+    private static void ApplyArea(in GameState state, Position center, int radius, HashSet<Position> affected) => BombComboHelpers.ApplyArea(state, center, radius, affected);
+    private static Position? GetRandomTarget(ref GameState state, Position exclude, HashSet<Position> alreadyAffected) => BombComboHelpers.GetRandomTarget(ref state, exclude, alreadyAffected);
+    private static TileType FindMostFrequentColor(ref GameState state) => BombComboHelpers.FindMostFrequentColor(ref state);
 
     #endregion
 }

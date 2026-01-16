@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Numerics;
 using System.Runtime.CompilerServices;
 using Match3.Core.Config;
 using Match3.Core.Models.Enums;
@@ -13,38 +12,25 @@ namespace Match3.Core.Systems.Physics;
 public class RealtimeGravitySystem : IPhysicsSimulation
 {
     private const float SnapThreshold = 0.01f;
-    // Reduced from 0.05f to 0.001f to prevent premature snapping to temporary targets (Phantom Blocks)
-    // when running at low game speeds (small deltaTime).
     private const float FloorSnapDistance = 0.001f;
     private const float SlideSpeedMultiplier = 8.0f;
     private const float SlideGravityFactor = 0.6f;
-    private const float FallingFollowDistance = 1.0f;
 
     private readonly Match3Config _config;
     private readonly IRandom _random;
-    
+
     // Frame buffers
     private readonly HashSet<int> _reservedSlots = new HashSet<int>();
     private readonly HashSet<int> _newlyOccupiedSlots = new HashSet<int>();
 
-    private readonly struct TargetInfo
-    {
-        public readonly Vector2 Position;
-        public readonly float InheritedVelocityY;
-        public readonly bool FoundDynamicTarget;
-
-        public TargetInfo(Vector2 position, float inheritedVelocityY, bool foundDynamicTarget)
-        {
-            Position = position;
-            InheritedVelocityY = inheritedVelocityY;
-            FoundDynamicTarget = foundDynamicTarget;
-        }
-    }
+    // Target resolver
+    private readonly GravityTargetResolver _targetResolver;
 
     public RealtimeGravitySystem(Match3Config config, IRandom random)
     {
         _config = config;
         _random = random;
+        _targetResolver = new GravityTargetResolver(random, _reservedSlots);
     }
 
     public void Update(ref GameState state, float deltaTime)
@@ -115,10 +101,10 @@ public class RealtimeGravitySystem : IPhysicsSimulation
         for (int y = state.Height - 1; y >= 0; y--)
         {
             var tile = state.GetTile(x, y);
-            
+
             if (ShouldSkipTile(tile, x, y, state.Width)) continue;
-            
-            var target = DetermineTarget(ref state, x, y);
+
+            var target = _targetResolver.DetermineTarget(ref state, x, y);
             SimulatePhysics(ref tile, target, dt);
             UpdateGridPosition(ref state, x, y, tile);
         }
@@ -132,113 +118,7 @@ public class RealtimeGravitySystem : IPhysicsSimulation
                _newlyOccupiedSlots.Contains(y * width + x);
     }
 
-    private TargetInfo DetermineTarget(ref GameState state, int x, int y)
-    {
-        int checkY = y + 1;
-
-        // 1. Try Vertical Move
-        if (checkY < state.Height)
-        {
-            if (CanMoveTo(ref state, x, checkY))
-            {
-                return FindLowestVerticalTarget(ref state, x, checkY);
-            }
-
-            // 2. Try Follow Falling Blocker
-            // Only follow if below tile is actually moving DOWN (positive Y velocity)
-            // This prevents incorrect following during swaps where a tile needs to move UP
-            // (swap tiles are handled by AnimationSystem with no velocity)
-            var below = state.GetTile(x, checkY);
-            if (below.Type != TileType.None && below.IsFalling &&
-                below.Velocity.Y > 0)
-            {
-                return new TargetInfo(
-                    new Vector2(x, below.Position.Y - FallingFollowDistance),
-                    below.Velocity.Y,
-                    true
-                );
-            }
-            
-            // 3. Try Diagonal Slide
-        // Only allow sliding if the tile directly below is an Obstacle (Suspended)
-        // Normal tiles should not cause sliding; they should form a stable stack.
-        var tileBelow = state.GetTile(x, checkY);
-        if (tileBelow.IsSuspended)
-        {
-            return FindDiagonalTarget(ref state, x, checkY, y);
-        }
-
-        // If blocked by a normal tile, stay put.
-        return new TargetInfo(new Vector2(x, y), 0f, false);
-        }
-
-        // Bottom of grid
-        return new TargetInfo(new Vector2(x, y), 0f, false);
-    }
-
-    private TargetInfo FindLowestVerticalTarget(ref GameState state, int x, int startY)
-    {
-        int floorY = startY;
-        
-        for (int k = startY + 1; k < state.Height; k++)
-        {
-            if (CanMoveTo(ref state, x, k))
-            {
-                floorY = k;
-            }
-            else
-            {
-                var below = state.GetTile(x, k);
-                if (below.IsFalling)
-                {
-                    ReserveSlot(x, floorY, state.Width);
-                    return new TargetInfo(
-                        new Vector2(x, below.Position.Y - FallingFollowDistance),
-                        below.Velocity.Y,
-                        true
-                    );
-                }
-                break;
-            }
-        }
-
-        ReserveSlot(x, floorY, state.Width);
-        return new TargetInfo(new Vector2(x, floorY), 0f, false);
-    }
-
-    private TargetInfo FindDiagonalTarget(ref GameState state, int x, int checkY, int originalY)
-    {
-        // Check if there is a tile directly above the diagonal targets that might want to fall vertically.
-        // If there is, we should NOT slide there, because vertical fall has priority.
-        
-        bool canLeft = x > 0 && CanMoveTo(ref state, x - 1, checkY) && IsOverheadClear(ref state, x - 1, originalY);
-        bool canRight = x < state.Width - 1 && CanMoveTo(ref state, x + 1, checkY) && IsOverheadClear(ref state, x + 1, originalY);
-        
-        int targetX = -1;
-
-        if (canLeft && canRight)
-        {
-            targetX = _random.Next(0, 2) == 0 ? x - 1 : x + 1;
-        }
-        else if (canLeft)
-        {
-            targetX = x - 1;
-        }
-        else if (canRight)
-        {
-            targetX = x + 1;
-        }
-
-        if (targetX != -1)
-        {
-            ReserveSlot(targetX, checkY, state.Width);
-            return new TargetInfo(new Vector2(targetX, checkY), 0f, false);
-        }
-
-        return new TargetInfo(new Vector2(x, originalY), 0f, false);
-    }
-
-    private void SimulatePhysics(ref Tile tile, TargetInfo target, float dt)
+    private void SimulatePhysics(ref Tile tile, GravityTargetResolver.TargetInfo target, float dt)
     {
         ApplyHorizontalMotion(ref tile, target.Position.X, dt);
         ApplyVerticalMotion(ref tile, target, dt);
@@ -263,7 +143,7 @@ public class RealtimeGravitySystem : IPhysicsSimulation
         }
     }
 
-    private void ApplyVerticalMotion(ref Tile tile, TargetInfo target, float dt)
+    private void ApplyVerticalMotion(ref Tile tile, GravityTargetResolver.TargetInfo target, float dt)
     {
         if (tile.Position.Y < target.Position.Y - FloorSnapDistance)
         {
@@ -302,7 +182,7 @@ public class RealtimeGravitySystem : IPhysicsSimulation
         }
     }
 
-    private void SnapToTargetY(ref Tile tile, TargetInfo target)
+    private void SnapToTargetY(ref Tile tile, GravityTargetResolver.TargetInfo target)
     {
         tile.Position.Y = target.Position.Y;
         
@@ -361,39 +241,5 @@ public class RealtimeGravitySystem : IPhysicsSimulation
                Math.Abs(tile.Position.X - x) <= SnapThreshold;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool CanMoveTo(ref GameState state, int x, int y)
-    {
-        return IsInsideGrid(state, x, y) && 
-               state.GetTile(x, y).Type == TileType.None && 
-               !IsReserved(x, y, state.Width);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool IsOverheadClear(ref GameState state, int targetX, int targetY)
-    {
-        // If the slot directly above the target (which is at targetY) has a tile,
-        // we assume that tile intends to fall into the target slot (targetY + 1).
-        // Therefore, we should not slide into it.
-        return state.GetTile(targetX, targetY).Type == TileType.None;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool IsInsideGrid(GameState state, int x, int y)
-    {
-        return x >= 0 && x < state.Width && y >= 0 && y < state.Height;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ReserveSlot(int x, int y, int width)
-    {
-        _reservedSlots.Add(y * width + x);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool IsReserved(int x, int y, int width)
-    {
-        return _reservedSlots.Contains(y * width + x);
-    }
 }
     

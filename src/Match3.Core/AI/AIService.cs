@@ -25,6 +25,8 @@ public sealed class AIService : IAIService
     private readonly IMatchProcessor _matchProcessor;
     private readonly IPowerUpHandler _powerUpHandler;
     private readonly Func<IRandom> _randomFactory;
+    private readonly BoardHealthAnalyzer _healthAnalyzer = new();
+    private readonly DifficultyCalculator _difficultyCalculator = new();
 
     private IAIStrategy _strategy;
 
@@ -237,8 +239,8 @@ public sealed class AIService : IAIService
         float avgCascade = validMoveCount > 0 ? totalCascade / validMoveCount : 0;
 
         // Calculate difficulty score
-        float difficultyScore = CalculateDifficultyScore(validMoveCount, avgScore, maxScore, avgCascade);
-        var category = CategorizeDifficulty(validMoveCount, difficultyScore);
+        float difficultyScore = _difficultyCalculator.CalculateScore(validMoveCount, avgScore, maxScore, avgCascade);
+        var category = _difficultyCalculator.Categorize(validMoveCount, difficultyScore);
 
         // Get top moves
         previews.Sort((a, b) =>
@@ -262,7 +264,7 @@ public sealed class AIService : IAIService
             Category = category,
             BestMove = topMoves.Count > 0 && topMoves[0].IsValidMove ? topMoves[0].Move : null,
             TopMoves = topMoves,
-            Health = AnalyzeBoardHealth(in state)
+            Health = _healthAnalyzer.Analyze(in state)
         };
     }
 
@@ -305,120 +307,4 @@ public sealed class AIService : IAIService
         return true;
     }
 
-    private float CalculateDifficultyScore(int moveCount, float avgScore, long maxScore, float avgCascade)
-    {
-        // Higher score = harder
-        float score = 50f; // Base difficulty
-
-        // Fewer moves = harder
-        if (moveCount == 0)
-            return 100f;
-        else if (moveCount < 3)
-            score += 30f;
-        else if (moveCount < 5)
-            score += 15f;
-        else if (moveCount > 10)
-            score -= 15f;
-
-        // Lower average score = harder
-        if (avgScore < 50)
-            score += 20f;
-        else if (avgScore < 100)
-            score += 10f;
-        else if (avgScore > 300)
-            score -= 20f;
-
-        // Lower cascade potential = harder
-        if (avgCascade < 1)
-            score += 10f;
-        else if (avgCascade > 2)
-            score -= 10f;
-
-        return Math.Clamp(score, 0f, 100f);
-    }
-
-    private DifficultyCategory CategorizeDifficulty(int moveCount, float difficultyScore)
-    {
-        if (moveCount == 0)
-            return DifficultyCategory.Deadlock;
-
-        return difficultyScore switch
-        {
-            >= 80 => DifficultyCategory.VeryHard,
-            >= 60 => DifficultyCategory.Hard,
-            >= 40 => DifficultyCategory.Medium,
-            >= 20 => DifficultyCategory.Easy,
-            _ => DifficultyCategory.VeryEasy
-        };
-    }
-
-    private BoardHealth AnalyzeBoardHealth(in GameState state)
-    {
-        int bombCount = 0;
-        var typeCounts = new Dictionary<TileType, int>();
-        int isolatedCount = 0;
-
-        for (int y = 0; y < state.Height; y++)
-        {
-            for (int x = 0; x < state.Width; x++)
-            {
-                var tile = state.GetTile(x, y);
-                if (tile.Type == TileType.None) continue;
-
-                if (tile.Bomb != BombType.None)
-                    bombCount++;
-
-                if (!typeCounts.ContainsKey(tile.Type))
-                    typeCounts[tile.Type] = 0;
-                typeCounts[tile.Type]++;
-
-                // Check if isolated (no adjacent same-type)
-                bool hasAdjacent = false;
-                foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
-                {
-                    int nx = x + dx, ny = y + dy;
-                    if (nx >= 0 && nx < state.Width && ny >= 0 && ny < state.Height)
-                    {
-                        var neighbor = state.GetTile(nx, ny);
-                        if (neighbor.Type == tile.Type)
-                        {
-                            hasAdjacent = true;
-                            break;
-                        }
-                    }
-                }
-                if (!hasAdjacent)
-                    isolatedCount++;
-            }
-        }
-
-        // Calculate variance
-        float mean = 0;
-        if (typeCounts.Count > 0)
-        {
-            foreach (var count in typeCounts.Values)
-                mean += count;
-            mean /= typeCounts.Count;
-        }
-
-        float variance = 0;
-        if (typeCounts.Count > 0)
-        {
-            foreach (var count in typeCounts.Values)
-            {
-                float diff = count - mean;
-                variance += diff * diff;
-            }
-            variance /= typeCounts.Count;
-        }
-
-        return new BoardHealth
-        {
-            ExistingBombs = bombCount,
-            TypeDistributionVariance = variance,
-            IsolatedTiles = isolatedCount,
-            ClusterCount = 0, // Would need flood fill for accurate count
-            AverageClusterSize = 0
-        };
-    }
 }

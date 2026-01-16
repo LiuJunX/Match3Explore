@@ -70,14 +70,16 @@ public sealed class ProjectileSystem : IProjectileSystem
                 // Emit impact event
                 if (events.IsEnabled)
                 {
-                    var affectedList = new List<Position>(affected);
+                    // Use array instead of List for lighter allocation (event outlives method scope)
+                    var affectedArray = new Position[affected.Count];
+                    affected.CopyTo(affectedArray);
                     events.Emit(new ProjectileImpactEvent
                     {
                         Tick = tick,
                         SimulationTime = simTime,
                         ProjectileId = projectile.Id,
                         ImpactPosition = projectile.TargetGridPosition ?? new Position(-1, -1),
-                        AffectedPositions = affectedList
+                        AffectedPositions = affectedArray
                     });
                 }
 

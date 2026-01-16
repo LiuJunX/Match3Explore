@@ -46,6 +46,14 @@ public class Match3GameService : IDisposable
     private AnimationTimeline? _animationTimeline;
     private VisualState? _visualState;
 
+    // UI random for auto-play feature
+    private IRandom? _uiRandom;
+
+    // Reusable collections to avoid per-frame allocations
+    private readonly HashSet<long> _gameStateTileIds = new();
+    private readonly List<long> _tileIdsToRemove = new();
+    private readonly List<(Position from, Position to)> _validMoves = new();
+
     public event Action? OnChange;
 
     public Match3GameService(ILogger<Match3GameService> appLogger)
@@ -92,6 +100,7 @@ public class Match3GameService : IDisposable
         var rngSeed = Environment.TickCount;
         var seedManager = new SeedManager(rngSeed);
         var rng = seedManager.GetRandom(RandomDomain.Main);
+        _uiRandom = seedManager.GetRandom(RandomDomain.Main);
 
         _config = new Match3Config(Width, Height, 6);
         var config = _config;
@@ -262,7 +271,7 @@ public class Match3GameService : IDisposable
         var state = _simulationEngine.State;
 
         // Collect all tile IDs currently in game state (O(w*h))
-        var gameStateTileIds = new HashSet<long>();
+        _gameStateTileIds.Clear();
         for (int y = 0; y < state.Height; y++)
         {
             for (int x = 0; x < state.Width; x++)
@@ -270,7 +279,7 @@ public class Match3GameService : IDisposable
                 var tile = state.GetTile(x, y);
                 if (tile.Type == TileType.None) continue;
 
-                gameStateTileIds.Add(tile.Id);
+                _gameStateTileIds.Add(tile.Id);
 
                 // Add tile to visual state if not present
                 if (_visualState.GetTile(tile.Id) == null)
@@ -338,17 +347,17 @@ public class Match3GameService : IDisposable
         }
 
         // Remove tiles from visual state that are no longer in game state (O(n))
-        var tileIdsToRemove = new List<long>();
+        _tileIdsToRemove.Clear();
         foreach (var kvp in _visualState.Tiles)
         {
             // Only remove if not in game state AND alpha is near zero (animation complete)
-            if (!gameStateTileIds.Contains(kvp.Key) && kvp.Value.Alpha < 0.01f)
+            if (!_gameStateTileIds.Contains(kvp.Key) && kvp.Value.Alpha < 0.01f)
             {
-                tileIdsToRemove.Add(kvp.Key);
+                _tileIdsToRemove.Add(kvp.Key);
             }
         }
 
-        foreach (var id in tileIdsToRemove)
+        foreach (var id in _tileIdsToRemove)
         {
             _visualState.RemoveTile(id);
         }
@@ -359,7 +368,7 @@ public class Match3GameService : IDisposable
         if (_simulationEngine == null) return;
 
         var state = _simulationEngine.State;
-        var validMoves = new List<(Position from, Position to)>();
+        _validMoves.Clear();
 
         // Find all valid horizontal swaps
         for (int y = 0; y < state.Height; y++)
@@ -370,7 +379,7 @@ public class Match3GameService : IDisposable
                 var to = new Position(x + 1, y);
                 if (IsValidSwap(state, from, to))
                 {
-                    validMoves.Add((from, to));
+                    _validMoves.Add((from, to));
                 }
             }
         }
@@ -384,15 +393,14 @@ public class Match3GameService : IDisposable
                 var to = new Position(x, y + 1);
                 if (IsValidSwap(state, from, to))
                 {
-                    validMoves.Add((from, to));
+                    _validMoves.Add((from, to));
                 }
             }
         }
 
-        if (validMoves.Count > 0)
+        if (_validMoves.Count > 0 && _uiRandom != null)
         {
-            var random = new System.Random();
-            var (from, to) = validMoves[random.Next(validMoves.Count)];
+            var (from, to) = _validMoves[_uiRandom.Next(0, _validMoves.Count)];
             _simulationEngine.ApplyMove(from, to);
         }
     }
