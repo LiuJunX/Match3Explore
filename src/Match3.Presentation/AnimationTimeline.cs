@@ -166,6 +166,30 @@ public sealed class AnimationTimeline
     }
 
     /// <summary>
+    /// Remove all animations for a specific tile.
+    /// </summary>
+    public void RemoveAnimationsForTile(long tileId)
+    {
+        _animations.RemoveAll(a => a.TargetTileId == tileId);
+    }
+
+    /// <summary>
+    /// Get the target position of the first move animation for a tile.
+    /// Returns null if no move animation exists for this tile.
+    /// </summary>
+    public System.Numerics.Vector2? GetMoveTargetForTile(long tileId)
+    {
+        foreach (var anim in _animations)
+        {
+            if (anim.TargetTileId == tileId && anim is TileMoveAnimation moveAnim)
+            {
+                return moveAnim.ToPosition;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Get the latest destroy animation end time for a specific column (at or above a row).
     /// Used to delay fall animations until destruction completes.
     /// </summary>
@@ -185,6 +209,39 @@ public sealed class AnimationTimeline
 
                 // Check if this destroy animation is in the same column and at or above maxRow
                 if (animX == column && animY <= maxRow)
+                {
+                    float endTime = anim.StartTime + anim.Duration;
+                    if (endTime > latestEnd)
+                    {
+                        latestEnd = endTime;
+                    }
+                }
+            }
+        }
+
+        return latestEnd;
+    }
+
+    /// <summary>
+    /// Get the latest move animation end time for a specific column (at or below a row).
+    /// Used to delay new tile animations until existing tiles finish falling.
+    /// </summary>
+    /// <param name="column">The column (x coordinate).</param>
+    /// <param name="minRow">The minimum row to check (inclusive) - tiles at or below this row.</param>
+    /// <returns>The end time of the latest move animation, or current time if none.</returns>
+    public float GetMoveEndTimeForColumn(int column, int minRow)
+    {
+        float latestEnd = _currentTime;
+
+        foreach (var anim in _animations)
+        {
+            if (anim is TileMoveAnimation move)
+            {
+                int animX = (int)move.ToPosition.X;
+                int animY = (int)move.ToPosition.Y;
+
+                // Check if this move animation is in the same column and at or below minRow
+                if (animX == column && animY >= minRow)
                 {
                     float endTime = anim.StartTime + anim.Duration;
                     if (endTime > latestEnd)

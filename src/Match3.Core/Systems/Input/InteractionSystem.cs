@@ -21,20 +21,31 @@ public class InteractionSystem : IInteractionSystem
     }
 
     /// <summary>
-    /// Handles a tap interaction. Returns a Move if a valid move was initiated.
+    /// Handles a tap interaction. Returns detailed result including bomb activation.
     /// </summary>
-    public bool TryHandleTap(ref GameState state, Position p, bool isBoardInteractive, out Move? move)
+    public TapResult HandleTap(ref GameState state, Position p, bool isBoardInteractive)
     {
-        move = null;
+        if (!state.IsValid(p))
+            return TapResult.None("Invalid position");
 
-        if (!state.IsValid(p)) return false;
-        if (!isBoardInteractive) return false;
+        if (!isBoardInteractive)
+            return TapResult.None("Board not interactive");
 
         // Check if the position can be interacted with (no blocking cover)
         if (!state.CanInteract(p))
         {
             StatusMessage = "Blocked by cover";
-            return false;
+            return TapResult.None("Blocked by cover");
+        }
+
+        var tile = state.GetTile(p.X, p.Y);
+
+        // Check for bomb activation first
+        if (tile.Bomb != BombType.None)
+        {
+            StatusMessage = "Bomb activated!";
+            _logger.LogInfo("Bomb activated at: {0}", p);
+            return TapResult.ActivateBomb(p);
         }
 
         _logger.LogInfo("OnTap: {0}", p);
@@ -43,7 +54,7 @@ public class InteractionSystem : IInteractionSystem
         {
             state.SelectedPosition = p;
             StatusMessage = "Select destination";
-            return false;
+            return TapResult.Selected();
         }
         else
         {
@@ -51,7 +62,7 @@ public class InteractionSystem : IInteractionSystem
             {
                 state.SelectedPosition = Position.Invalid;
                 StatusMessage = "Selection Cleared";
-                return false;
+                return TapResult.Deselected();
             }
             else
             {
@@ -62,23 +73,33 @@ public class InteractionSystem : IInteractionSystem
                     {
                         state.SelectedPosition = p;
                         StatusMessage = "Previous selection blocked";
-                        return false;
+                        return TapResult.Selected("Previous selection blocked");
                     }
 
-                    move = new Move(state.SelectedPosition, p);
+                    var move = new Move(state.SelectedPosition, p);
                     state.SelectedPosition = Position.Invalid;
                     StatusMessage = "Swapping...";
-                    return true;
+                    return TapResult.Swap(move);
                 }
                 else
                 {
                     // Select the new position instead
                     state.SelectedPosition = p;
                     StatusMessage = "Select destination";
-                    return false;
+                    return TapResult.Selected();
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Legacy method for backward compatibility.
+    /// </summary>
+    public bool TryHandleTap(ref GameState state, Position p, bool isBoardInteractive, out Move? move)
+    {
+        var result = HandleTap(ref state, p, isBoardInteractive);
+        move = result.Move;
+        return result.ActionType == TapActionType.Swap;
     }
 
     /// <summary>

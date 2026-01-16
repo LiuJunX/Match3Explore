@@ -39,36 +39,46 @@ public partial class GridBoard : IDisposable
         GameService.HandlePointerUp(e.ClientX, e.ClientY);
     }
 
-    /// <summary>
-    /// Get the emoji icon for a tile visual.
-    /// </summary>
-    private string GetTileIcon(TileVisual visual)
+    private void HandleKeyDown(KeyboardEventArgs e)
     {
+        if (e.Key == " " || e.Code == "Space")
+        {
+            GameService.TogglePause();
+        }
+    }
+
+    /// <summary>
+    /// Get the image path for a tile visual.
+    /// </summary>
+    private string? GetTileImagePath(TileVisual visual)
+    {
+        const string basePath = "assets/tiles";
+
         // Bomb types take priority
         if (visual.BombType != BombType.None)
         {
             return visual.BombType switch
             {
-                BombType.Horizontal => "↔️",
-                BombType.Vertical => "↕️",
-                BombType.Ufo => "🛸",
-                BombType.Square5x5 => "💣",
-                BombType.Color => "🌈",
-                _ => ""
+                BombType.Horizontal => $"{basePath}/bomb_horizontal.png",
+                BombType.Vertical => $"{basePath}/bomb_vertical.png",
+                BombType.Ufo => $"{basePath}/bomb_ufo.png",
+                BombType.Square5x5 => $"{basePath}/bomb_square_bomb.png",
+                BombType.Color => $"{basePath}/bomb_color_bomb.png",
+                _ => null
             };
         }
 
         // Rainbow tile
-        if (visual.TileType.HasFlag(TileType.Rainbow)) return "🌈";
+        if (visual.TileType.HasFlag(TileType.Rainbow)) return $"{basePath}/color_rainbow.png";
 
         // Regular tile colors
-        if (visual.TileType.HasFlag(TileType.Red)) return "🔴";
-        if (visual.TileType.HasFlag(TileType.Green)) return "🟢";
-        if (visual.TileType.HasFlag(TileType.Blue)) return "🔵";
-        if (visual.TileType.HasFlag(TileType.Yellow)) return "🟡";
-        if (visual.TileType.HasFlag(TileType.Purple)) return "🟣";
-        if (visual.TileType.HasFlag(TileType.Orange)) return "🟠";
+        if (visual.TileType.HasFlag(TileType.Red)) return $"{basePath}/color_red.png";
+        if (visual.TileType.HasFlag(TileType.Green)) return $"{basePath}/color_green.png";
+        if (visual.TileType.HasFlag(TileType.Blue)) return $"{basePath}/color_blue.png";
+        if (visual.TileType.HasFlag(TileType.Yellow)) return $"{basePath}/color_yellow.png";
+        if (visual.TileType.HasFlag(TileType.Purple)) return $"{basePath}/color_purple.png";
+        if (visual.TileType.HasFlag(TileType.Orange)) return $"{basePath}/color_orange.png";
 
-        return "";
+        return null;
     }
 }

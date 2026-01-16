@@ -1,3 +1,4 @@
+using System.Linq;
 using Match3.Core.Config;
 using Match3.Core.Events;
 using Match3.Core.Models.Enums;
@@ -286,6 +287,109 @@ public class SimulationEngineTests
 
     #endregion
 
+    #region Invalid Swap Revert Tests
+
+    [Fact]
+    public void ApplyMove_InvalidSwap_IsNotStableUntilRevertComplete()
+    {
+        // Arrange: Create a board where swapping (0,0) and (1,0) creates no match
+        var state = CreateNoMatchSwapState();
+        var engine = CreateEngine(state);
+
+        // Act: Apply invalid swap
+        engine.ApplyMove(new Position(0, 0), new Position(1, 0));
+
+        // Assert: Engine should not be stable (pending move validation)
+        Assert.False(engine.IsStable());
+    }
+
+    [Fact]
+    public void ApplyMove_InvalidSwap_RevertsAfterAnimationDuration()
+    {
+        // Arrange
+        var state = CreateNoMatchSwapState();
+        var engine = CreateEngine(state);
+
+        var originalTileA = state.GetTile(0, 0).Type;
+        var originalTileB = state.GetTile(1, 0).Type;
+
+        // Act: Apply invalid swap
+        engine.ApplyMove(new Position(0, 0), new Position(1, 0));
+
+        // After swap, tiles are in swapped positions
+        Assert.Equal(originalTileB, engine.State.GetTile(0, 0).Type);
+        Assert.Equal(originalTileA, engine.State.GetTile(1, 0).Type);
+
+        // Run enough ticks to complete the swap animation and trigger revert
+        // SwapAnimationDuration = 0.15f, FixedDeltaTime = 0.016f
+        // Need about 10 ticks to pass 0.15 seconds
+        for (int i = 0; i < 15; i++)
+        {
+            engine.Tick();
+        }
+
+        // Assert: Tiles should be back in original positions
+        Assert.Equal(originalTileA, engine.State.GetTile(0, 0).Type);
+        Assert.Equal(originalTileB, engine.State.GetTile(1, 0).Type);
+    }
+
+    [Fact]
+    public void ApplyMove_InvalidSwap_EmitsRevertEvent()
+    {
+        // Arrange
+        var state = CreateNoMatchSwapState();
+        var collector = new BufferedEventCollector();
+        var engine = CreateEngine(state, collector);
+
+        // Act: Apply invalid swap
+        engine.ApplyMove(new Position(0, 0), new Position(1, 0));
+
+        // Clear initial swap event
+        collector.Clear();
+
+        // Run enough ticks to trigger revert
+        for (int i = 0; i < 15; i++)
+        {
+            engine.Tick();
+        }
+
+        // Assert: Should have emitted a revert event
+        var events = collector.GetEvents();
+        var revertEvent = events.OfType<TilesSwappedEvent>().FirstOrDefault(e => e.IsRevert);
+        Assert.NotNull(revertEvent);
+        Assert.True(revertEvent.IsRevert);
+    }
+
+    [Fact]
+    public void ApplyMove_ValidSwap_DoesNotRevert()
+    {
+        // Arrange: Create a board where swapping creates a match
+        var state = CreateMatchOnSwapState();
+        var collector = new BufferedEventCollector();
+        var engine = CreateEngine(state, collector);
+
+        var originalTileA = state.GetTile(1, 0).Type; // Will become part of match
+
+        // Act: Apply valid swap that creates a match
+        engine.ApplyMove(new Position(0, 0), new Position(1, 0));
+
+        // Clear initial swap event
+        collector.Clear();
+
+        // Run ticks
+        for (int i = 0; i < 15; i++)
+        {
+            engine.Tick();
+        }
+
+        // Assert: Should NOT have emitted a revert event
+        var events = collector.GetEvents();
+        var revertEvent = events.OfType<TilesSwappedEvent>().FirstOrDefault(e => e.IsRevert);
+        Assert.Null(revertEvent);
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private GameState CreateStableState()
@@ -317,6 +421,67 @@ public class SimulationEngineTests
         // Set velocity to make the tile actually unstable
         tile.Velocity = new System.Numerics.Vector2(0, 1.0f);
         state.SetTile(0, 0, tile);
+        return state;
+    }
+
+    /// <summary>
+    /// Creates a state where swapping (0,0) and (1,0) does NOT create a match.
+    /// Layout:
+    ///   R B G Y R
+    ///   B G Y R B
+    ///   ...
+    /// Swapping R and B at row 0 won't create a match.
+    /// </summary>
+    private GameState CreateNoMatchSwapState()
+    {
+        var state = new GameState(5, 5, 4, new StubRandom());
+        var types = new[] { TileType.Red, TileType.Blue, TileType.Green, TileType.Yellow };
+
+        for (int y = 0; y < 5; y++)
+        {
+            for (int x = 0; x < 5; x++)
+            {
+                int idx = y * 5 + x;
+                // Pattern that avoids matches even after any single swap
+                var type = types[(x + y * 2) % types.Length];
+                state.SetTile(x, y, new Tile(idx + 1, type, x, y));
+            }
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Creates a state where swapping (0,0) and (1,0) DOES create a match.
+    /// Layout:
+    ///   R B R R G
+    ///   ...
+    /// Swapping R(0,0) and B(1,0) results in: B R R R G
+    /// Now position (1,0), (2,0), (3,0) are all R → match at position (1,0)!
+    /// </summary>
+    private GameState CreateMatchOnSwapState()
+    {
+        var state = new GameState(5, 5, 4, new StubRandom());
+
+        // First row: R B R R G - swapping (0,0) R with (1,0) B creates R R R match at 1,2,3
+        state.SetTile(0, 0, new Tile(1, TileType.Red, 0, 0));
+        state.SetTile(1, 0, new Tile(2, TileType.Blue, 1, 0));
+        state.SetTile(2, 0, new Tile(3, TileType.Red, 2, 0));
+        state.SetTile(3, 0, new Tile(4, TileType.Red, 3, 0));
+        state.SetTile(4, 0, new Tile(5, TileType.Green, 4, 0));
+
+        // Fill rest with non-matching pattern
+        var types = new[] { TileType.Blue, TileType.Green, TileType.Yellow, TileType.Purple };
+        for (int y = 1; y < 5; y++)
+        {
+            for (int x = 0; x < 5; x++)
+            {
+                int idx = y * 5 + x;
+                var type = types[(x + y) % types.Length];
+                state.SetTile(x, y, new Tile(idx + 1, type, x, y));
+            }
+        }
+
         return state;
     }
 

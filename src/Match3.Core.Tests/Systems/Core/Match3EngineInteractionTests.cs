@@ -53,6 +53,13 @@ public class Match3EngineInteractionTests
         public bool ShouldSucceed { get; set; } = true;
         public Move? MoveToReturn { get; set; } = null;
 
+        public TapResult HandleTap(ref GameState state, Position p, bool isInteractive)
+        {
+             if (ShouldSucceed && MoveToReturn.HasValue)
+                 return TapResult.Swap(MoveToReturn.Value);
+             return TapResult.None();
+        }
+
         public bool TryHandleTap(ref GameState state, Position p, bool isInteractive, out Move? move)
         {
             move = MoveToReturn;

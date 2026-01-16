@@ -42,16 +42,12 @@ public class Match3GameService : IDisposable
 
     // Presentation Layer
     private BufferedEventCollector? _eventCollector;
-    private EventInterpreter? _eventInterpreter;
-    private AnimationTimeline? _animationTimeline;
-    private VisualState? _visualState;
+    private PresentationController? _presentationController;
 
     // UI random for auto-play feature
     private IRandom? _uiRandom;
 
     // Reusable collections to avoid per-frame allocations
-    private readonly HashSet<long> _gameStateTileIds = new();
-    private readonly List<long> _tileIdsToRemove = new();
     private readonly List<(Position from, Position to)> _validMoves = new();
 
     public event Action? OnChange;
@@ -63,15 +59,17 @@ public class Match3GameService : IDisposable
 
     public SimulationEngine? SimulationEngine => _simulationEngine;
     public Match3Config? Config => _config;
-    public VisualState? VisualState => _visualState;
+    public VisualState? VisualState => _presentationController?.VisualState;
     public bool IsAutoPlaying => _isAutoPlaying;
+    public bool IsPaused => _simulationEngine?.IsPaused ?? false;
 
     public string StatusMessage
     {
         get
         {
             if (_simulationEngine == null) return "Loading...";
-            if (_animationTimeline?.HasActiveAnimations == true) return "Animating...";
+            if (_simulationEngine.IsPaused) return "Paused";
+            if (_presentationController?.HasActiveAnimations == true) return "Animating...";
             if (!_simulationEngine.IsStable()) return "Processing...";
             return "Ready";
         }
@@ -124,9 +122,7 @@ public class Match3GameService : IDisposable
 
         // Presentation layer
         _eventCollector = new BufferedEventCollector();
-        _visualState = new VisualState();
-        _animationTimeline = new AnimationTimeline();
-        _eventInterpreter = new EventInterpreter(_animationTimeline, _visualState);
+        _presentationController = new PresentationController();
 
         // Create simulation engine with event collector
         _simulationEngine = new SimulationEngine(
@@ -142,8 +138,8 @@ public class Match3GameService : IDisposable
             explosionSystem
         );
 
-        // Sync visual state from initial game state
-        _visualState.SyncFromGameState(_simulationEngine.State);
+        // Initialize presentation from game state
+        _presentationController.Initialize(_simulationEngine.State);
 
         // Input system
         _inputSystem = new StandardInputSystem();
@@ -177,8 +173,10 @@ public class Match3GameService : IDisposable
 
     private void OnInputTap(Position p)
     {
-        // Tap handling could be used for special tile activation
-        // For now, just log it
+        if (_simulationEngine == null) return;
+
+        // Use SimulationEngine's built-in tap handling
+        _simulationEngine.HandleTap(p);
     }
 
     private void OnInputSwipe(Position from, Direction dir)
@@ -226,29 +224,19 @@ public class Match3GameService : IDisposable
 
         while (!token.IsCancellationRequested && !_disposed)
         {
-            if (_simulationEngine != null && _eventCollector != null &&
-                _eventInterpreter != null && _animationTimeline != null && _visualState != null)
+            if (_simulationEngine != null && _eventCollector != null && _presentationController != null)
             {
                 float dt = (FrameMs / 1000.0f) * _gameSpeed;
 
                 // Tick the simulation
                 _simulationEngine.Tick(dt);
 
-                // Process events into animations
+                // Update presentation (events -> animations -> sync)
                 var events = _eventCollector.DrainEvents();
-                if (events.Count > 0)
-                {
-                    _eventInterpreter.InterpretEvents(events);
-                }
-
-                // Update animation timeline
-                _animationTimeline.Update(dt, _visualState);
-
-                // Sync new tiles from game state (for spawned tiles)
-                SyncNewTilesFromGameState();
+                _presentationController.Update(dt, events, _simulationEngine.State);
 
                 // Auto-play: make random move when stable
-                if (_isAutoPlaying && _simulationEngine.IsStable() && !_animationTimeline.HasActiveAnimations)
+                if (_isAutoPlaying && _simulationEngine.IsStable() && !_presentationController.HasActiveAnimations)
                 {
                     TryMakeRandomMove();
                 }
@@ -261,105 +249,6 @@ public class Match3GameService : IDisposable
                 await Task.Delay(FrameMs, token);
             }
             catch (TaskCanceledException) { break; }
-        }
-    }
-
-    private void SyncNewTilesFromGameState()
-    {
-        if (_simulationEngine == null || _visualState == null || _animationTimeline == null) return;
-
-        var state = _simulationEngine.State;
-
-        // Collect all tile IDs currently in game state (O(w*h))
-        _gameStateTileIds.Clear();
-        for (int y = 0; y < state.Height; y++)
-        {
-            for (int x = 0; x < state.Width; x++)
-            {
-                var tile = state.GetTile(x, y);
-                if (tile.Type == TileType.None) continue;
-
-                _gameStateTileIds.Add(tile.Id);
-
-                // Add tile to visual state if not present
-                if (_visualState.GetTile(tile.Id) == null)
-                {
-                    // Spawn from above with animation
-                    var startPos = new System.Numerics.Vector2(x, y - 1);
-                    var endPos = new System.Numerics.Vector2(x, y);
-
-                    _visualState.AddTile(
-                        tile.Id,
-                        tile.Type,
-                        tile.Bomb,
-                        new Position(x, y),
-                        startPos
-                    );
-
-                    // Wait for any destroy animations in this column to complete before falling
-                    float startTime = _animationTimeline.GetDestroyEndTimeForColumn(x, y);
-
-                    // Create spawn/fall animation (delayed if needed)
-                    var animation = new Match3.Presentation.Animations.TileMoveAnimation(
-                        _animationTimeline.GenerateAnimationId(),
-                        tile.Id,
-                        startPos,
-                        endPos,
-                        startTime,
-                        0.15f
-                    );
-                    _animationTimeline.AddAnimation(animation);
-                }
-                else
-                {
-                    // Update position for gravity movement - only if this tile has no active animation
-                    if (!_animationTimeline.HasAnimationForTile(tile.Id))
-                    {
-                        var visual = _visualState.GetTile(tile.Id);
-                        var currentPos = visual?.Position ?? new System.Numerics.Vector2(x, y);
-                        var targetPos = new System.Numerics.Vector2(x, y);
-
-                        // Check if position actually changed (gravity moved the tile)
-                        if (visual != null && (int)currentPos.Y != y)
-                        {
-                            // Wait for any destroy animations in this column to complete
-                            float startTime = _animationTimeline.GetDestroyEndTimeForColumn(x, y);
-
-                            // Create fall animation
-                            var animation = new Match3.Presentation.Animations.TileMoveAnimation(
-                                _animationTimeline.GenerateAnimationId(),
-                                tile.Id,
-                                currentPos,
-                                targetPos,
-                                startTime,
-                                0.15f
-                            );
-                            _animationTimeline.AddAnimation(animation);
-                        }
-                        else
-                        {
-                            // No movement needed, just sync position
-                            _visualState.SetTilePosition(tile.Id, targetPos);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Remove tiles from visual state that are no longer in game state (O(n))
-        _tileIdsToRemove.Clear();
-        foreach (var kvp in _visualState.Tiles)
-        {
-            // Only remove if not in game state AND alpha is near zero (animation complete)
-            if (!_gameStateTileIds.Contains(kvp.Key) && kvp.Value.Alpha < 0.01f)
-            {
-                _tileIdsToRemove.Add(kvp.Key);
-            }
-        }
-
-        foreach (var id in _tileIdsToRemove)
-        {
-            _visualState.RemoveTile(id);
         }
     }
 
@@ -415,6 +304,11 @@ public class Match3GameService : IDisposable
     public void ToggleAutoPlay()
     {
         _isAutoPlaying = !_isAutoPlaying;
+    }
+
+    public void TogglePause()
+    {
+        _simulationEngine?.SetPaused(!IsPaused);
     }
 
     public void HandlePointerDown(int gx, int gy, double sx, double sy)

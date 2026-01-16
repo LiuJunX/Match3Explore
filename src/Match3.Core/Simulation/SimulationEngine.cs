@@ -1,10 +1,12 @@
 using System;
 using Match3.Core.Events;
+using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
 using Match3.Core.Systems.Matching;
 using Match3.Core.Systems.Physics;
 using Match3.Core.Systems.PowerUps;
 using Match3.Core.Systems.Projectiles;
+using Match3.Core.Systems.Swap;
 using Match3.Core.Utility.Pools;
 
 namespace Match3.Core.Simulation;
@@ -24,6 +26,7 @@ public sealed class SimulationEngine : IDisposable
     private readonly IProjectileSystem _projectileSystem;
     private readonly IExplosionSystem _explosionSystem;
     private readonly SimulationMatchHandler _matchHandler;
+    private readonly ISwapOperations _swapOperations;
 
     private IEventCollector _eventCollector;
     private long _currentTick;
@@ -33,10 +36,19 @@ public sealed class SimulationEngine : IDisposable
     private int _matchesProcessed;
     private int _bombsActivated;
 
+    // Pending move tracking for invalid swap revert (uses shared PendingMoveState)
+    private PendingMoveState _pendingMoveState;
+    private const float SwapAnimationDuration = 0.15f; // Match EventInterpreter.MoveDuration
+
     /// <summary>
     /// Current game state.
     /// </summary>
     public GameState State { get; private set; }
+
+    /// <summary>
+    /// Gets a value indicating whether the simulation is paused.
+    /// </summary>
+    public bool IsPaused { get; private set; }
 
     /// <summary>
     /// Current tick number.
@@ -80,6 +92,10 @@ public sealed class SimulationEngine : IDisposable
         _explosionSystem = explosionSystem ?? new ExplosionSystem();
         _matchHandler = new SimulationMatchHandler(_matchFinder, _matchProcessor);
 
+        // Initialize shared swap operations with instant context
+        var swapContext = new InstantSwapContext(SwapAnimationDuration);
+        _swapOperations = new SwapOperations(_matchFinder, swapContext);
+
         _currentTick = 0;
         _elapsedTime = 0f;
     }
@@ -97,7 +113,31 @@ public sealed class SimulationEngine : IDisposable
     /// </summary>
     public TickResult Tick(float deltaTime)
     {
+        if (IsPaused)
+        {
+            var currentState = State;
+            return new TickResult
+            {
+                CurrentTick = _currentTick,
+                ElapsedTime = _elapsedTime,
+                IsStable = IsStable(),
+                HasActiveProjectiles = _projectileSystem.HasActiveProjectiles,
+                HasFallingTiles = !_physics.IsStable(in currentState),
+                HasPendingMatches = HasPendingMatches(),
+                DeltaTime = 0f
+            };
+        }
+
         var state = State;
+
+        // 0. Validate pending move (check for invalid swap revert)
+        _swapOperations.ValidatePendingMove(
+            ref state,
+            ref _pendingMoveState,
+            deltaTime,
+            _currentTick,
+            _elapsedTime,
+            _eventCollector);
 
         // 1. Refill empty columns
         _refill.Update(ref state);
@@ -145,12 +185,15 @@ public sealed class SimulationEngine : IDisposable
         // 3. Physics (gravity)
         _physics.Update(ref state, deltaTime);
 
-        // 4. Process stable matches
-        var matchCount = _matchHandler.ProcessStableMatches(ref state, _currentTick, _elapsedTime, _eventCollector);
-        if (matchCount > 0)
+        // 4. Process stable matches (skip during swap animation to let tiles visually complete swap)
+        if (!_pendingMoveState.NeedsValidation)
         {
-            _matchesProcessed += matchCount;
-            _cascadeDepth++;
+            var matchCount = _matchHandler.ProcessStableMatches(ref state, _currentTick, _elapsedTime, _eventCollector);
+            if (matchCount > 0)
+            {
+                _matchesProcessed += matchCount;
+                _cascadeDepth++;
+            }
         }
 
         // 5. Update tick counter
@@ -228,21 +271,37 @@ public sealed class SimulationEngine : IDisposable
         if (!state.IsValid(from) || !state.IsValid(to))
             return false;
 
-        // Swap tiles in grid
-        SwapTiles(ref state, from, to);
+        // Get tile IDs before swap
+        var tileAId = state.GetTile(from.X, from.Y).Id;
+        var tileBId = state.GetTile(to.X, to.Y).Id;
+
+        // Swap tiles in grid using shared operations
+        _swapOperations.SwapTiles(ref state, from, to);
+
+        // Check if swap creates a match (check both positions)
+        var hadMatch = _swapOperations.HasMatch(in state, from) || _swapOperations.HasMatch(in state, to);
+
+        // Track pending move for potential revert
+        _pendingMoveState = new PendingMoveState
+        {
+            From = from,
+            To = to,
+            TileAId = tileAId,
+            TileBId = tileBId,
+            HadMatch = hadMatch,
+            NeedsValidation = true,
+            AnimationTime = 0f
+        };
 
         // Emit swap event
         if (_eventCollector.IsEnabled)
         {
-            var tileA = state.GetTile(from.X, from.Y);
-            var tileB = state.GetTile(to.X, to.Y);
-
             _eventCollector.Emit(new TilesSwappedEvent
             {
                 Tick = _currentTick,
                 SimulationTime = _elapsedTime,
-                TileAId = tileA.Id,
-                TileBId = tileB.Id,
+                TileAId = tileAId,
+                TileBId = tileBId,
                 PositionA = from,
                 PositionB = to,
                 IsRevert = false
@@ -265,6 +324,76 @@ public sealed class SimulationEngine : IDisposable
     }
 
     /// <summary>
+    /// Set the paused state of the simulation.
+    /// </summary>
+    public void SetPaused(bool paused)
+    {
+        IsPaused = paused;
+    }
+
+    /// <summary>
+    /// Set the selected position for input handling.
+    /// </summary>
+    public void SetSelectedPosition(Position position)
+    {
+        var state = State;
+        state.SelectedPosition = position;
+        State = state;
+    }
+
+    /// <summary>
+    /// Handle a tap interaction at the specified position.
+    /// Handles bomb activation, selection, and swap logic.
+    /// </summary>
+    public void HandleTap(Position p)
+    {
+        var state = State;
+        if (!state.IsValid(p)) return;
+
+        var tile = state.GetTile(p.X, p.Y);
+
+        // 1. Check for Bomb - single tap activates bomb
+        if (tile.Bomb != BombType.None)
+        {
+            ActivateBomb(p);
+            return;
+        }
+
+        // 2. Handle selection logic
+        if (state.SelectedPosition == Position.Invalid)
+        {
+            // Nothing selected - select this tile
+            state.SelectedPosition = p;
+        }
+        else if (state.SelectedPosition == p)
+        {
+            // Same tile tapped - deselect
+            state.SelectedPosition = Position.Invalid;
+        }
+        else if (IsNeighbor(state.SelectedPosition, p))
+        {
+            // Adjacent tile tapped - swap
+            var from = state.SelectedPosition;
+            state.SelectedPosition = Position.Invalid;
+            State = state;
+            ApplyMove(from, p);
+            return;
+        }
+        else
+        {
+            // Non-adjacent tile tapped - change selection
+            state.SelectedPosition = p;
+        }
+
+        State = state;
+    }
+
+    private static bool IsNeighbor(Position a, Position b)
+    {
+        return System.Math.Abs(a.X - b.X) + System.Math.Abs(a.Y - b.Y) == 1;
+    }
+
+    /// <summary>
     /// Check if simulation is in stable state.
     /// </summary>
     public bool IsStable()
@@ -273,7 +402,8 @@ public sealed class SimulationEngine : IDisposable
         return _physics.IsStable(in state)
             && !_projectileSystem.HasActiveProjectiles
             && !_explosionSystem.HasActiveExplosions
-            && !HasPendingMatches();
+            && !HasPendingMatches()
+            && !_pendingMoveState.HasPending;
     }
 
     /// <summary>
@@ -339,19 +469,6 @@ public sealed class SimulationEngine : IDisposable
     {
         var state = State;
         return _matchHandler.HasPendingMatches(in state);
-    }
-
-    private void SwapTiles(ref GameState state, Position a, Position b)
-    {
-        var idxA = a.Y * state.Width + a.X;
-        var idxB = b.Y * state.Width + b.X;
-        var temp = state.Grid[idxA];
-        state.Grid[idxA] = state.Grid[idxB];
-        state.Grid[idxB] = temp;
-
-        // Update positions
-        state.Grid[idxA].Position = new System.Numerics.Vector2(a.X, a.Y);
-        state.Grid[idxB].Position = new System.Numerics.Vector2(b.X, b.Y);
     }
 
     public void Dispose()

@@ -1,5 +1,6 @@
 using System;
 using Match3.Core.Config;
+using Match3.Core.Events;
 using Match3.Core.Systems.Core;
 using Match3.Core.Systems.Generation;
 using Match3.Core.Systems.Input;
@@ -7,6 +8,7 @@ using Match3.Core.Systems.Matching;
 using Match3.Core.Systems.Physics;
 using Match3.Core.Systems.PowerUps;
 using Match3.Core.Systems.Scoring;
+using Match3.Core.Systems.Swap;
 using Match3.Core.View;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Gameplay;
@@ -36,18 +38,17 @@ public sealed class Match3Engine : IDisposable
     private readonly IAsyncGameLoopSystem _gameLoopSystem;
     private readonly IMatchFinder _matchFinder;
     private readonly IBotSystem _botSystem;
-    
+    private readonly ISwapOperations _swapOperations;
+
     // Input Queue
     private readonly Queue<InputIntent> _inputQueue = new();
 
-    // Pending move for swap animation validation
+    // Pending move for swap animation validation (uses shared PendingMoveState)
     // When a swap is executed, we need to wait for animation to complete before deciding
     // whether to swap back (invalid move) or keep the swap (valid move).
     // IMPORTANT: Match detection must happen at swap time, not after animation completes,
     // because tiles may have been eliminated by the game loop during animation.
-    private Move? _pendingMove;
-    private bool _pendingMoveNeedsValidation;
-    private bool _pendingMoveHadMatch; // Captured at swap time to avoid race with match processing
+    private PendingMoveState _pendingMoveState;
 
     public GameState State => _state;
     public Position SelectedPosition => _state.SelectedPosition;
@@ -76,10 +77,14 @@ public sealed class Match3Engine : IDisposable
         _matchFinder = matchFinder;
         _botSystem = botSystem;
 
+        // Initialize shared swap operations with animated context
+        var swapContext = new AnimatedSwapContext(animationSystem);
+        _swapOperations = new SwapOperations(matchFinder, swapContext);
+
         // Initialize State
         _state = new GameState(_config.Width, _config.Height, _config.TileTypesCount, rng);
         boardInitializer.Initialize(ref _state, levelConfig);
-        
+
         _logger.LogInfo("Match3Engine initialized with size {0}x{1}", _config.Width, _config.Height);
     }
 
@@ -98,36 +103,16 @@ public sealed class Match3Engine : IDisposable
         ProcessInput();
         _animationSystem.Animate(ref _state, dt);
 
-        // Check pending move validation after animation completes
-        ValidatePendingMove();
+        // Check pending move validation after animation completes (uses shared swap operations)
+        _swapOperations.ValidatePendingMove(
+            ref _state,
+            ref _pendingMoveState,
+            dt,
+            0, // tick not used for animated context
+            0f, // simTime not used for animated context
+            NullEventCollector.Instance); // Match3Engine doesn't emit events
 
         _gameLoopSystem.Update(ref _state, dt);
-    }
-
-    private void ValidatePendingMove()
-    {
-        if (!_pendingMoveNeedsValidation || !_pendingMove.HasValue)
-            return;
-
-        var move = _pendingMove.Value;
-
-        // Wait until both tiles have finished animating to their new positions
-        if (!_animationSystem.IsVisualAtTarget(in _state, move.From) ||
-            !_animationSystem.IsVisualAtTarget(in _state, move.To))
-            return;
-
-        // Animation complete
-        _pendingMoveNeedsValidation = false;
-
-        // Use the match result captured at swap time, not current state
-        // (tiles may have been eliminated by now if there was a match)
-        if (!_pendingMoveHadMatch)
-        {
-            // Invalid swap - swap back (this will trigger another animation)
-            SwapTiles(ref _state, move.From, move.To);
-        }
-
-        _pendingMove = null;
     }
 
     private void ProcessInput()
@@ -197,36 +182,28 @@ public sealed class Match3Engine : IDisposable
     private void ExecuteMove(Move move)
     {
         // Don't start a new swap if one is already pending
-        if (_pendingMoveNeedsValidation)
+        if (_pendingMoveState.HasPending)
             return;
 
-        SwapTiles(ref _state, move.From, move.To);
+        // Swap tiles using shared operations
+        _swapOperations.SwapTiles(ref _state, move.From, move.To);
 
         // Check for matches IMMEDIATELY after swap, before any game loop update
         // This ensures we capture the match state before tiles get eliminated
-        _pendingMoveHadMatch = HasMatch(move.From) || HasMatch(move.To);
+        var hadMatch = _swapOperations.HasMatch(in _state, move.From) ||
+                       _swapOperations.HasMatch(in _state, move.To);
 
-        // Mark as pending - validation will happen after animation completes
-        _pendingMove = move;
-        _pendingMoveNeedsValidation = true;
-    }
-
-    private bool HasMatch(Position p)
-    {
-        return _matchFinder.HasMatchAt(in _state, p);
-    }
-    
-    // Helper to swap tiles (Logic only, keep visual positions for animation)
-    private void SwapTiles(ref GameState state, Position a, Position b)
-    {
-        var idxA = a.Y * state.Width + a.X;
-        var idxB = b.Y * state.Width + b.X;
-
-        // Only swap grid data, keep visual Position unchanged
-        // AnimationSystem will animate tiles from their current Position to new grid position
-        var temp = state.Grid[idxA];
-        state.Grid[idxA] = state.Grid[idxB];
-        state.Grid[idxB] = temp;
+        // Track pending move for validation after animation completes
+        _pendingMoveState = new PendingMoveState
+        {
+            From = move.From,
+            To = move.To,
+            TileAId = _state.GetTile(move.From.X, move.From.Y).Id,
+            TileBId = _state.GetTile(move.To.X, move.To.Y).Id,
+            HadMatch = hadMatch,
+            NeedsValidation = true,
+            AnimationTime = 0f
+        };
     }
     
     // Helpers exposed for tests/debug
