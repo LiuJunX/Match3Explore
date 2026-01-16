@@ -42,11 +42,13 @@ public class BombGenerator : IBombGenerator
             // Only create a simple match if there's at least one valid line (3+ in a row/column)
             if (candidates.Count == 0)
             {
-                // Check if component forms at least one valid line
-                if (HasValidLine(component))
+                // Extract only positions that form valid lines (not the entire connected component)
+                var linePositions = ExtractValidLinePositions(component);
+                if (linePositions.Count >= 3)
                 {
-                    return CreateSimpleMatchGroup(component);
+                    return CreateSimpleMatchGroup(linePositions);
                 }
+                Pools.Release(linePositions);
                 // No valid line shape - not a match (e.g., L-shape, diagonal)
                 return Pools.ObtainList<MatchGroup>();
             }
@@ -84,19 +86,106 @@ public class BombGenerator : IBombGenerator
         }
     }
 
-    private List<MatchGroup> CreateSimpleMatchGroup(HashSet<Position> component)
+    private List<MatchGroup> CreateSimpleMatchGroup(HashSet<Position> linePositions)
     {
         var simpleGroup = Pools.Obtain<MatchGroup>();
         simpleGroup.Positions.Clear();
-        foreach (var p in component) simpleGroup.Positions.Add(p);
+        foreach (var p in linePositions) simpleGroup.Positions.Add(p);
         simpleGroup.Shape = MatchShape.Simple3;
         simpleGroup.SpawnBombType = BombType.None;
         simpleGroup.Type = TileType.None; // Set by caller
         simpleGroup.BombOrigin = null;
 
+        // Release the linePositions set (caller expects us to take ownership)
+        Pools.Release(linePositions);
+
         var results = Pools.ObtainList<MatchGroup>();
         results.Add(simpleGroup);
         return results;
+    }
+
+    /// <summary>
+    /// Extract only positions that are part of valid lines (3+ consecutive in a row or column).
+    /// This prevents stray tiles connected to a valid match from being incorrectly cleared.
+    /// For example, in an L-shape like:
+    ///   A A A
+    ///   B C A
+    /// Only the top 3 A's should be extracted, not the bottom-right A.
+    /// </summary>
+    private static HashSet<Position> ExtractValidLinePositions(HashSet<Position> component)
+    {
+        var result = Pools.ObtainHashSet<Position>();
+
+        if (component.Count < 3) return result;
+
+        // Get bounds
+        int minX = int.MaxValue, maxX = int.MinValue;
+        int minY = int.MaxValue, maxY = int.MinValue;
+        foreach (var p in component)
+        {
+            if (p.X < minX) minX = p.X;
+            if (p.X > maxX) maxX = p.X;
+            if (p.Y < minY) minY = p.Y;
+            if (p.Y > maxY) maxY = p.Y;
+        }
+
+        // Find horizontal lines and add their positions
+        for (int y = minY; y <= maxY; y++)
+        {
+            int startX = -1;
+            int consecutive = 0;
+
+            for (int x = minX; x <= maxX + 1; x++) // +1 to handle end of line
+            {
+                if (x <= maxX && component.Contains(new Position(x, y)))
+                {
+                    if (consecutive == 0) startX = x;
+                    consecutive++;
+                }
+                else
+                {
+                    // End of a run - add if it was 3+
+                    if (consecutive >= 3)
+                    {
+                        for (int i = startX; i < startX + consecutive; i++)
+                        {
+                            result.Add(new Position(i, y));
+                        }
+                    }
+                    consecutive = 0;
+                }
+            }
+        }
+
+        // Find vertical lines and add their positions
+        for (int x = minX; x <= maxX; x++)
+        {
+            int startY = -1;
+            int consecutive = 0;
+
+            for (int y = minY; y <= maxY + 1; y++) // +1 to handle end of line
+            {
+                if (y <= maxY && component.Contains(new Position(x, y)))
+                {
+                    if (consecutive == 0) startY = y;
+                    consecutive++;
+                }
+                else
+                {
+                    // End of a run - add if it was 3+
+                    if (consecutive >= 3)
+                    {
+                        for (int i = startY; i < startY + consecutive; i++)
+                        {
+                            result.Add(new Position(x, i));
+                        }
+                    }
+                    consecutive = 0;
+                }
+            }
+        }
+
+        return result;
     }
 
     /// <summary>

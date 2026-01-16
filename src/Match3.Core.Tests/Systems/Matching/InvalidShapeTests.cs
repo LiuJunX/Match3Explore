@@ -319,6 +319,91 @@ public class InvalidShapeTests
 
     #endregion
 
+    #region L-Shape With Valid Line (Should Match ONLY the Line)
+
+    /// <summary>
+    /// User-reported bug: L-shape with 3-horizontal + 1 extra below should only clear the 3-line.
+    /// A A A
+    /// B C A  → Only top 3 A's should be matched, not the bottom-right A.
+    /// </summary>
+    [Fact]
+    public void LShape_HorizontalLine3_PlusOneBelow_ShouldMatchOnly3()
+    {
+        // A A A
+        // . . A
+        var component = new HashSet<Position>
+        {
+            new(0, 0), new(1, 0), new(2, 0),  // Top row: valid 3-line
+            new(2, 1)                          // Extra cell below - NOT part of a valid line
+        };
+
+        var results = _generator.Generate(component);
+
+        // Should have exactly one match group
+        Assert.Single(results);
+
+        // The match group should contain exactly 3 positions (the horizontal line only)
+        Assert.Equal(3, results[0].Positions.Count);
+
+        // Verify the correct 3 positions are matched
+        Assert.Contains(new Position(0, 0), results[0].Positions);
+        Assert.Contains(new Position(1, 0), results[0].Positions);
+        Assert.Contains(new Position(2, 0), results[0].Positions);
+
+        // The stray cell should NOT be in the match
+        Assert.DoesNotContain(new Position(2, 1), results[0].Positions);
+    }
+
+    [Fact]
+    public void LShape_VerticalLine3_PlusOneRight_ShouldMatchOnly3()
+    {
+        // A .
+        // A A
+        // A .
+        var component = new HashSet<Position>
+        {
+            new(0, 0),
+            new(0, 1), new(1, 1),  // Extra cell at (1,1)
+            new(0, 2)
+        };
+
+        var results = _generator.Generate(component);
+
+        Assert.Single(results);
+        Assert.Equal(3, results[0].Positions.Count);
+
+        // Only the vertical line should be matched
+        Assert.Contains(new Position(0, 0), results[0].Positions);
+        Assert.Contains(new Position(0, 1), results[0].Positions);
+        Assert.Contains(new Position(0, 2), results[0].Positions);
+
+        // Stray cell should NOT be matched
+        Assert.DoesNotContain(new Position(1, 1), results[0].Positions);
+    }
+
+    [Fact]
+    public void LShape_HorizontalLine4_PlusOneAbove_AbsorbsStrayIntoBomb()
+    {
+        // . . A .
+        // A A A A
+        // Note: For 4+ lines that generate bombs, stray cells connected to the
+        // bomb shape are absorbed (intentional behavior for bomb matches).
+        var component = new HashSet<Position>
+        {
+            new(2, 0),                              // Stray cell above - will be absorbed
+            new(0, 1), new(1, 1), new(2, 1), new(3, 1)  // Valid 4-line → generates rocket
+        };
+
+        var results = _generator.Generate(component);
+
+        Assert.Single(results);
+        // Stray cell IS absorbed into bomb match (expected behavior)
+        Assert.Equal(5, results[0].Positions.Count);
+        Assert.Contains(new Position(2, 0), results[0].Positions);
+    }
+
+    #endregion
+
     #region Valid Shapes (Should Match) - Sanity Checks
 
     [Fact]
