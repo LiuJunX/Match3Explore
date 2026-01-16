@@ -12,8 +12,6 @@ namespace Match3.Core.Systems.Physics;
 /// </summary>
 public sealed class GravityTargetResolver : IGravityTargetResolver
 {
-    private const float FallingFollowDistance = 1.0f;
-
     private readonly IRandom _random;
     private readonly HashSet<int> _reservedSlots;
 
@@ -42,18 +40,7 @@ public sealed class GravityTargetResolver : IGravityTargetResolver
                 return FindLowestVerticalTarget(ref state, x, checkY);
             }
 
-            // 2. Try Follow Falling Blocker
-            var below = state.GetTile(x, checkY);
-            if (below.Type != TileType.None && below.IsFalling && below.Velocity.Y > 0)
-            {
-                return new IGravityTargetResolver.TargetInfo(
-                    new Vector2(x, below.Position.Y - FallingFollowDistance),
-                    below.Velocity.Y,
-                    true
-                );
-            }
-
-            // 3. Try Diagonal Slide
+            // 2. Try Diagonal Slide
             var tileBelow = state.GetTile(x, checkY);
             if (tileBelow.IsSuspended)
             {
@@ -80,16 +67,6 @@ public sealed class GravityTargetResolver : IGravityTargetResolver
             }
             else
             {
-                var below = state.GetTile(x, k);
-                if (below.IsFalling)
-                {
-                    ReserveSlot(x, floorY, state.Width);
-                    return new IGravityTargetResolver.TargetInfo(
-                        new Vector2(x, below.Position.Y - FallingFollowDistance),
-                        below.Velocity.Y,
-                        true
-                    );
-                }
                 break;
             }
         }
