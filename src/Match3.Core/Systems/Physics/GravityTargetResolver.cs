@@ -40,8 +40,31 @@ public sealed class GravityTargetResolver : IGravityTargetResolver
                 return FindLowestVerticalTarget(ref state, x, checkY);
             }
 
-            // 2. Try Diagonal Slide
+            // 2. Check if blocked by a falling tile (follow it)
             var tileBelow = state.GetTile(x, checkY);
+            if (tileBelow.Type != TileType.None && tileBelow.IsFalling)
+            {
+                var currentTile = state.GetTile(x, y);
+
+                // If current tile is already falling (chasing from above), follow immediately
+                // Otherwise, wait until the tile below has cleared the midpoint
+                bool shouldFollow = currentTile.IsFalling ||
+                                    tileBelow.Position.Y >= checkY + 0.5f;
+
+                if (shouldFollow)
+                {
+                    // Follow the falling tile below
+                    float targetY = tileBelow.Position.Y - 1.0f;
+                    return new IGravityTargetResolver.TargetInfo(
+                        new Vector2(x, targetY),
+                        tileBelow.Velocity.Y,
+                        foundDynamicTarget: true);
+                }
+                // Tile below is falling but hasn't cleared the cell yet - stay put
+                return new IGravityTargetResolver.TargetInfo(new Vector2(x, y), 0f, false);
+            }
+
+            // 3. Try Diagonal Slide
             if (tileBelow.IsSuspended)
             {
                 return FindDiagonalTarget(ref state, x, checkY, y);

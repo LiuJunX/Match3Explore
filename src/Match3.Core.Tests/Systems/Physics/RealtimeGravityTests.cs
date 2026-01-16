@@ -26,27 +26,33 @@ public class RealtimeGravityTests
         var state = new GameState(1, 10, 5, new StubRandom());
         // Clear board
         for(int y=0; y<10; y++) state.SetTile(0, y, new Tile(y, TileType.None, 0, y));
-        
+
         // Place a tile at (0, 0) - Top of board
         var tile = new Tile(100, TileType.Red, 0, 0);
         state.SetTile(0, 0, tile);
-        
+
         var physics = new RealtimeGravitySystem(new Match3Config { GravitySpeed = 35.0f }, new StubRandom());
-        
+
         // Act
         // Simulate 0.05s (Reduced dt to prevent logical swap at high speed)
         physics.Update(ref state, 0.05f);
-        
-        // Assert
-        var newTile = state.GetTile(0, 0);
-        
+
+        // Assert - Find tile by ID since it may have moved to a new grid cell
+        var newTile = FindTileById(state, 100);
+
         // It should have moved down (Y increases)
-        // Gravity = 35. 0.1s -> v = 3.5. pos += 3.5 * 0.1 = 0.35.
-        // So it is still at Grid[0,0] but Position.Y should be ~0.35.
-        
         Assert.True(newTile.Position.Y > 0, $"Tile should have moved down. Pos: {newTile.Position.Y}");
         Assert.True(newTile.IsFalling, "Tile should be in Falling state");
         Assert.True(newTile.Velocity.Y > 0, "Tile should have downward velocity");
+    }
+
+    private static Tile FindTileById(GameState state, long id)
+    {
+        for (int i = 0; i < state.Grid.Length; i++)
+        {
+            if (state.Grid[i].Id == id) return state.Grid[i];
+        }
+        return new Tile(); // Should not happen
     }
 
     [Fact]

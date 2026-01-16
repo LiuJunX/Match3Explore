@@ -166,10 +166,14 @@ public class RefillStressTests
         // 2. Run Refill once to spawn the new tile
         refill.Update(ref state);
         var newTile = state.GetTile(0, 0);
-        
+
         // Initial check
         Assert.NotEqual(TileType.None, newTile.Type);
         Assert.Equal(fallingTile.Position.Y - 1.0f, newTile.Position.Y, 0.001f);
+
+        // Capture tile IDs for tracking (tiles can move to different grid cells)
+        long bottomTileId = 100;
+        long topTileId = newTile.Id;
 
         // 3. Run simulation loop for a few frames
         float dt = 0.016f;
@@ -178,9 +182,10 @@ public class RefillStressTests
         {
             refill.Update(ref state);
             gravity.Update(ref state, dt);
-            
-            var bottom = state.GetTile(0, 1);
-            var top = state.GetTile(0, 0);
+
+            // Find tiles by ID since they can move to different grid cells
+            var bottom = GetTileById(state, bottomTileId);
+            var top = GetTileById(state, topTileId);
 
             float distance = bottom.Position.Y - top.Position.Y;
             Assert.True(Math.Abs(distance - 1.0f) < 0.1f, $"Frame {i}: Distance {distance} (Top {top.Position.Y}, Bot {bottom.Position.Y})");

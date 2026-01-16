@@ -39,29 +39,39 @@ public class GravityBugTests
         // Arrange
         var state = new GameState(1, 5, 3, new StubRandom());
         var gravity = new RealtimeGravitySystem(new Match3Config(), new StubRandom());
-        
+
         // Setup:
         // Y=4: Ground
         // Y=1: Tile B (Bottom)
         // Y=0: Tile A (Top)
-        
+
         state.SetTile(0, 4, new Tile(99, TileType.Blue, 0, 4)); // Floor
         state.SetTile(0, 1, new Tile(2, TileType.Red, 0, 1));
         state.SetTile(0, 0, new Tile(1, TileType.Red, 0, 0));
-        
+
         // Act - Frame 1
         gravity.Update(ref state, 0.05f);
-        
-        var tileA = state.GetTile(0, 0);
-        var tileB = state.GetTile(0, 1);
-        
+
+        // Find tiles by ID (they may have moved to new grid positions)
+        var tileA = FindTileById(state, 1);
+        var tileB = FindTileById(state, 2);
+
         // Check B
         Assert.True(tileB.IsFalling, "Tile B should be falling");
         Assert.True(tileB.Position.Y > 1.0f, "Tile B should have moved down");
-        
+
         // Check A
         Assert.True(tileA.IsFalling, "Tile A should be falling together with B");
         Assert.True(tileA.Position.Y > 0.0f, "Tile A should have moved down");
+    }
+
+    private static Tile FindTileById(GameState state, long id)
+    {
+        for (int i = 0; i < state.Grid.Length; i++)
+        {
+            if (state.Grid[i].Id == id) return state.Grid[i];
+        }
+        return new Tile(); // Should not happen
     }
 
     [Fact]
