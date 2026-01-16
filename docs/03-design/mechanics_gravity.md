@@ -39,21 +39,18 @@ flowchart TD
     LoopY --> CheckTile{Tile 有效?}
     CheckTile -- No --> LoopY
     CheckTile -- Yes --> CalcTarget[计算目标地面 TargetY]
-    
+
     CalcTarget --> CheckPos{Position.Y < TargetY?}
-    
+
     %% 物理计算分支
     CheckPos -- Yes: 悬空 --> Physics[<b>物理计算</b><br/>v += g * dt<br/>y += v * dt<br/>IsFalling = true]
-    
+
     %% 着地处理分支
     CheckPos -- No: 着地 --> Snap[<b>着地处理</b><br/>y = TargetY<br/>v = 0<br/>IsFalling = false]
-    Snap --> CheckBelow{下方动态?}
-    CheckBelow -- Yes --> Follow[<b>跟随模式</b><br/>v = 下方速度<br/>IsFalling = true]
-    CheckBelow -- No --> GridCheck
-    
+
     Physics --> GridCheck
-    Follow --> GridCheck
-    
+    Snap --> GridCheck
+
     GridCheck[网格检测] --> Cross{跨越网格?}
     Cross -- Yes --> Swap[逻辑交换 Grid Swap]
     Cross -- No --> LoopY
@@ -62,14 +59,24 @@ flowchart TD
 
 ### 3.3 关键算法细节
 
-#### A. 目标计算 (Target Calculation)
-对于每个棋子，系统会向下扫描寻找最近的“支撑点”：
-1.  **静态地面**：棋盘底部或非下落的棋子。
-2.  **动态障碍**：下方正在下落的棋子。
-    *   如果下方棋子也在下落，目标位置设为 `下方棋子.Y - 1.0`。
-    *   **速度继承逻辑**：
-        *   当且仅当上方棋子**追上或接触到**下方棋子时 (`Position.Y >= TargetY`)，才会强制同步速度。
-        *   如果上方棋子比下方慢（距离拉大），则各自计算重力，**不会**发生强制加速。这保证了自然的物理分离效果。
+#### A. 目标计算与逐格下落 (Target Calculation & Sequential Falling)
+对于每个棋子，系统会向下扫描寻找最近的"支撑点"：
+1.  **静态地面**：棋盘底部或静止的棋子。
+2.  **逐格下落机制**：
+    *   棋子只有在下方格子的**数据位置**为空时，才会开始下落。
+    *   即使下方棋子正在下落中，上方棋子也必须等待下方棋子跨过半格判定线后才能移动。
+
+**示例：垂直三连消除**
+```
+初始:     C消除后:   B跨过中点:  A开始下落:
+A [y=0]   A [y=0]    A [y=0]     A [y=0→1]
+B [y=1]   B [y=1→]   空 [y=1]    空 [y=1]
+C [y=2]   空 [y=2]   B [y=1.6]   B [y=2]
+```
+*   C 被消除，y=2 变空
+*   B 开始下落，但数据仍在 y=1
+*   B 的 Position.Y 跨过 1.5 后，数据从 y=1 移到 y=2，y=1 变空
+*   A 检测到 y=1 为空，开始下落
 
 #### B. 空间划分与网格检测 (Spatial Partitioning)
 虽然棋子有浮点坐标，但它们必须归属于某个网格槽位 (Slot)。为了解决“物理连续性”与“网格离散性”的矛盾，系统采用了**半格判定**机制。
