@@ -39,9 +39,16 @@ public class BombGenerator : IBombGenerator
             _detector.DetectAll(component, candidates);
 
             // Handle Simple Match (No bomb candidates)
+            // Only create a simple match if there's at least one valid line (3+ in a row/column)
             if (candidates.Count == 0)
             {
-                return CreateSimpleMatchGroup(component);
+                // Check if component forms at least one valid line
+                if (HasValidLine(component))
+                {
+                    return CreateSimpleMatchGroup(component);
+                }
+                // No valid line shape - not a match (e.g., L-shape, diagonal)
+                return Pools.ObtainList<MatchGroup>();
             }
 
             // 2. Sort Candidates (Weight DESC, then Affinity)
@@ -90,6 +97,64 @@ public class BombGenerator : IBombGenerator
         var results = Pools.ObtainList<MatchGroup>();
         results.Add(simpleGroup);
         return results;
+    }
+
+    /// <summary>
+    /// Check if the component contains at least one valid line (3+ consecutive in a row or column).
+    /// This prevents L-shapes, diagonals, or scattered groups from being treated as matches.
+    /// </summary>
+    private static bool HasValidLine(HashSet<Position> component)
+    {
+        if (component.Count < 3) return false;
+
+        // Get bounds
+        int minX = int.MaxValue, maxX = int.MinValue;
+        int minY = int.MaxValue, maxY = int.MinValue;
+        foreach (var p in component)
+        {
+            if (p.X < minX) minX = p.X;
+            if (p.X > maxX) maxX = p.X;
+            if (p.Y < minY) minY = p.Y;
+            if (p.Y > maxY) maxY = p.Y;
+        }
+
+        // Check horizontal lines
+        for (int y = minY; y <= maxY; y++)
+        {
+            int consecutive = 0;
+            for (int x = minX; x <= maxX + 1; x++) // +1 to check end
+            {
+                if (component.Contains(new Position(x, y)))
+                {
+                    consecutive++;
+                    if (consecutive >= 3) return true;
+                }
+                else
+                {
+                    consecutive = 0;
+                }
+            }
+        }
+
+        // Check vertical lines
+        for (int x = minX; x <= maxX; x++)
+        {
+            int consecutive = 0;
+            for (int y = minY; y <= maxY + 1; y++) // +1 to check end
+            {
+                if (component.Contains(new Position(x, y)))
+                {
+                    consecutive++;
+                    if (consecutive >= 3) return true;
+                }
+                else
+                {
+                    consecutive = 0;
+                }
+            }
+        }
+
+        return false;
     }
 
     private void SortCandidates(List<DetectedShape> candidates, IEnumerable<Position>? foci)

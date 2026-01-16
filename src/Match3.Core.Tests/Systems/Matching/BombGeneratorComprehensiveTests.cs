@@ -817,13 +817,32 @@ namespace Match3.Core.Tests.Systems.Matching
                 new Position(1, 1),
                 new Position(2, 2)
             };
-            // Note: BombGenerator doesn't validate connectivity
-            // It just processes the component given
+            // Diagonal pattern: 3 cells but no valid horizontal/vertical line
+            // Should NOT be treated as a match
             var results = _generator.Generate(component);
 
-            // 3 cells but not in a valid pattern
-            Assert.Single(results);
-            Assert.Equal(BombType.None, results[0].SpawnBombType);
+            // No valid match pattern - returns empty
+            Assert.Empty(results);
+        }
+
+        [Fact]
+        public void LShapeCells_ShouldReturnEmpty()
+        {
+            // L-shape cells: 3 connected cells but no valid line
+            // . . B
+            // . B B
+            var component = new HashSet<Position>
+            {
+                new Position(2, 0),
+                new Position(1, 1),
+                new Position(2, 1)
+            };
+            // L-shape: 3 cells connected but no 3-in-a-row horizontal or vertical
+            // Should NOT be treated as a match
+            var results = _generator.Generate(component);
+
+            // No valid match pattern - returns empty
+            Assert.Empty(results);
         }
 
         #endregion
