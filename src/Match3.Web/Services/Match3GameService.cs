@@ -118,7 +118,7 @@ public class Match3GameService : IDisposable
 
         // Create initial game state
         var tileGenerator = new StandardTileGenerator(seedManager.GetRandom(RandomDomain.Refill));
-        var initialState = CreateInitialState(Width, Height, rng, tileGenerator);
+        var initialState = CreateInitialState(Width, Height, rng, tileGenerator, levelConfig);
 
         // Presentation layer
         _eventCollector = new BufferedEventCollector();
@@ -154,21 +154,41 @@ public class Match3GameService : IDisposable
         NotifyStateChanged();
     }
 
-    private GameState CreateInitialState(int width, int height, IRandom rng, StandardTileGenerator tileGenerator)
+    private GameState CreateInitialState(int width, int height, IRandom rng,
+        StandardTileGenerator tileGenerator, LevelConfig? levelConfig)
     {
         var state = new GameState(width, height, 6, rng);
 
-        // Generate initial tiles without matches
-        for (int y = 0; y < height; y++)
+        // If there's a valid LevelConfig with tiles, use BoardInitializer
+        if (levelConfig?.Grid != null && HasValidTiles(levelConfig.Grid))
         {
-            for (int x = 0; x < width; x++)
+            var initializer = new BoardInitializer(tileGenerator);
+            initializer.Initialize(ref state, levelConfig);
+        }
+        else
+        {
+            // Generate initial tiles without matches (random)
+            for (int y = 0; y < height; y++)
             {
-                var type = tileGenerator.GenerateNonMatchingTile(ref state, x, y);
-                state.SetTile(x, y, new Tile(state.NextTileId++, type, x, y));
+                for (int x = 0; x < width; x++)
+                {
+                    var type = tileGenerator.GenerateNonMatchingTile(ref state, x, y);
+                    state.SetTile(x, y, new Tile(state.NextTileId++, type, x, y));
+                }
             }
         }
 
         return state;
+    }
+
+    private static bool HasValidTiles(TileType[] grid)
+    {
+        // Check if there's at least one non-None tile
+        foreach (var t in grid)
+        {
+            if (t != TileType.None) return true;
+        }
+        return false;
     }
 
     private void OnInputTap(Position p)
