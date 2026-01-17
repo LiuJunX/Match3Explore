@@ -56,7 +56,7 @@ public class VisualStateTests
         // Add same tile to visual state at animation position, marked as being animated
         visualState.AddTile(tile.Id, TileType.Red, BombType.None, new Position(2, 3), new Vector2(1.5f, 3));
         var visual = visualState.GetTile(tile.Id);
-        visual!.IsBeingAnimated = true;  // Being controlled by Player animation
+        visual!.AddAnimationRef();  // Being controlled by Player animation
 
         // Sync
         visualState.SyncFallingTilesFromGameState(in state);
@@ -78,9 +78,10 @@ public class VisualStateTests
         state.SetTile(2, 3, tile);
 
         // Add same tile to visual state at different position, not being animated
+        // (AnimationRefCount defaults to 0, so IsBeingAnimated is false)
         visualState.AddTile(tile.Id, TileType.Red, BombType.None, new Position(2, 0), new Vector2(2, 2.5f));
         var visual = visualState.GetTile(tile.Id);
-        visual!.IsBeingAnimated = false;  // Not being animated
+        Assert.False(visual!.IsBeingAnimated);  // Verify not being animated
 
         // Sync
         visualState.SyncFallingTilesFromGameState(in state);

@@ -360,26 +360,41 @@ public sealed class Player
     }
 
     /// <summary>
-    /// Mark tiles as being animated or not.
-    /// This prevents physics sync from overwriting animated positions.
+    /// Update animation reference count for tiles affected by a command.
+    /// Uses ref counting to handle overlapping animations correctly.
     /// </summary>
-    private void MarkTilesAnimating(RenderCommand cmd, bool isAnimating)
+    private void MarkTilesAnimating(RenderCommand cmd, bool isStarting)
     {
         switch (cmd)
         {
             case MoveTileCommand move:
                 var moveTile = _visualState.GetTile(move.TileId);
                 if (moveTile != null)
-                    moveTile.IsBeingAnimated = isAnimating;
+                {
+                    if (isStarting)
+                        moveTile.AddAnimationRef();
+                    else
+                        moveTile.ReleaseAnimationRef();
+                }
                 break;
 
             case SwapTilesCommand swap:
                 var tileA = _visualState.GetTile(swap.TileAId);
                 var tileB = _visualState.GetTile(swap.TileBId);
                 if (tileA != null)
-                    tileA.IsBeingAnimated = isAnimating;
+                {
+                    if (isStarting)
+                        tileA.AddAnimationRef();
+                    else
+                        tileA.ReleaseAnimationRef();
+                }
                 if (tileB != null)
-                    tileB.IsBeingAnimated = isAnimating;
+                {
+                    if (isStarting)
+                        tileB.AddAnimationRef();
+                    else
+                        tileB.ReleaseAnimationRef();
+                }
                 break;
         }
     }

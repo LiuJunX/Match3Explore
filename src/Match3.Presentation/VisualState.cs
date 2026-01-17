@@ -328,10 +328,31 @@ public sealed class TileVisual
     public Position GridPosition { get; set; }
 
     /// <summary>
-    /// Whether the tile's position is being controlled by Player animation.
-    /// When true, physics sync should not overwrite the position.
+    /// Reference count of animations controlling this tile's position.
+    /// When > 0, physics sync should not overwrite the position.
+    /// Using ref count instead of bool to handle overlapping animations correctly.
     /// </summary>
-    public bool IsBeingAnimated { get; set; }
+    public int AnimationRefCount { get; set; }
+
+    /// <summary>
+    /// Whether the tile's position is being controlled by any animation.
+    /// </summary>
+    public bool IsBeingAnimated => AnimationRefCount > 0;
+
+    /// <summary>
+    /// Increment animation reference count (call when animation starts).
+    /// </summary>
+    public void AddAnimationRef() => AnimationRefCount++;
+
+    /// <summary>
+    /// Decrement animation reference count (call when animation completes).
+    /// </summary>
+    public void ReleaseAnimationRef()
+    {
+        AnimationRefCount--;
+        if (AnimationRefCount < 0)
+            AnimationRefCount = 0; // Safety: never go negative
+    }
 }
 
 /// <summary>
