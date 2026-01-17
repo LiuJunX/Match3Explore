@@ -133,21 +133,6 @@ namespace Match3.Editor.ViewModels
             set { _selectedCover = value; OnPropertyChanged(nameof(SelectedCover)); }
         }
 
-        private byte _selectedCoverHP = 1;
-        public byte SelectedCoverHP
-        {
-            get => _selectedCoverHP;
-            set
-            {
-                var clampedValue = Math.Max((byte)1, Math.Min((byte)3, value));
-                if (_selectedCoverHP != clampedValue)
-                {
-                    _selectedCoverHP = clampedValue;
-                    OnPropertyChanged(nameof(SelectedCoverHP));
-                }
-            }
-        }
-
         private bool _assertColor = true;
         public bool AssertColor
         {
@@ -371,7 +356,7 @@ namespace Match3.Editor.ViewModels
                 if (SelectedCover == CoverType.None)
                     _gridManipulator.ClearCover(_session.ActiveLevelConfig, index);
                 else
-                    _gridManipulator.PaintCover(_session.ActiveLevelConfig, index, SelectedCover, SelectedCoverHP);
+                    _gridManipulator.PaintCover(_session.ActiveLevelConfig, index, SelectedCover);
                 break;
             case EditorLayer.Grounds:
                 if (SelectedGround == GroundType.None)
