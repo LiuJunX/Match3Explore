@@ -115,7 +115,21 @@ public sealed class Player
 
         float targetTime = _currentTime + deltaTime;
 
-        // Start new commands
+        // Complete finished commands FIRST (clears IsBeingAnimated)
+        // This must happen before starting new commands to avoid overwriting
+        // the IsBeingAnimated flag set by new commands on the same tiles
+        for (int i = _activeCommands.Count - 1; i >= 0; i--)
+        {
+            var active = _activeCommands[i];
+
+            if (targetTime >= active.Command.EndTime)
+            {
+                CompleteCommand(active);
+                _activeCommands.RemoveAt(i);
+            }
+        }
+
+        // Start new commands (sets IsBeingAnimated)
         while (_nextCommandIndex < _commands.Count && _commands[_nextCommandIndex].StartTime <= targetTime)
         {
             var cmd = _commands[_nextCommandIndex];
@@ -123,23 +137,10 @@ public sealed class Player
             _nextCommandIndex++;
         }
 
-        // Update active commands
-        for (int i = _activeCommands.Count - 1; i >= 0; i--)
+        // Update active commands (interpolate positions)
+        for (int i = 0; i < _activeCommands.Count; i++)
         {
-            var active = _activeCommands[i];
-
-            if (targetTime >= active.Command.EndTime)
-            {
-                // Command has completed - don't call UpdateCommand as it may overwrite
-                // state set by commands that started later
-                CompleteCommand(active);
-                _activeCommands.RemoveAt(i);
-            }
-            else
-            {
-                // Command is still active - update it
-                UpdateCommand(active, targetTime);
-            }
+            UpdateCommand(_activeCommands[i], targetTime);
         }
 
         _currentTime = targetTime;
