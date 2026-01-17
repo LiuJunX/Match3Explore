@@ -71,4 +71,18 @@ public partial class GridBoard : IDisposable
 
         return "";
     }
+
+    /// <summary>
+    /// Get the emoji icon for a cover type.
+    /// </summary>
+    private string GetCoverIcon(CoverType coverType)
+    {
+        return coverType switch
+        {
+            CoverType.Cage => "🔒",
+            CoverType.Chain => "⛓️",
+            CoverType.Bubble => "🫧",
+            _ => ""
+        };
+    }
 }

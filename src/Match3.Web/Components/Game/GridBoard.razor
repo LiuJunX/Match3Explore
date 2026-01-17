@@ -72,6 +72,25 @@
                 }
             }
 
+            <!-- Cover Layer -->
+            @if (GameService.SimulationEngine != null)
+            {
+                @for (int y = 0; y < GameService.Height; y++)
+                {
+                    @for (int x = 0; x < GameService.Width; x++)
+                    {
+                        var cover = GameService.SimulationEngine.State.GetCover(x, y);
+                        @if (cover.Type != CoverType.None)
+                        {
+                            <div class="cover-layer cover-@cover.Type.ToString().ToLower()"
+                                 style="left: @(x * Match3GameService.CellSize)px; top: @(y * Match3GameService.CellSize)px;">
+                                @GetCoverIcon(cover.Type)
+                            </div>
+                        }
+                    }
+                }
+            }
+
             <!-- Active Projectiles -->
             @foreach (var kvp in GameService.VisualState.Projectiles)
             {
