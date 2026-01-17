@@ -406,4 +406,145 @@ public class CoverSystemTests
     }
 
     #endregion
+
+    #region CoverRules Tests
+
+    [Theory]
+    [InlineData(CoverType.None, 0)]
+    [InlineData(CoverType.Cage, 1)]
+    [InlineData(CoverType.Chain, 1)]
+    [InlineData(CoverType.Bubble, 1)]
+    public void GetDefaultHealth_ReturnsExpectedValue(CoverType coverType, byte expectedHealth)
+    {
+        // Act
+        byte health = CoverRules.GetDefaultHealth(coverType);
+
+        // Assert
+        Assert.Equal(expectedHealth, health);
+    }
+
+    [Theory]
+    [InlineData(CoverType.None, false)]
+    [InlineData(CoverType.Cage, false)]
+    [InlineData(CoverType.Chain, false)]
+    [InlineData(CoverType.Bubble, true)]
+    public void IsDynamicType_ReturnsExpectedValue(CoverType coverType, bool expectedIsDynamic)
+    {
+        // Act
+        bool isDynamic = CoverRules.IsDynamicType(coverType);
+
+        // Assert
+        Assert.Equal(expectedIsDynamic, isDynamic);
+    }
+
+    [Theory]
+    [InlineData(CoverType.None, false)]
+    [InlineData(CoverType.Cage, true)]
+    [InlineData(CoverType.Chain, false)]
+    [InlineData(CoverType.Bubble, false)]
+    public void BlocksMatch_ReturnsExpectedValue(CoverType coverType, bool expectedBlocks)
+    {
+        // Act
+        bool blocks = CoverRules.BlocksMatch(coverType);
+
+        // Assert
+        Assert.Equal(expectedBlocks, blocks);
+    }
+
+    [Theory]
+    [InlineData(CoverType.None, false)]
+    [InlineData(CoverType.Cage, true)]
+    [InlineData(CoverType.Chain, true)]
+    [InlineData(CoverType.Bubble, true)]
+    public void BlocksSwap_ReturnsExpectedValue(CoverType coverType, bool expectedBlocks)
+    {
+        // Act
+        bool blocks = CoverRules.BlocksSwap(coverType);
+
+        // Assert
+        Assert.Equal(expectedBlocks, blocks);
+    }
+
+    [Theory]
+    [InlineData(CoverType.None, false)]
+    [InlineData(CoverType.Cage, true)]
+    [InlineData(CoverType.Chain, true)]
+    [InlineData(CoverType.Bubble, false)]
+    public void BlocksMovement_ReturnsExpectedValue(CoverType coverType, bool expectedBlocks)
+    {
+        // Act
+        bool blocks = CoverRules.BlocksMovement(coverType);
+
+        // Assert
+        Assert.Equal(expectedBlocks, blocks);
+    }
+
+    #endregion
+
+    #region Cover Type Specific Destruction Tests
+
+    [Theory]
+    [InlineData(CoverType.Cage)]
+    [InlineData(CoverType.Chain)]
+    [InlineData(CoverType.Bubble)]
+    public void TryDamageCover_AllCoverTypes_EmitsCorrectEvent(CoverType coverType)
+    {
+        // Arrange
+        var state = CreateState();
+        var pos = new Position(3, 3);
+        state.SetCover(pos, new Cover(coverType, health: 1));
+        var events = new BufferedEventCollector();
+
+        // Act
+        bool destroyed = _coverSystem.TryDamageCover(ref state, pos, tick: 1, simTime: 0.1f, events);
+
+        // Assert
+        Assert.True(destroyed);
+        Assert.Equal(CoverType.None, state.GetCover(pos).Type);
+        var evt = Assert.IsType<CoverDestroyedEvent>(events.GetEvents()[0]);
+        Assert.Equal(coverType, evt.Type);
+        Assert.Equal(pos, evt.GridPosition);
+    }
+
+    #endregion
+
+    #region Event Data Tests
+
+    [Fact]
+    public void TryDamageCover_EventContainsCorrectTick()
+    {
+        // Arrange
+        var state = CreateState();
+        var pos = new Position(3, 3);
+        state.SetCover(pos, new Cover(CoverType.Cage, health: 1));
+        var events = new BufferedEventCollector();
+        long expectedTick = 42;
+
+        // Act
+        _coverSystem.TryDamageCover(ref state, pos, tick: expectedTick, simTime: 0.1f, events);
+
+        // Assert
+        var evt = Assert.IsType<CoverDestroyedEvent>(events.GetEvents()[0]);
+        Assert.Equal(expectedTick, evt.Tick);
+    }
+
+    [Fact]
+    public void TryDamageCover_EventContainsCorrectSimTime()
+    {
+        // Arrange
+        var state = CreateState();
+        var pos = new Position(3, 3);
+        state.SetCover(pos, new Cover(CoverType.Chain, health: 1));
+        var events = new BufferedEventCollector();
+        float expectedSimTime = 1.5f;
+
+        // Act
+        _coverSystem.TryDamageCover(ref state, pos, tick: 1, simTime: expectedSimTime, events);
+
+        // Assert
+        var evt = Assert.IsType<CoverDestroyedEvent>(events.GetEvents()[0]);
+        Assert.Equal(expectedSimTime, evt.SimulationTime);
+    }
+
+    #endregion
 }
