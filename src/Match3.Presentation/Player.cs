@@ -127,12 +127,18 @@ public sealed class Player
         for (int i = _activeCommands.Count - 1; i >= 0; i--)
         {
             var active = _activeCommands[i];
-            UpdateCommand(active, targetTime);
 
             if (targetTime >= active.Command.EndTime)
             {
+                // Command has completed - don't call UpdateCommand as it may overwrite
+                // state set by commands that started later
                 CompleteCommand(active);
                 _activeCommands.RemoveAt(i);
+            }
+            else
+            {
+                // Command is still active - update it
+                UpdateCommand(active, targetTime);
             }
         }
 

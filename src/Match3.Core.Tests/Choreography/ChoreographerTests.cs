@@ -214,4 +214,302 @@ public class ChoreographerTests
 
         Assert.Empty(commands);
     }
+
+    #region Cascade Timing Tests
+
+    [Fact]
+    public void Choreograph_MoveAfterDestroy_WaitsForDestroyToComplete()
+    {
+        // Destroy at (3,4), then move to (3,4) should wait for destroy to finish
+        var events = new GameEvent[]
+        {
+            new TileDestroyedEvent
+            {
+                TileId = 1,
+                GridPosition = new Position(3, 4),
+                Type = TileType.Red,
+                Reason = DestroyReason.Match,
+                SimulationTime = 0f
+            },
+            new TileMovedEvent
+            {
+                TileId = 2,
+                FromPosition = new Vector2(3, 3),
+                ToPosition = new Vector2(3, 4),
+                Reason = MoveReason.Gravity,
+                SimulationTime = 0f
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events);
+
+        var destroyCmd = commands.OfType<DestroyTileCommand>().First();
+        var moveCmd = commands.OfType<MoveTileCommand>().First();
+
+        // Move should start after destroy ends
+        Assert.True(moveCmd.StartTime >= destroyCmd.StartTime + destroyCmd.Duration,
+            $"Move start {moveCmd.StartTime} should be >= destroy end {destroyCmd.StartTime + destroyCmd.Duration}");
+    }
+
+    [Fact]
+    public void Choreograph_SpawnAfterDestroy_WaitsForDestroyToComplete()
+    {
+        var events = new GameEvent[]
+        {
+            new TileDestroyedEvent
+            {
+                TileId = 1,
+                GridPosition = new Position(3, 0),
+                Type = TileType.Red,
+                Reason = DestroyReason.Match,
+                SimulationTime = 0f
+            },
+            new TileSpawnedEvent
+            {
+                TileId = 2,
+                GridPosition = new Position(3, 0),
+                Type = TileType.Blue,
+                Bomb = BombType.None,
+                SpawnPosition = new Vector2(3, -1),
+                SimulationTime = 0f
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events);
+
+        var destroyCmd = commands.OfType<DestroyTileCommand>().First();
+        var spawnCmd = commands.OfType<SpawnTileCommand>().First();
+
+        // Spawn should start after destroy ends
+        Assert.True(spawnCmd.StartTime >= destroyCmd.StartTime + destroyCmd.Duration,
+            $"Spawn start {spawnCmd.StartTime} should be >= destroy end {destroyCmd.StartTime + destroyCmd.Duration}");
+    }
+
+    [Fact]
+    public void Choreograph_MultipleTilesFalling_CascadeCorrectly()
+    {
+        // Three tiles falling in same column: from row 2,1,0 to row 5,4,3
+        // Y increases downward, so row 5 is the bottommost position
+        var events = new GameEvent[]
+        {
+            new TileMovedEvent
+            {
+                TileId = 1,
+                FromPosition = new Vector2(3, 2),
+                ToPosition = new Vector2(3, 5),  // Bottommost destination
+                Reason = MoveReason.Gravity,
+                SimulationTime = 0f
+            },
+            new TileMovedEvent
+            {
+                TileId = 2,
+                FromPosition = new Vector2(3, 1),
+                ToPosition = new Vector2(3, 4),
+                Reason = MoveReason.Gravity,
+                SimulationTime = 0f
+            },
+            new TileMovedEvent
+            {
+                TileId = 3,
+                FromPosition = new Vector2(3, 0),
+                ToPosition = new Vector2(3, 3),  // Topmost destination
+                Reason = MoveReason.Gravity,
+                SimulationTime = 0f
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events);
+
+        var moveCmds = commands.OfType<MoveTileCommand>().OrderByDescending(c => c.To.Y).ToList();
+        Assert.Equal(3, moveCmds.Count);
+
+        // Tiles moving to bottommost positions (higher Y) should start first
+        // Tile moving to row 5 (bottommost) should start first
+        // Tile moving to row 4 should cascade after tile at row 5 clears space
+        // Tile moving to row 3 should cascade after tile at row 4 clears space
+        Assert.True(moveCmds[0].StartTime <= moveCmds[1].StartTime,
+            $"Tile to row 5 ({moveCmds[0].StartTime}) should start <= tile to row 4 ({moveCmds[1].StartTime})");
+        Assert.True(moveCmds[1].StartTime <= moveCmds[2].StartTime,
+            $"Tile to row 4 ({moveCmds[1].StartTime}) should start <= tile to row 3 ({moveCmds[2].StartTime})");
+    }
+
+    [Fact]
+    public void Choreograph_DifferentColumns_NoCascadeInterference()
+    {
+        var events = new GameEvent[]
+        {
+            new TileDestroyedEvent
+            {
+                TileId = 1,
+                GridPosition = new Position(2, 4),
+                Type = TileType.Red,
+                Reason = DestroyReason.Match,
+                SimulationTime = 0f
+            },
+            new TileMovedEvent
+            {
+                TileId = 2,
+                FromPosition = new Vector2(3, 3), // Different column
+                ToPosition = new Vector2(3, 4),
+                Reason = MoveReason.Gravity,
+                SimulationTime = 0f
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events);
+
+        var destroyCmd = commands.OfType<DestroyTileCommand>().First();
+        var moveCmd = commands.OfType<MoveTileCommand>().First();
+
+        // Move in column 3 should NOT wait for destroy in column 2
+        Assert.Equal(0f, moveCmd.StartTime);
+    }
+
+    [Fact]
+    public void Choreograph_DestroyAndSpawnSamePosition_ProperSequence()
+    {
+        var events = new GameEvent[]
+        {
+            new TileDestroyedEvent
+            {
+                TileId = 1,
+                GridPosition = new Position(3, 4),
+                Type = TileType.Red,
+                Reason = DestroyReason.Match,
+                SimulationTime = 0f
+            },
+            new TileSpawnedEvent
+            {
+                TileId = 2,
+                GridPosition = new Position(3, 4),
+                Type = TileType.Blue,
+                Bomb = BombType.None,
+                SpawnPosition = new Vector2(3, -1),
+                SimulationTime = 0.1f
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events);
+
+        var removeCmd = commands.OfType<RemoveTileCommand>().First();
+        var spawnCmd = commands.OfType<SpawnTileCommand>().First();
+
+        // Spawn should happen after remove
+        Assert.True(spawnCmd.StartTime >= removeCmd.StartTime,
+            $"Spawn at {spawnCmd.StartTime} should be after remove at {removeCmd.StartTime}");
+    }
+
+    #endregion
+
+    #region Cover and Ground Events
+
+    [Fact]
+    public void Choreograph_CoverDestroyed_GeneratesCommandAndEffect()
+    {
+        var events = new GameEvent[]
+        {
+            new CoverDestroyedEvent
+            {
+                GridPosition = new Position(3, 4),
+                Type = CoverType.Cage,
+                SimulationTime = 0f
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events);
+
+        Assert.Contains(commands, c => c is DestroyCoverCommand);
+        Assert.Contains(commands, c => c is ShowEffectCommand { EffectType: "cover_destroyed" });
+    }
+
+    [Fact]
+    public void Choreograph_GroundDestroyed_GeneratesCommandAndEffect()
+    {
+        var events = new GameEvent[]
+        {
+            new GroundDestroyedEvent
+            {
+                GridPosition = new Position(3, 4),
+                Type = GroundType.Ice,
+                SimulationTime = 0f
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events);
+
+        Assert.Contains(commands, c => c is DestroyGroundCommand);
+        Assert.Contains(commands, c => c is ShowEffectCommand { EffectType: "ground_destroyed" });
+    }
+
+    #endregion
+
+    #region Bomb Events
+
+    [Fact]
+    public void Choreograph_BombActivated_GeneratesEffect()
+    {
+        var events = new GameEvent[]
+        {
+            new BombActivatedEvent
+            {
+                TileId = 1,
+                Position = new Position(3, 4),
+                BombType = BombType.Horizontal,
+                SimulationTime = 0f
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events);
+
+        Assert.Contains(commands, c => c is ShowEffectCommand { EffectType: "bomb_explosion" });
+    }
+
+    [Fact]
+    public void Choreograph_BombCombo_GeneratesTwoEffects()
+    {
+        var events = new GameEvent[]
+        {
+            new BombComboEvent
+            {
+                BombTypeA = BombType.Horizontal,
+                BombTypeB = BombType.Vertical,
+                PositionA = new Position(3, 4),
+                PositionB = new Position(4, 4),
+                SimulationTime = 0f
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events);
+
+        var comboEffects = commands.OfType<ShowEffectCommand>()
+            .Where(c => c.EffectType == "bomb_combo").ToList();
+        Assert.Equal(2, comboEffects.Count);
+    }
+
+    #endregion
+
+    #region Projectile Events
+
+    [Fact]
+    public void Choreograph_ProjectileMoved_CalculatesDurationFromVelocity()
+    {
+        var events = new GameEvent[]
+        {
+            new ProjectileMovedEvent
+            {
+                ProjectileId = 100,
+                FromPosition = new Vector2(0, 0),
+                ToPosition = new Vector2(3, 4),  // Distance = 5
+                Velocity = new Vector2(3, 4),    // Speed = 5
+                SimulationTime = 0f
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events);
+
+        var moveCmd = Assert.Single(commands.OfType<MoveProjectileCommand>());
+        Assert.Equal(1f, moveCmd.Duration, 0.01f);  // Distance 5 / Speed 5 = 1 second
+    }
+
+    #endregion
 }
