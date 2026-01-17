@@ -451,8 +451,11 @@ public sealed class SimulationEngine : IDisposable
         // 2. Handle selection logic
         if (state.SelectedPosition == Position.Invalid)
         {
-            // Nothing selected - select this tile
-            state.SelectedPosition = p;
+            // Nothing selected - select this tile (if not blocked by cover)
+            if (state.CanInteract(p))
+            {
+                state.SelectedPosition = p;
+            }
         }
         else if (state.SelectedPosition == p)
         {
@@ -470,8 +473,11 @@ public sealed class SimulationEngine : IDisposable
         }
         else
         {
-            // Non-adjacent tile tapped - change selection
-            state.SelectedPosition = p;
+            // Non-adjacent tile tapped - change selection (if not blocked by cover)
+            if (state.CanInteract(p))
+            {
+                state.SelectedPosition = p;
+            }
         }
 
         State = state;
