@@ -170,14 +170,9 @@ public sealed class Choreographer : IEventVisitor
     public void Visit(TileSpawnedEvent evt)
     {
         float startTime = GetStartTime(evt);
-        var gridPos = new Vector2(evt.GridPosition.X, evt.GridPosition.Y);
 
-        // Calculate move start time for cascade
-        int column = evt.GridPosition.X;
-        int targetRow = evt.GridPosition.Y;
-        float moveStartTime = CalculateMoveStartTime(column, targetRow, startTime);
-
-        // Spawn command
+        // Spawn command - creates the tile in visual state
+        // Physics system handles the falling animation via SyncFallingTilesFromGameState
         var spawnCommand = new SpawnTileCommand
         {
             TileId = evt.TileId,
@@ -185,25 +180,13 @@ public sealed class Choreographer : IEventVisitor
             Bomb = evt.Bomb,
             GridPos = evt.GridPosition,
             SpawnPos = evt.SpawnPosition,
-            StartTime = moveStartTime,
+            StartTime = startTime,
             Duration = 0
         };
         _commands.Add(spawnCommand);
 
-        // Move from spawn position to grid position
-        var moveCommand = new MoveTileCommand
-        {
-            TileId = evt.TileId,
-            From = evt.SpawnPosition,
-            To = gridPos,
-            StartTime = moveStartTime,
-            Duration = MoveDuration,
-            Easing = EasingType.OutCubic
-        };
-        _commands.Add(moveCommand);
-
-        // Track this move
-        TrackMove(column, moveStartTime, moveStartTime + MoveDuration, targetRow, evt.SpawnPosition, gridPos);
+        // No MoveTileCommand - physics system controls the falling movement
+        // Cascade timing is handled naturally by physics (tiles wait for space below)
     }
 
     /// <inheritdoc />

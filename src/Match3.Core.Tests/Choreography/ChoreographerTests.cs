@@ -59,7 +59,7 @@ public class ChoreographerTests
     }
 
     [Fact]
-    public void Choreograph_TileSpawn_GeneratesSpawnAndMove()
+    public void Choreograph_TileSpawn_GeneratesSpawnCommand()
     {
         var events = new GameEvent[]
         {
@@ -76,8 +76,10 @@ public class ChoreographerTests
 
         var commands = _choreographer.Choreograph(events);
 
+        // SpawnTileCommand creates the tile, physics handles the falling animation
         Assert.Contains(commands, c => c is SpawnTileCommand);
-        Assert.Contains(commands, c => c is MoveTileCommand);
+        // No MoveTileCommand - physics system controls falling via SyncFallingTilesFromGameState
+        Assert.DoesNotContain(commands, c => c is MoveTileCommand);
     }
 
     [Fact]
@@ -252,8 +254,10 @@ public class ChoreographerTests
     }
 
     [Fact]
-    public void Choreograph_SpawnAfterDestroy_WaitsForDestroyToComplete()
+    public void Choreograph_SpawnUsesSimulationTime_PhysicsHandlesCascade()
     {
+        // Spawn commands now execute at their simulation time
+        // Cascade timing is handled by physics system, not Choreographer
         var events = new GameEvent[]
         {
             new TileDestroyedEvent
@@ -277,12 +281,10 @@ public class ChoreographerTests
 
         var commands = _choreographer.Choreograph(events);
 
-        var destroyCmd = commands.OfType<DestroyTileCommand>().First();
         var spawnCmd = commands.OfType<SpawnTileCommand>().First();
 
-        // Spawn should start after destroy ends
-        Assert.True(spawnCmd.StartTime >= destroyCmd.StartTime + destroyCmd.Duration,
-            $"Spawn start {spawnCmd.StartTime} should be >= destroy end {destroyCmd.StartTime + destroyCmd.Duration}");
+        // Spawn uses simulation time directly (physics handles cascade timing)
+        Assert.Equal(0f, spawnCmd.StartTime);
     }
 
     [Fact]
@@ -366,7 +368,7 @@ public class ChoreographerTests
     }
 
     [Fact]
-    public void Choreograph_DestroyAndSpawnSamePosition_ProperSequence()
+    public void Choreograph_DestroyAndSpawnSamePosition_SpawnUsesSimulationTime()
     {
         var events = new GameEvent[]
         {
@@ -391,12 +393,11 @@ public class ChoreographerTests
 
         var commands = _choreographer.Choreograph(events);
 
-        var removeCmd = commands.OfType<RemoveTileCommand>().First();
         var spawnCmd = commands.OfType<SpawnTileCommand>().First();
 
-        // Spawn should happen after remove
-        Assert.True(spawnCmd.StartTime >= removeCmd.StartTime,
-            $"Spawn at {spawnCmd.StartTime} should be after remove at {removeCmd.StartTime}");
+        // Spawn uses its own simulation time (0.1f relative to base time)
+        // Physics system handles the visual cascade timing
+        Assert.Equal(0.1f, spawnCmd.StartTime, 0.001f);
     }
 
     #endregion
