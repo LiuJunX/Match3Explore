@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Match3.Core.Config;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
@@ -6,7 +7,7 @@ using Match3.Random;
 
 namespace Match3.Editor.Logic
 {
-    public class GridManipulator
+    public partial class GridManipulator
     {
         public LevelConfig ResizeGrid(LevelConfig oldConfig, int newWidth, int newHeight)
         {
@@ -109,10 +110,8 @@ namespace Match3.Editor.Logic
                 }
                 else
                 {
-                    // Always use selectedType for bomb placement; fallback to Red if invalid
-                    var newColor = (selectedType >= TileType.Red && selectedType <= TileType.Orange)
-                        ? selectedType
-                        : TileType.Red;
+                    // Safe check for valid colors
+                    var newColor = IsColorTile(selectedType) ? selectedType : TileType.Red;
                     config.Grid[index] = newColor;
                 }
             }
@@ -128,6 +127,12 @@ namespace Match3.Editor.Logic
                     config.Bombs[index] = BombType.None;
                 }
             }
+        }
+
+        private bool IsColorTile(TileType t)
+        {
+            return t == TileType.Red || t == TileType.Green || t == TileType.Blue ||
+                   t == TileType.Yellow || t == TileType.Purple || t == TileType.Orange;
         }
 
         /// <summary>

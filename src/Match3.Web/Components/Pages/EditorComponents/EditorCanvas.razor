@@ -1,5 +1,6 @@
 @using Match3.Editor.ViewModels
 @using Match3.Editor.Logic
+@using Match3.Editor.Helpers
 @using Match3.Core.Models.Enums
 @using Match3.Core.Models.Grid
 @using Match3.Core.Scenarios
@@ -11,7 +12,7 @@
     <div class="position-absolute top-0 start-50 translate-middle-x mt-3 bg-white shadow-sm rounded-pill px-3 py-1 d-flex gap-3 align-items-center z-index-10 border" style="z-index: 100;">
         <div class="small fw-bold text-muted">
             @if(VM.IsAssertionMode) { <span>🎯 VERIFYING</span> }
-            else { <span>✏️ EDITING</span> }
+            else { <span>✏️ EDITING @VM.ActiveLayer.ToString().ToUpper()</span> }
         </div>
         <div class="vr"></div>
         <div class="small text-muted">@VM.ActiveLevelConfig.Width x @VM.ActiveLevelConfig.Height</div>
@@ -35,28 +36,60 @@
                 var index = i;
                 var x = i % width;
                 var y = i / width;
+                
                 var displayType = VM.ActiveLevelConfig.Grid[index];
                 var displayBomb = index < VM.ActiveBombs.Length ? VM.ActiveBombs[index] : BombType.None;
+                var displayGround = (VM.ActiveLevelConfig.Grounds != null && index < VM.ActiveLevelConfig.Grounds.Length) 
+                    ? VM.ActiveLevelConfig.Grounds[index] 
+                    : GroundType.None;
+                var displayCover = (VM.ActiveLevelConfig.Covers != null && index < VM.ActiveLevelConfig.Covers.Length) 
+                    ? VM.ActiveLevelConfig.Covers[index] 
+                    : CoverType.None;
 
+                // Parent div is now just a container/background
                 <div class="position-absolute border border-light"
-                     style="left: @(x * tileSize)px; top: @(y * tileSize)px; width: @(tileSize)px; height: @(tileSize)px; background-color: @GetColor(displayType); cursor: @(VM.IsAssertionMode ? "crosshair" : "pointer"); transition: transform 0.1s;"
+                     style="left: @(x * tileSize)px; top: @(y * tileSize)px; width: @(tileSize)px; height: @(tileSize)px; background-color: #f8f9fa; cursor: @(VM.IsAssertionMode ? "crosshair" : "pointer");"
                      @onmousedown="() => StartDrawing(index)"
                      @onmouseenter="() => PaintTile(index)"
                      @ondragstart:preventDefault="true">
 
-                    <div class="w-100 h-100 d-flex align-items-center justify-content-center" style="pointer-events: none;">
-                    </div>
-                    
-                    @if (displayBomb != BombType.None)
+                    <!-- Ground Layer (Z=1) -->
+                    @if (displayGround != GroundType.None)
                     {
-                        <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" 
-                             style="pointer-events:none; background: rgba(0,0,0,0.15);">
-                            <span class="fs-3" style="filter: drop-shadow(0 0 2px white);">
-                                @GetBombIcon(displayBomb)
+                         <div class="position-absolute top-0 start-0 w-100 h-100" 
+                              style="z-index: 1; background: @EditorStyleHelper.GetGroundColor(displayGround); opacity: 0.8;">
+                            <span class="position-absolute bottom-0 end-0 small text-muted p-1" style="font-size:9px; line-height:1;">@displayGround.ToString()[0]</span>
+                         </div>
+                    }
+
+                    <!-- Tile Layer (Z=2) -->
+                    <div class="position-absolute w-100 h-100 d-flex align-items-center justify-content-center" style="z-index: 2; pointer-events: none;">
+                        <div class="rounded-circle shadow-sm"
+                             style="width: 75%; height: 75%; background-color: @EditorStyleHelper.GetTileColorForCanvas(displayType); box-shadow: inset 0 -2px 4px rgba(0,0,0,0.2); transition: transform 0.1s;">
+                            
+                            @if (displayBomb != BombType.None)
+                            {
+                                <div class="w-100 h-100 d-flex align-items-center justify-content-center">
+                                    <span class="fs-4" style="filter: drop-shadow(0 0 2px white);">
+                                        @EditorStyleHelper.GetBombIcon(displayBomb)
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Cover Layer (Z=3) -->
+                    @if (displayCover != CoverType.None)
+                    {
+                        <div class="position-absolute w-100 h-100 d-flex align-items-center justify-content-center" 
+                             style="z-index: 3; background-color: rgba(255,255,255,0.3); border: 2px solid rgba(0,0,0,0.1); pointer-events: none;">
+                            <span class="fs-4 fw-bold" style="text-shadow: 0 0 3px white;">
+                                @EditorStyleHelper.GetCoverIcon(displayCover)
                             </span>
                         </div>
                     }
 
+                    <!-- Scenario Assertion Overlay -->
                     @if (VM.CurrentMode == EditorMode.Scenario)
                     {
                         var assertion = VM.CurrentScenario.Assertions.FirstOrDefault(a => a.X == x && a.Y == y);
@@ -108,7 +141,7 @@
     {
         if (IsDrawing && !VM.IsAssertionMode)
         {
-            VM.PaintTile(index);
+            VM.PaintAt(index);
         }
     }
 
@@ -122,32 +155,4 @@
         VM.OnRequestRepaint -= RequestUpdate;
         VM.PropertyChanged -= OnVmPropertyChanged;
     }
-
-    private string GetColor(TileType t)
-    {
-        if (t.HasFlag(TileType.Red)) return "#dc3545";
-        if (t.HasFlag(TileType.Green)) return "#198754";
-        if (t.HasFlag(TileType.Blue)) return "#0d6efd";
-        if (t.HasFlag(TileType.Yellow)) return "#ffc107";
-        if (t.HasFlag(TileType.Purple)) return "#6f42c1";
-        if (t.HasFlag(TileType.Orange)) return "#fd7e14";
-        if (t.HasFlag(TileType.Rainbow)) return "linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet)";
-        
-        return t switch
-        {
-            TileType.None => "#f8f9fa",
-            TileType.Bomb => "#dee2e6",
-            _ => "#ccc"
-        };
-    }
-    private string GetBombIcon(BombType bomb) => bomb switch
-    {
-        BombType.None => "",
-        BombType.Horizontal => "↔️",
-        BombType.Vertical => "↕️",
-        BombType.Ufo => "🛸",
-        BombType.Square5x5 => "💣",
-        BombType.Color => "🌈",
-        _ => ""
-    };
 }

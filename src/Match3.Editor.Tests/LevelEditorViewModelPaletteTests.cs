@@ -1,5 +1,6 @@
 using Match3.Core.Models.Enums;
 using Match3.Editor.ViewModels;
+using Match3.Editor.Helpers;
 
 namespace Match3.Editor.Tests
 {
@@ -24,9 +25,9 @@ namespace Match3.Editor.Tests
         [Fact]
         public void GetTileBackground_ShouldReturnSolidColorOrGradient()
         {
-            var red = LevelEditorViewModel.GetTileBackground(TileType.Red);
-            var none = LevelEditorViewModel.GetTileBackground(TileType.None);
-            var rainbow = LevelEditorViewModel.GetTileBackground(TileType.Rainbow);
+            var red = EditorStyleHelper.GetTileColor(TileType.Red);
+            var none = EditorStyleHelper.GetTileColor(TileType.None);
+            var rainbow = EditorStyleHelper.GetTileColor(TileType.Rainbow);
 
             Assert.Equal("#dc3545", red);
             Assert.Equal("#f8f9fa", none);
@@ -36,9 +37,9 @@ namespace Match3.Editor.Tests
         [Fact]
         public void GetTileCheckmarkClass_ShouldUseDarkTextOnLightBackgrounds()
         {
-            var noneClass = LevelEditorViewModel.GetTileCheckmarkClass(TileType.None);
-            var yellowClass = LevelEditorViewModel.GetTileCheckmarkClass(TileType.Yellow);
-            var redClass = LevelEditorViewModel.GetTileCheckmarkClass(TileType.Red);
+            var noneClass = EditorStyleHelper.GetTileCheckmarkClass(TileType.None);
+            var yellowClass = EditorStyleHelper.GetTileCheckmarkClass(TileType.Yellow);
+            var redClass = EditorStyleHelper.GetTileCheckmarkClass(TileType.Red);
 
             Assert.Equal("text-dark", noneClass);
             Assert.Equal("text-dark", yellowClass);

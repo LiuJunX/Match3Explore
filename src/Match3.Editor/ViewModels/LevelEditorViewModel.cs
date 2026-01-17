@@ -9,9 +9,17 @@ using Match3.Core.Models.Gameplay;
 using Match3.Core.Scenarios;
 using Match3.Editor.Interfaces;
 using Match3.Editor.Logic;
+using Match3.Editor.Helpers;
 
 namespace Match3.Editor.ViewModels
 {
+    public enum EditorLayer
+    {
+        Tiles,
+        Covers,
+        Grounds
+    }
+
     public class LevelEditorViewModel : INotifyPropertyChanged, IDisposable
     {
         private readonly IPlatformService _platform;
@@ -62,6 +70,13 @@ namespace Match3.Editor.ViewModels
         }
 
         // --- Editor UI State ---
+        private EditorLayer _activeLayer = EditorLayer.Tiles;
+        public EditorLayer ActiveLayer
+        {
+            get => _activeLayer;
+            set { _activeLayer = value; OnPropertyChanged(nameof(ActiveLayer)); }
+        }
+
         private int _editorWidth = 8;
         public int EditorWidth 
         { 
@@ -102,6 +117,20 @@ namespace Match3.Editor.ViewModels
                     OnPropertyChanged(nameof(SelectedBomb));
                 }
             }
+        }
+
+        private GroundType _selectedGround = GroundType.None;
+        public GroundType SelectedGround
+        {
+            get => _selectedGround;
+            set { _selectedGround = value; OnPropertyChanged(nameof(SelectedGround)); }
+        }
+
+        private CoverType _selectedCover = CoverType.None;
+        public CoverType SelectedCover
+        {
+            get => _selectedCover;
+            set { _selectedCover = value; OnPropertyChanged(nameof(SelectedCover)); }
         }
 
         private bool _assertColor = true;
@@ -176,33 +205,17 @@ namespace Match3.Editor.ViewModels
             TileType.None
         };
 
+        private static readonly GroundType[] _groundPaletteTypes = (GroundType[])Enum.GetValues(typeof(GroundType));
+        private static readonly CoverType[] _coverPaletteTypes = (CoverType[])Enum.GetValues(typeof(CoverType));
+        private static readonly BombType[] _bombPaletteTypes = (BombType[])Enum.GetValues(typeof(BombType));
+
         public static IReadOnlyList<TileType> TilePaletteTypes => _tilePaletteTypes;
+        public static IReadOnlyList<GroundType> GroundPaletteTypes => _groundPaletteTypes;
+        public static IReadOnlyList<CoverType> CoverPaletteTypes => _coverPaletteTypes;
+        public static IReadOnlyList<BombType> BombPaletteTypes => _bombPaletteTypes;
 
-        public static string GetTileBackground(TileType t)
-        {
-            return t switch
-            {
-                TileType.Red => "#dc3545",
-                TileType.Green => "#198754",
-                TileType.Blue => "#0d6efd",
-                TileType.Yellow => "#ffc107",
-                TileType.Purple => "#6f42c1",
-                TileType.Orange => "#fd7e14",
-                TileType.Rainbow => "linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet)",
-                TileType.None => "#f8f9fa",
-                _ => "#ccc"
-            };
-        }
-
-        public static string GetTileCheckmarkClass(TileType t)
-        {
-            return t switch
-            {
-                TileType.None => "text-dark",
-                TileType.Yellow => "text-dark",
-                _ => "text-white"
-            };
-        }
+        public static string GetGroundName(GroundType g) => g.ToString();
+        public static string GetCoverName(CoverType c) => c.ToString();
 
         public event PropertyChangedEventHandler? PropertyChanged;
         public event Action? OnRequestRepaint;
@@ -329,17 +342,36 @@ namespace Match3.Editor.ViewModels
                 return;
             }
 
-            PaintTile(index);
+            PaintAt(index);
         }
 
-        public void PaintTile(int index)
+    public void PaintAt(int index)
+    {
+        switch (ActiveLayer)
         {
-            _gridManipulator.PaintTile(_session.ActiveLevelConfig, index, SelectedType, SelectedBomb);
-            RequestRepaint();
-            _session.IsDirty = true;
+            case EditorLayer.Tiles:
+                _gridManipulator.PaintTile(_session.ActiveLevelConfig, index, SelectedType, SelectedBomb);
+                break;
+            case EditorLayer.Covers:
+                if (SelectedCover == CoverType.None)
+                    _gridManipulator.ClearCover(_session.ActiveLevelConfig, index);
+                else
+                    _gridManipulator.PaintCover(_session.ActiveLevelConfig, index, SelectedCover);
+                break;
+            case EditorLayer.Grounds:
+                if (SelectedGround == GroundType.None)
+                    _gridManipulator.ClearGround(_session.ActiveLevelConfig, index);
+                else
+                    _gridManipulator.PaintGround(_session.ActiveLevelConfig, index, SelectedGround);
+                break;
         }
+        RequestRepaint();
+        _session.IsDirty = true;
+    }
 
-        // --- IO & Export ---
+    public void PaintTile(int index) => PaintAt(index);
+
+    // --- IO & Export ---
         
         public void ExportJson()
         {

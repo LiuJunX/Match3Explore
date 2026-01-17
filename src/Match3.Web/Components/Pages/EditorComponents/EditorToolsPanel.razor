@@ -1,42 +1,90 @@
 @using Match3.Editor.ViewModels
+@using Match3.Editor.Helpers
 @using Match3.Core.Models.Enums
 @using Match3.Core.Models.Grid
 @inject LevelEditorViewModel VM
 
 <aside class="bg-light border-start d-flex flex-column" style="width: 280px; min-width: 280px; overflow-y: auto;">
     <div class="p-3 border-bottom">
-        <h6 class="text-uppercase text-muted small fw-bold mb-3">Palette</h6>
-        <div class="d-grid gap-2" style="grid-template-columns: repeat(4, 1fr);">
-            @foreach (var type in LevelEditorViewModel.TilePaletteTypes)
-            {
-                <button class="btn p-0 border position-relative @(VM.SelectedType == type ? "border-primary border-3" : "")"
-                        style="height: 48px; background: @LevelEditorViewModel.GetTileBackground(type); box-shadow: @(VM.SelectedType == type ? "inset 0 0 0 1px rgba(255,255,255,0.5)" : "none")"
-                        @onclick="() => VM.SelectedType = type"
-                        title="@type">
-                    @if (VM.SelectedType == type)
-                    {
-                        <span class="position-absolute top-50 start-50 translate-middle small @LevelEditorViewModel.GetTileCheckmarkClass(type)">✓</span>
-                    }
-                </button>
-            }
+        <h6 class="text-uppercase text-muted small fw-bold mb-3">Layer</h6>
+        <div class="btn-group w-100" role="group">
+            <button class="btn btn-sm @(VM.ActiveLayer == EditorLayer.Tiles ? "btn-primary" : "btn-outline-primary")"
+                    @onclick="() => VM.ActiveLayer = EditorLayer.Tiles">Tiles</button>
+            <button class="btn btn-sm @(VM.ActiveLayer == EditorLayer.Covers ? "btn-primary" : "btn-outline-primary")"
+                    @onclick="() => VM.ActiveLayer = EditorLayer.Covers">Covers</button>
+            <button class="btn btn-sm @(VM.ActiveLayer == EditorLayer.Grounds ? "btn-primary" : "btn-outline-primary")"
+                    @onclick="() => VM.ActiveLayer = EditorLayer.Grounds">Grounds</button>
         </div>
     </div>
 
-    <div class="p-3 border-bottom">
-        <h6 class="text-uppercase text-muted small fw-bold mb-3">Items / Bombs</h6>
-        <div class="d-grid gap-2" style="grid-template-columns: repeat(3, 1fr);">
-            @foreach (var bomb in (BombType[])Enum.GetValues(typeof(BombType)))
-            {
-                <button class="btn btn-outline-secondary p-1 d-flex flex-column align-items-center justify-content-center @(VM.SelectedBomb == bomb ? "active" : "")"
-                        style="height: 60px;"
-                        @onclick="() => VM.SelectedBomb = bomb"
-                        title="@bomb">
-                    <span class="fs-4">@GetBombIcon(bomb)</span>
-                    <span style="font-size: 10px;">@bomb</span>
-                </button>
-            }
+    @if (VM.ActiveLayer == EditorLayer.Tiles)
+    {
+        <div class="p-3 border-bottom">
+            <h6 class="text-uppercase text-muted small fw-bold mb-3">Palette</h6>
+            <div class="d-grid gap-2" style="grid-template-columns: repeat(4, 1fr);">
+                @foreach (var type in LevelEditorViewModel.TilePaletteTypes)
+                {
+                    <button class="btn p-0 border position-relative @(VM.SelectedType == type ? "border-primary border-3" : "")"
+                            style="height: 48px; background: @EditorStyleHelper.GetTileColor(type); box-shadow: @(VM.SelectedType == type ? "inset 0 0 0 1px rgba(255,255,255,0.5)" : "none")"
+                            @onclick="() => VM.SelectedType = type"
+                            title="@type">
+                        @if (VM.SelectedType == type)
+                        {
+                            <span class="position-absolute top-50 start-50 translate-middle small @EditorStyleHelper.GetTileCheckmarkClass(type)">✓</span>
+                        }
+                    </button>
+                }
+            </div>
         </div>
-    </div>
+
+        <div class="p-3 border-bottom">
+            <h6 class="text-uppercase text-muted small fw-bold mb-3">Items / Bombs</h6>
+            <div class="d-grid gap-2" style="grid-template-columns: repeat(3, 1fr);">
+                @foreach (var bomb in LevelEditorViewModel.BombPaletteTypes)
+                {
+                    <button class="btn btn-outline-secondary p-1 d-flex flex-column align-items-center justify-content-center @(VM.SelectedBomb == bomb ? "active" : "")"
+                            style="height: 60px;"
+                            @onclick="() => VM.SelectedBomb = bomb"
+                            title="@bomb">
+                        <span class="fs-4">@EditorStyleHelper.GetBombIcon(bomb)</span>
+                        <span style="font-size: 10px;">@bomb</span>
+                    </button>
+                }
+            </div>
+        </div>
+    }
+
+    @if (VM.ActiveLayer == EditorLayer.Covers)
+    {
+        <div class="p-3 border-bottom">
+            <h6 class="text-uppercase text-muted small fw-bold mb-3">Cover Types</h6>
+            <div class="d-grid gap-2">
+                @foreach (var cover in LevelEditorViewModel.CoverPaletteTypes)
+                {
+                    <button class="btn btn-outline-secondary text-start @(VM.SelectedCover == cover ? "active" : "")"
+                            @onclick="() => VM.SelectedCover = cover">
+                        @LevelEditorViewModel.GetCoverName(cover)
+                    </button>
+                }
+            </div>
+        </div>
+    }
+
+    @if (VM.ActiveLayer == EditorLayer.Grounds)
+    {
+        <div class="p-3 border-bottom">
+            <h6 class="text-uppercase text-muted small fw-bold mb-3">Ground Types</h6>
+            <div class="d-grid gap-2">
+                @foreach (var ground in LevelEditorViewModel.GroundPaletteTypes)
+                {
+                    <button class="btn btn-outline-secondary text-start @(VM.SelectedGround == ground ? "active" : "")"
+                            @onclick="() => VM.SelectedGround = ground">
+                        @LevelEditorViewModel.GetGroundName(ground)
+                    </button>
+                }
+            </div>
+        </div>
+    }
 
     <div class="flex-grow-1 p-3">
         <h6 class="text-uppercase text-muted small fw-bold mb-3">Data IO</h6>
@@ -70,14 +118,4 @@
     {
         VM.PropertyChanged -= OnVmPropertyChanged;
     }
-    private string GetBombIcon(BombType bomb) => bomb switch
-    {
-        BombType.None => "",
-        BombType.Horizontal => "↔️",
-        BombType.Vertical => "↕️",
-        BombType.Ufo => "🛸",
-        BombType.Square5x5 => "💣",
-        BombType.Color => "🌈",
-        _ => ""
-    };
 }
