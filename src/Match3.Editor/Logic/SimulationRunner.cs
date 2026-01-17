@@ -14,6 +14,7 @@ using Match3.Core.Systems.Matching.Generation;
 using Match3.Core.Systems.Physics;
 using Match3.Core.Systems.PowerUps;
 using Match3.Core.Systems.Scoring;
+using Match3.Core.Systems.Selection;
 using Match3.Core.Systems.Spawning;
 using Match3.Core.Utility;
 using Match3.Core.View;
@@ -70,7 +71,7 @@ namespace Match3.Editor.Logic
             var interaction = new InteractionSystem(_logger);
             var animation = new AnimationSystem(engineConfig);
             var boardInit = new BoardInitializer(tileGen);
-            var botSystem = new BotSystem(matchFinder);
+            var moveSelector = new RandomMoveSelector(matchFinder);
 
             _engine = new Match3Engine(
                 engineConfig,
@@ -82,7 +83,7 @@ namespace Match3.Editor.Logic
                 animation,
                 boardInit,
                 matchFinder,
-                botSystem,
+                moveSelector,
                 initialConfig
             );
 

@@ -31,7 +31,6 @@ namespace Match3.Editor.Helpers
         public const string ICON_COVER_CAGE = "🔒";
         public const string ICON_COVER_CHAIN = "⛓️";
         public const string ICON_COVER_BUBBLE = "🫧";
-        public const string ICON_COVER_ICE = "🧊";
 
         public static string GetTileColor(TileType t)
         {
@@ -91,7 +90,6 @@ namespace Match3.Editor.Helpers
             CoverType.Cage => ICON_COVER_CAGE,
             CoverType.Chain => ICON_COVER_CHAIN,
             CoverType.Bubble => ICON_COVER_BUBBLE,
-            CoverType.IceCover => ICON_COVER_ICE,
             _ => ""
         };
 

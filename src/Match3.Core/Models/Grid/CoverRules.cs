@@ -19,7 +19,6 @@ public static class CoverRules
         CoverType.Cage => true,      // Cage blocks matching
         CoverType.Chain => false,    // Chain allows matching
         CoverType.Bubble => false,   // Bubble (dynamic) allows matching
-        CoverType.IceCover => true,  // Ice cover blocks matching
         _ => false
     };
 
@@ -39,7 +38,6 @@ public static class CoverRules
         CoverType.Cage => true,      // Static - blocks movement
         CoverType.Chain => true,     // Static - blocks movement
         CoverType.Bubble => false,   // Dynamic - allows movement
-        CoverType.IceCover => true,  // Static - blocks movement
         _ => false
     };
 
@@ -61,7 +59,6 @@ public static class CoverRules
         CoverType.Cage => 1,
         CoverType.Chain => 1,
         CoverType.Bubble => 1,
-        CoverType.IceCover => 2,  // Ice cover has 2 HP by default
         _ => 1
     };
 }

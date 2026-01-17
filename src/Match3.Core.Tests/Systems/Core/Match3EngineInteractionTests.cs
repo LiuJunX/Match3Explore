@@ -9,6 +9,7 @@ using Match3.Core.Systems.Generation;
 using Match3.Core.Systems.Input;
 using Match3.Core.Systems.Matching;
 using Match3.Core.Systems.PowerUps;
+using Match3.Core.Systems.Selection;
 using Match3.Core.View;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
@@ -139,13 +140,19 @@ public class Match3EngineInteractionTests
         public bool HasMatches(in GameState state) => HasMatchResult;
     }
 
-    private class StubBotSystem : IBotSystem
+    private class StubMoveSelector : IMoveSelector
     {
-        public bool TryGetRandomMove(ref GameState state, IInteractionSystem interactionSystem, out Move move)
+        public string Name => "Stub";
+
+        public bool TryGetMove(in GameState state, out MoveAction action)
         {
-            move = default;
+            action = default;
             return false;
         }
+
+        public IReadOnlyList<MoveAction> GetAllCandidates(in GameState state) => new List<MoveAction>();
+
+        public void InvalidateCache() { }
     }
 
     #endregion
@@ -162,7 +169,7 @@ public class Match3EngineInteractionTests
         var animationStub = new StubAnimationSystem();
         var boardInitStub = new StubBoardInitializer();
         var matchFinderStub = new StubMatchFinder();
-        var botSystemStub = new StubBotSystem();
+        var moveSelector = new StubMoveSelector();
 
         var random = new StubRandom();
         var view = new StubGameView();
@@ -170,7 +177,7 @@ public class Match3EngineInteractionTests
 
         var engine = new Match3Engine(
             config, random, view, logger,
-            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, moveSelector
         );
 
         // Inject a Bomb into State using Reflection
@@ -200,7 +207,7 @@ public class Match3EngineInteractionTests
         var animationStub = new StubAnimationSystem();
         var boardInitStub = new StubBoardInitializer();
         var matchFinderStub = new StubMatchFinder();
-        var botSystemStub = new StubBotSystem();
+        var moveSelector = new StubMoveSelector();
 
         var random = new StubRandom();
         var view = new StubGameView();
@@ -208,7 +215,7 @@ public class Match3EngineInteractionTests
 
         var engine = new Match3Engine(
             config, random, view, logger,
-            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, moveSelector
         );
 
         // Act
@@ -232,7 +239,7 @@ public class Match3EngineInteractionTests
         var animationStub = new StubAnimationSystem();
         var boardInitStub = new StubBoardInitializer();
         var matchFinderStub = new StubMatchFinder { HasMatchResult = true }; // Simulate valid match
-        var botSystemStub = new StubBotSystem();
+        var moveSelector = new StubMoveSelector();
 
         var random = new StubRandom();
         var view = new StubGameView();
@@ -243,7 +250,7 @@ public class Match3EngineInteractionTests
 
         var engine = new Match3Engine(
             config, random, view, logger,
-            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, moveSelector
         );
 
         // Inject tiles with different colors
@@ -279,7 +286,7 @@ public class Match3EngineInteractionTests
         var animationStub = new StubAnimationSystem();
         var boardInitStub = new StubBoardInitializer();
         var matchFinderStub = new StubMatchFinder { HasMatchResult = false }; // No match
-        var botSystemStub = new StubBotSystem();
+        var moveSelector = new StubMoveSelector();
 
         var random = new StubRandom();
         var view = new StubGameView();
@@ -290,7 +297,7 @@ public class Match3EngineInteractionTests
 
         var engine = new Match3Engine(
             config, random, view, logger,
-            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, moveSelector
         );
 
         // Inject tiles with different colors
@@ -333,7 +340,7 @@ public class Match3EngineInteractionTests
         var animationStub = new StubAnimationSystem();
         var boardInitStub = new StubBoardInitializer();
         var matchFinderStub = new StubMatchFinder { HasMatchResult = true };
-        var botSystemStub = new StubBotSystem();
+        var moveSelector = new StubMoveSelector();
 
         var random = new StubRandom();
         var view = new StubGameView();
@@ -344,7 +351,7 @@ public class Match3EngineInteractionTests
 
         var engine = new Match3Engine(
             config, random, view, logger,
-            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, moveSelector
         );
 
         // Inject tiles with specific visual positions
@@ -385,7 +392,7 @@ public class Match3EngineInteractionTests
             // 只有 (0,0) 位置（交换后的目标位置）有匹配
             MatchPositions = new HashSet<Position> { new Position(0, 0) }
         };
-        var botSystemStub = new StubBotSystem();
+        var moveSelector = new StubMoveSelector();
 
         var random = new StubRandom();
         var view = new StubGameView();
@@ -396,7 +403,7 @@ public class Match3EngineInteractionTests
 
         var engine = new Match3Engine(
             config, random, view, logger,
-            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, moveSelector
         );
 
         // Inject tiles with different colors
@@ -444,7 +451,7 @@ public class Match3EngineInteractionTests
             // 只有 (1,0) 位置（交换后的目标位置）有匹配
             MatchPositions = new HashSet<Position> { new Position(1, 0) }
         };
-        var botSystemStub = new StubBotSystem();
+        var moveSelector = new StubMoveSelector();
 
         var random = new StubRandom();
         var view = new StubGameView();
@@ -455,7 +462,7 @@ public class Match3EngineInteractionTests
 
         var engine = new Match3Engine(
             config, random, view, logger,
-            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, moveSelector
         );
 
         // Inject tiles with different colors
@@ -496,7 +503,7 @@ public class Match3EngineInteractionTests
         var animationStub = new StubAnimationSystem();
         var boardInitStub = new StubBoardInitializer();
         var matchFinderStub = new StubMatchFinder { HasMatchResult = true };
-        var botSystemStub = new StubBotSystem();
+        var moveSelector = new StubMoveSelector();
 
         var random = new StubRandom();
         var view = new StubGameView();
@@ -507,7 +514,7 @@ public class Match3EngineInteractionTests
 
         var engine = new Match3Engine(
             config, random, view, logger,
-            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, moveSelector
         );
 
         // Inject tiles with different colors (vertically)
@@ -543,7 +550,7 @@ public class Match3EngineInteractionTests
         var animationStub = new StubAnimationSystem();
         var boardInitStub = new StubBoardInitializer();
         var matchFinderStub = new StubMatchFinder { HasMatchResult = false }; // No match
-        var botSystemStub = new StubBotSystem();
+        var moveSelector = new StubMoveSelector();
 
         var random = new StubRandom();
         var view = new StubGameView();
@@ -554,7 +561,7 @@ public class Match3EngineInteractionTests
 
         var engine = new Match3Engine(
             config, random, view, logger,
-            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, moveSelector
         );
 
         // Inject tiles with different colors (vertically)
@@ -597,7 +604,7 @@ public class Match3EngineInteractionTests
         var animationStub = new StubAnimationSystem();
         var boardInitStub = new StubBoardInitializer();
         var matchFinderStub = new StubMatchFinder { HasMatchResult = true };
-        var botSystemStub = new StubBotSystem();
+        var moveSelector = new StubMoveSelector();
 
         var random = new StubRandom();
         var view = new StubGameView();
@@ -608,7 +615,7 @@ public class Match3EngineInteractionTests
 
         var engine = new Match3Engine(
             config, random, view, logger,
-            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, moveSelector
         );
 
         // Inject tiles with specific visual positions (vertically)
@@ -648,7 +655,7 @@ public class Match3EngineInteractionTests
         var animationStub = new StubAnimationSystem();
         var boardInitStub = new StubBoardInitializer();
         var matchFinderStub = new StubMatchFinder { HasMatchResult = true };
-        var botSystemStub = new StubBotSystem();
+        var moveSelector = new StubMoveSelector();
 
         var random = new StubRandom();
         var view = new StubGameView();
@@ -658,7 +665,7 @@ public class Match3EngineInteractionTests
 
         var engine = new Match3Engine(
             config, random, view, logger,
-            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, botSystemStub
+            gameLoopStub, interactionStub, animationStub, boardInitStub, matchFinderStub, moveSelector
         );
 
         // Setup tiles

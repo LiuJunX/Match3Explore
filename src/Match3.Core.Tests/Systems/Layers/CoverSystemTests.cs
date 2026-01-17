@@ -87,7 +87,7 @@ public class CoverSystemTests
         // Arrange
         var state = CreateState();
         var pos = new Position(2, 2);
-        state.SetCover(pos, new Cover(CoverType.IceCover, health: 2));
+        state.SetCover(pos, new Cover(CoverType.Cage, health: 2));
         var events = new BufferedEventCollector();
 
         // Act
@@ -95,7 +95,7 @@ public class CoverSystemTests
 
         // Assert
         Assert.False(destroyed); // Not destroyed yet
-        Assert.Equal(CoverType.IceCover, state.GetCover(pos).Type);
+        Assert.Equal(CoverType.Cage, state.GetCover(pos).Type);
         Assert.Equal(1, state.GetCover(pos).Health);
         Assert.Empty(events.GetEvents()); // No destroy event
     }
@@ -106,7 +106,7 @@ public class CoverSystemTests
         // Arrange
         var state = CreateState();
         var pos = new Position(2, 2);
-        state.SetCover(pos, new Cover(CoverType.IceCover, health: 2));
+        state.SetCover(pos, new Cover(CoverType.Cage, health: 2));
         var events = new BufferedEventCollector();
 
         // Act - First hit
@@ -220,7 +220,6 @@ public class CoverSystemTests
     [InlineData(CoverType.Cage)]
     [InlineData(CoverType.Chain)]
     [InlineData(CoverType.Bubble)]
-    [InlineData(CoverType.IceCover)]
     public void IsTileProtected_AllCoverTypes_ReturnsTrue(CoverType coverType)
     {
         // Arrange
@@ -347,7 +346,6 @@ public class CoverSystemTests
     [InlineData(CoverType.Cage, false)]    // Cage blocks swap
     [InlineData(CoverType.Chain, false)]   // Chain blocks swap
     [InlineData(CoverType.Bubble, false)]  // Bubble blocks swap
-    [InlineData(CoverType.IceCover, false)]// IceCover blocks swap
     [InlineData(CoverType.None, true)]     // No cover allows swap
     public void CanInteract_WithCoverType_ReturnsExpected(CoverType coverType, bool expectedCanInteract)
     {
@@ -369,7 +367,6 @@ public class CoverSystemTests
     [InlineData(CoverType.Cage, false)]    // Cage blocks match
     [InlineData(CoverType.Chain, true)]    // Chain allows match
     [InlineData(CoverType.Bubble, true)]   // Bubble allows match
-    [InlineData(CoverType.IceCover, false)]// IceCover blocks match
     [InlineData(CoverType.None, true)]     // No cover allows match
     public void CanMatch_WithCoverType_ReturnsExpected(CoverType coverType, bool expectedCanMatch)
     {
@@ -391,7 +388,6 @@ public class CoverSystemTests
     [InlineData(CoverType.Cage, false)]    // Cage blocks movement
     [InlineData(CoverType.Chain, false)]   // Chain blocks movement
     [InlineData(CoverType.Bubble, true)]   // Bubble allows movement (dynamic)
-    [InlineData(CoverType.IceCover, false)]// IceCover blocks movement
     [InlineData(CoverType.None, true)]     // No cover allows movement
     public void CanMove_WithCoverType_ReturnsExpected(CoverType coverType, bool expectedCanMove)
     {

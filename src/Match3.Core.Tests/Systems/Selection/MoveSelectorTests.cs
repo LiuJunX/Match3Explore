@@ -133,6 +133,94 @@ public class MoveSelectorTests
         Assert.True(candidates.Count > 0);
     }
 
+    [Fact]
+    public void RandomMoveSelector_VerticalMatch_FindsMove()
+    {
+        // Arrange: 垂直匹配
+        // R     交换 R(0,0) 和 B(0,1) 后形成垂直匹配
+        // B     R R R
+        // R
+        var random = new StubRandom(0, 0);
+        var state = CreateEmptyState(3, 3, random);
+
+        state.SetTile(0, 0, new Tile(0, TileType.Red, 0, 0));
+        state.SetTile(0, 1, new Tile(3, TileType.Blue, 0, 1));
+        state.SetTile(0, 2, new Tile(6, TileType.Red, 0, 2));
+        state.SetTile(1, 0, new Tile(1, TileType.Red, 1, 0));
+        state.SetTile(2, 0, new Tile(2, TileType.Red, 2, 0));
+
+        var selector = new RandomMoveSelector(CreateMatchFinder());
+
+        // Act
+        bool found = selector.TryGetMove(in state, out var action);
+
+        // Assert
+        Assert.True(found);
+        Assert.Equal(MoveActionType.Swap, action.ActionType);
+    }
+
+    [Fact]
+    public void RandomMoveSelector_SmallBoard_HandlesEdges()
+    {
+        // Arrange: 2x2 棋盘边缘测试
+        // R R
+        // B R
+        var random = new StubRandom(1, 0);
+        var state = CreateEmptyState(2, 2, random);
+
+        state.SetTile(0, 0, new Tile(0, TileType.Red, 0, 0));
+        state.SetTile(1, 0, new Tile(1, TileType.Red, 1, 0));
+        state.SetTile(0, 1, new Tile(2, TileType.Blue, 0, 1));
+        state.SetTile(1, 1, new Tile(3, TileType.Red, 1, 1));
+
+        var selector = new RandomMoveSelector(CreateMatchFinder());
+
+        // Act
+        bool found = selector.TryGetMove(in state, out var action);
+
+        // Assert
+        Assert.True(found);
+    }
+
+    [Fact]
+    public void RandomMoveSelector_DoesNotModifyState()
+    {
+        // Arrange
+        var random = new StubRandom(2, 0);
+        var state = CreateEmptyState(8, 8, random);
+
+        state.SetTile(0, 0, new Tile(0, TileType.Red, 0, 0));
+        state.SetTile(1, 0, new Tile(1, TileType.Red, 1, 0));
+        state.SetTile(2, 0, new Tile(2, TileType.Blue, 2, 0));
+        state.SetTile(3, 0, new Tile(3, TileType.Red, 3, 0));
+
+        // 保存原始状态
+        var originalTileAt2 = state.GetTile(2, 0);
+
+        var selector = new RandomMoveSelector(CreateMatchFinder());
+
+        // Act
+        bool found = selector.TryGetMove(in state, out _);
+
+        // Assert
+        Assert.True(found);
+        // 验证状态未被修改
+        var currentTileAt2 = state.GetTile(2, 0);
+        Assert.Equal(originalTileAt2.Type, currentTileAt2.Type);
+        Assert.Equal(originalTileAt2.GridX, currentTileAt2.GridX);
+        Assert.Equal(originalTileAt2.GridY, currentTileAt2.GridY);
+    }
+
+    [Fact]
+    public void RandomMoveSelector_InvalidateCache_DoesNothing()
+    {
+        // Arrange
+        var selector = new RandomMoveSelector(CreateMatchFinder());
+
+        // Act & Assert - 不应该抛出异常
+        selector.InvalidateCache();
+    }
+
     #endregion
 
     #region WeightedMoveSelector Tests

@@ -25,9 +25,4 @@ public enum CoverType : byte
     /// Bubble that moves with the tile. Dynamic.
     /// </summary>
     Bubble = 3,
-
-    /// <summary>
-    /// Ice cover that blocks swap. Static.
-    /// </summary>
-    IceCover = 4,
 }

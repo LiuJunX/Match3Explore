@@ -3,6 +3,7 @@ using Xunit;
 using Match3.Web.Components.Pages;
 using Microsoft.Extensions.DependencyInjection;
 using Match3.Core;
+using Match3.Core.DependencyInjection;
 using Match3.Core.Models.Grid;
 using Match3.Web.Services;
 using Microsoft.AspNetCore.Components.Web;
@@ -21,6 +22,7 @@ public class HomeTests : TestContext, IDisposable
         Directory.CreateDirectory(_tempDir);
 
         Services.AddLogging();
+        Services.AddSingleton<IGameServiceFactory>(_ => new GameServiceBuilder().Build());
         Services.AddScoped<Match3GameService>();
         Services.AddScoped<Match3.Editor.Interfaces.IJsonService, Match3.Web.Services.EditorAdapters.SystemTextJsonService>();
         Services.AddScoped<ScenarioLibraryService>(_ => new ScenarioLibraryService(_tempDir));
