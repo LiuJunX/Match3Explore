@@ -14,6 +14,7 @@ public sealed class Choreographer : IEventVisitor
 {
     private readonly List<RenderCommand> _commands = new();
     private float _baseTime;
+    private float _minSimulationTime;
 
     // Timing configuration
     /// <summary>Duration for tile movement animation.</summary>
@@ -51,6 +52,19 @@ public sealed class Choreographer : IEventVisitor
         _commands.Clear();
         _baseTime = baseTime;
 
+        // Calculate minimum simulation time to use relative offsets
+        // This ensures events start at baseTime, not baseTime + cumulative engine time
+        _minSimulationTime = 0f;
+        if (events.Count > 0)
+        {
+            _minSimulationTime = float.MaxValue;
+            foreach (var evt in events)
+            {
+                if (evt.SimulationTime < _minSimulationTime)
+                    _minSimulationTime = evt.SimulationTime;
+            }
+        }
+
         // Clear timing tracking
         _columnDestroyEndTimes.Clear();
         _columnMoves.Clear();
@@ -66,7 +80,8 @@ public sealed class Choreographer : IEventVisitor
 
     private float GetStartTime(GameEvent evt)
     {
-        return _baseTime + evt.SimulationTime;
+        // Use relative simulation time so first event starts at baseTime
+        return _baseTime + (evt.SimulationTime - _minSimulationTime);
     }
 
     #region IEventVisitor Implementation

@@ -512,4 +512,76 @@ public class ChoreographerTests
     }
 
     #endregion
+
+    #region Timing Tests
+
+    [Fact]
+    public void Choreograph_EventsWithNonZeroSimulationTime_UseRelativeOffset()
+    {
+        // This test verifies the fix for the bug where events with SimulationTime = engine.ElapsedTime
+        // would result in commands starting at baseTime + SimulationTime, which could be far in the future.
+        // The fix makes SimulationTime relative to the minimum SimulationTime in the batch.
+        const float baseTime = 5.0f;
+        const float eventSimTime = 5.0f; // Simulates events from an engine running for 5 seconds
+
+        var events = new GameEvent[]
+        {
+            new TilesSwappedEvent
+            {
+                TileAId = 1,
+                TileBId = 2,
+                PositionA = new Position(3, 4),
+                PositionB = new Position(4, 4),
+                IsRevert = false,
+                SimulationTime = eventSimTime // Non-zero simulation time
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events, baseTime);
+
+        var swapCmd = Assert.Single(commands.OfType<SwapTilesCommand>());
+
+        // Before fix: StartTime would be 5.0 + 5.0 = 10.0 (wrong!)
+        // After fix: StartTime should be 5.0 + (5.0 - 5.0) = 5.0 (correct!)
+        Assert.Equal(baseTime, swapCmd.StartTime);
+    }
+
+    [Fact]
+    public void Choreograph_MultipleEventsWithDifferentSimTimes_PreservesRelativeOrder()
+    {
+        const float baseTime = 5.0f;
+
+        var events = new GameEvent[]
+        {
+            new TilesSwappedEvent
+            {
+                TileAId = 1,
+                TileBId = 2,
+                PositionA = new Position(3, 4),
+                PositionB = new Position(4, 4),
+                SimulationTime = 5.0f // First event at t=5.0
+            },
+            new TileDestroyedEvent
+            {
+                TileId = 3,
+                GridPosition = new Position(5, 4),
+                Type = TileType.Red,
+                Reason = DestroyReason.Match,
+                SimulationTime = 5.1f // Second event at t=5.1 (0.1s later)
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events, baseTime);
+
+        var swapCmd = commands.OfType<SwapTilesCommand>().First();
+        var destroyCmd = commands.OfType<DestroyTileCommand>().First();
+
+        // First event starts at baseTime
+        Assert.Equal(baseTime, swapCmd.StartTime);
+
+        // Second event starts at baseTime + 0.1 (relative offset preserved)
+        Assert.Equal(baseTime + 0.1f, destroyCmd.StartTime, 0.001f);
+    }
+
+    #endregion
 }
