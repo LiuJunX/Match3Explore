@@ -1,8 +1,25 @@
+using System;
 using System.Collections.Generic;
 using Match3.Core.Models.Grid;
+using Match3.Core.Utility.Pools;
 using Match3.Random;
 
 namespace Match3.Core.Systems.Matching.Generation;
+
+/// <summary>
+/// Static comparer for Position sorting (Y first, then X).
+/// </summary>
+internal static class PositionComparers
+{
+    /// <summary>
+    /// Compare positions by Y ascending, then X ascending (deterministic ordering).
+    /// </summary>
+    public static readonly Comparison<Position> ByYThenX = static (a, b) =>
+    {
+        int cmp = a.Y.CompareTo(b.Y);
+        return cmp != 0 ? cmp : a.X.CompareTo(b.X);
+    };
+}
 
 /// <summary>
 /// Interface for selecting the position where a bomb should spawn.
@@ -31,46 +48,60 @@ public class DefaultBombPlacementSelector : IBombPlacementSelector
             return null;
 
         // Priority 1: Player operation positions (foci)
-        var matchingFoci = new List<Position>();
-        if (foci != null)
+        var matchingFoci = Pools.ObtainList<Position>();
+        try
         {
-            foreach (var f in foci)
+            if (foci != null)
             {
-                if (shapeCells.Contains(f))
+                foreach (var f in foci)
                 {
-                    matchingFoci.Add(f);
+                    if (shapeCells.Contains(f))
+                    {
+                        matchingFoci.Add(f);
+                    }
                 }
             }
-        }
 
-        if (matchingFoci.Count == 1)
-        {
-            return matchingFoci[0];
-        }
-        else if (matchingFoci.Count > 1)
-        {
-            if (random != null)
+            if (matchingFoci.Count == 1)
             {
-                int idx = random.Next(0, matchingFoci.Count);
-                return matchingFoci[idx];
+                return matchingFoci[0];
             }
-            return matchingFoci[0];
+            else if (matchingFoci.Count > 1)
+            {
+                if (random != null)
+                {
+                    int idx = random.Next(0, matchingFoci.Count);
+                    return matchingFoci[idx];
+                }
+                return matchingFoci[0];
+            }
+
+            // Priority 2: Random position from shape cells (sorted for determinism)
+            var cellList = Pools.ObtainList<Position>();
+            try
+            {
+                foreach (var p in shapeCells)
+                {
+                    cellList.Add(p);
+                }
+                cellList.Sort(PositionComparers.ByYThenX);
+
+                if (random != null)
+                {
+                    int idx = random.Next(0, cellList.Count);
+                    return cellList[idx];
+                }
+
+                return cellList[0];
+            }
+            finally
+            {
+                Pools.Release(cellList);
+            }
         }
-
-        // Priority 2: Random position from shape cells (sorted for determinism)
-        var cellList = new List<Position>(shapeCells);
-        cellList.Sort((a, b) =>
+        finally
         {
-            int cmp = a.Y.CompareTo(b.Y);
-            return cmp != 0 ? cmp : a.X.CompareTo(b.X);
-        });
-
-        if (random != null)
-        {
-            int idx = random.Next(0, cellList.Count);
-            return cellList[idx];
+            Pools.Release(matchingFoci);
         }
-
-        return cellList[0];
     }
 }

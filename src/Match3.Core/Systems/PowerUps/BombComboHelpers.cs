@@ -90,8 +90,15 @@ internal static class BombComboHelpers
                 var t = state.Grid[i];
                 if (t.Type != TileType.None && t.Type != TileType.Rainbow && t.Type != TileType.Bomb)
                 {
-                    if (!counts.ContainsKey(t.Type)) counts[t.Type] = 0;
-                    counts[t.Type]++;
+                    // Use TryGetValue to minimize lookups
+                    if (counts.TryGetValue(t.Type, out int existingCount))
+                    {
+                        counts[t.Type] = existingCount + 1;
+                    }
+                    else
+                    {
+                        counts[t.Type] = 1;
+                    }
                 }
             }
 

@@ -24,6 +24,9 @@ internal static class LocalSearchOptimizer
         var potentialAdds = Pools.ObtainList<int>();
         var actualAdds = Pools.ObtainList<int>();
 
+        // Create comparer once to avoid repeated closure allocations
+        var weightDescComparer = PartitionComparers.CreateWeightDescending(candidates);
+
         try
         {
             bool improved = true;
@@ -76,8 +79,8 @@ internal static class LocalSearchOptimizer
 
                     if (potentialAdds.Count == 0) continue;
 
-                    // Sort by weight DESC
-                    potentialAdds.Sort((a, b) => candidates[b].Weight.CompareTo(candidates[a].Weight));
+                    // Sort by weight DESC - use pre-created comparer
+                    potentialAdds.Sort(weightDescComparer);
 
                     // Greedily select
                     var testMask = currentMask;

@@ -15,6 +15,22 @@ using Match3.Random;
 namespace Match3.Core.AI;
 
 /// <summary>
+/// Static comparers for AI service to avoid Lambda closure allocations.
+/// </summary>
+internal static class AIComparers
+{
+    /// <summary>
+    /// Compare MovePreview by score descending (valid moves first, then by score).
+    /// </summary>
+    public static readonly Comparison<MovePreview> ByScoreDescending = static (a, b) =>
+    {
+        float scoreA = a.IsValidMove ? a.ScoreGained : -1000;
+        float scoreB = b.IsValidMove ? b.ScoreGained : -1000;
+        return scoreB.CompareTo(scoreA);
+    };
+}
+
+/// <summary>
 /// AI service implementation using high-speed simulation.
 /// </summary>
 public sealed class AIService : IAIService
@@ -198,75 +214,78 @@ public sealed class AIService : IAIService
     public DifficultyAnalysis AnalyzeDifficulty(in GameState state)
     {
         var moves = GetValidMoves(in state);
-        var previews = new List<MovePreview>();
+        var previews = Pools.ObtainList<MovePreview>();
 
-        // Preview all moves
-        foreach (var move in moves)
+        try
         {
-            previews.Add(PreviewMove(in state, move));
-        }
-
-        Pools.Release((List<Move>)moves);
-
-        // Calculate statistics
-        int validMoveCount = 0;
-        int bombCreatingMoves = 0;
-        long totalScore = 0;
-        long maxScore = 0;
-        float totalCascade = 0;
-        int maxCascade = 0;
-
-        foreach (var preview in previews)
-        {
-            if (preview.IsValidMove)
+            // Preview all moves
+            foreach (var move in moves)
             {
-                validMoveCount++;
-                totalScore += preview.ScoreGained;
-                totalCascade += preview.MaxCascadeDepth;
-
-                if (preview.ScoreGained > maxScore)
-                    maxScore = preview.ScoreGained;
-
-                if (preview.MaxCascadeDepth > maxCascade)
-                    maxCascade = preview.MaxCascadeDepth;
-
-                // Heuristic: large matches likely create bombs
-                if (preview.TilesCleared >= 4)
-                    bombCreatingMoves++;
+                previews.Add(PreviewMove(in state, move));
             }
+
+            Pools.Release((List<Move>)moves);
+
+            // Calculate statistics
+            int validMoveCount = 0;
+            int bombCreatingMoves = 0;
+            long totalScore = 0;
+            long maxScore = 0;
+            float totalCascade = 0;
+            int maxCascade = 0;
+
+            foreach (var preview in previews)
+            {
+                if (preview.IsValidMove)
+                {
+                    validMoveCount++;
+                    totalScore += preview.ScoreGained;
+                    totalCascade += preview.MaxCascadeDepth;
+
+                    if (preview.ScoreGained > maxScore)
+                        maxScore = preview.ScoreGained;
+
+                    if (preview.MaxCascadeDepth > maxCascade)
+                        maxCascade = preview.MaxCascadeDepth;
+
+                    // Heuristic: large matches likely create bombs
+                    if (preview.TilesCleared >= 4)
+                        bombCreatingMoves++;
+                }
+            }
+
+            float avgScore = validMoveCount > 0 ? (float)totalScore / validMoveCount : 0;
+            float avgCascade = validMoveCount > 0 ? totalCascade / validMoveCount : 0;
+
+            // Calculate difficulty score
+            float difficultyScore = _difficultyCalculator.CalculateScore(validMoveCount, avgScore, maxScore, avgCascade);
+            var category = _difficultyCalculator.Categorize(validMoveCount, difficultyScore);
+
+            // Get top moves - use static comparer to avoid closure allocation
+            previews.Sort(AIComparers.ByScoreDescending);
+
+            // Create a copy of top moves for return (caller owns the result)
+            var topMoves = previews.Count > 5 ? new List<MovePreview>(previews.GetRange(0, 5)) : new List<MovePreview>(previews);
+
+            return new DifficultyAnalysis
+            {
+                ValidMoveCount = validMoveCount,
+                BombCreatingMoves = bombCreatingMoves,
+                AverageScorePotential = avgScore,
+                MaxScorePotential = maxScore,
+                AverageCascadeDepth = avgCascade,
+                MaxCascadeDepth = maxCascade,
+                DifficultyScore = difficultyScore,
+                Category = category,
+                BestMove = topMoves.Count > 0 && topMoves[0].IsValidMove ? topMoves[0].Move : null,
+                TopMoves = topMoves,
+                Health = _healthAnalyzer.Analyze(in state)
+            };
         }
-
-        float avgScore = validMoveCount > 0 ? (float)totalScore / validMoveCount : 0;
-        float avgCascade = validMoveCount > 0 ? totalCascade / validMoveCount : 0;
-
-        // Calculate difficulty score
-        float difficultyScore = _difficultyCalculator.CalculateScore(validMoveCount, avgScore, maxScore, avgCascade);
-        var category = _difficultyCalculator.Categorize(validMoveCount, difficultyScore);
-
-        // Get top moves
-        previews.Sort((a, b) =>
+        finally
         {
-            float scoreA = a.IsValidMove ? a.ScoreGained : -1000;
-            float scoreB = b.IsValidMove ? b.ScoreGained : -1000;
-            return scoreB.CompareTo(scoreA);
-        });
-
-        var topMoves = previews.Count > 5 ? previews.GetRange(0, 5) : previews;
-
-        return new DifficultyAnalysis
-        {
-            ValidMoveCount = validMoveCount,
-            BombCreatingMoves = bombCreatingMoves,
-            AverageScorePotential = avgScore,
-            MaxScorePotential = maxScore,
-            AverageCascadeDepth = avgCascade,
-            MaxCascadeDepth = maxCascade,
-            DifficultyScore = difficultyScore,
-            Category = category,
-            BestMove = topMoves.Count > 0 && topMoves[0].IsValidMove ? topMoves[0].Move : null,
-            TopMoves = topMoves,
-            Health = _healthAnalyzer.Analyze(in state)
-        };
+            Pools.Release(previews);
+        }
     }
 
     /// <inheritdoc />

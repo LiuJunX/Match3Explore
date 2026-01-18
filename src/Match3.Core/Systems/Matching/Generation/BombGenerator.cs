@@ -7,6 +7,53 @@ using Match3.Random;
 
 namespace Match3.Core.Systems.Matching.Generation;
 
+/// <summary>
+/// Reusable comparer for DetectedShape that considers foci affinity.
+/// Avoids Lambda closure allocation by holding state in the instance.
+/// </summary>
+internal sealed class DetectedShapeComparer : IComparer<DetectedShape>
+{
+    private HashSet<Position>? _fociSet;
+
+    /// <summary>
+    /// Set the foci set for comparison. Call before each sort operation.
+    /// </summary>
+    public void SetFoci(HashSet<Position> fociSet)
+    {
+        _fociSet = fociSet;
+    }
+
+    /// <summary>
+    /// Clear foci reference after use.
+    /// </summary>
+    public void Clear()
+    {
+        _fociSet = null;
+    }
+
+    public int Compare(DetectedShape? a, DetectedShape? b)
+    {
+        if (a == null || b == null) return 0;
+
+        // Primary: Weight (descending)
+        int weightDiff = b.Weight.CompareTo(a.Weight);
+        if (weightDiff != 0) return weightDiff;
+
+        // Secondary: Affinity (Does it touch foci?)
+        if (_fociSet != null && _fociSet.Count > 0)
+        {
+            bool aTouches = a.Cells!.Overlaps(_fociSet);
+            bool bTouches = b.Cells!.Overlaps(_fociSet);
+
+            if (aTouches && !bTouches) return -1;
+            if (!aTouches && bTouches) return 1;
+        }
+
+        // Tertiary: Size (larger shapes preferred for same weight)
+        return b.Cells!.Count.CompareTo(a.Cells!.Count);
+    }
+}
+
 public class BombGenerator : IBombGenerator
 {
     private readonly IShapeDetector _detector;
@@ -14,6 +61,9 @@ public class BombGenerator : IBombGenerator
     private readonly IPartitionSolver _partitionSolver;
     private readonly IScrapAbsorber _scrapAbsorber;
     private readonly IBombTypeSelector _typeSelector;
+
+    // Reusable comparer to avoid Lambda closure allocations
+    private readonly DetectedShapeComparer _shapeComparer = new();
 
     public BombGenerator()
         : this(
@@ -279,25 +329,13 @@ public class BombGenerator : IBombGenerator
 
         try
         {
-            candidates.Sort((a, b) =>
-            {
-                // Primary: Weight
-                int weightDiff = b.Weight.CompareTo(a.Weight);
-                if (weightDiff != 0) return weightDiff;
-
-                // Secondary: Affinity (Does it touch foci?)
-                bool aTouches = a.Cells!.Overlaps(fociSet);
-                bool bTouches = b.Cells!.Overlaps(fociSet);
-
-                if (aTouches && !bTouches) return -1;
-                if (!aTouches && bTouches) return 1;
-
-                // Tertiary: Size (larger shapes preferred for same weight)
-                return b.Cells!.Count.CompareTo(a.Cells!.Count);
-            });
+            // Use reusable comparer to avoid Lambda closure allocation
+            _shapeComparer.SetFoci(fociSet);
+            candidates.Sort(_shapeComparer);
         }
         finally
         {
+            _shapeComparer.Clear();
             Pools.Release(fociSet);
         }
     }

@@ -8,6 +8,28 @@ using Match3.Core.Models.Grid;
 namespace Match3.Presentation;
 
 /// <summary>
+/// Static comparers to avoid Lambda closure allocations in hot paths.
+/// </summary>
+internal static class RenderCommandComparers
+{
+    /// <summary>
+    /// Compares RenderCommands by StartTime, then Priority.
+    /// Thread-safe singleton instance.
+    /// </summary>
+    public static readonly Comparison<RenderCommand> ByStartTimeThenPriority = static (a, b) =>
+    {
+        int cmp = a.StartTime.CompareTo(b.StartTime);
+        return cmp != 0 ? cmp : a.Priority.CompareTo(b.Priority);
+    };
+
+    /// <summary>
+    /// IComparer wrapper for List.Sort range overload.
+    /// </summary>
+    public static readonly IComparer<RenderCommand> ComparerByStartTimeThenPriority =
+        Comparer<RenderCommand>.Create(ByStartTimeThenPriority);
+}
+
+/// <summary>
 /// Plays render command sequences, updating VisualState.
 /// Supports seeking and replay functionality.
 /// </summary>
@@ -57,11 +79,7 @@ public sealed class Player
     {
         _commands.Clear();
         _commands.AddRange(commands);
-        _commands.Sort((a, b) =>
-        {
-            int cmp = a.StartTime.CompareTo(b.StartTime);
-            return cmp != 0 ? cmp : a.Priority.CompareTo(b.Priority);
-        });
+        _commands.Sort(RenderCommandComparers.ByStartTimeThenPriority);
 
         _activeCommands.Clear();
         _currentTime = 0;
@@ -77,21 +95,13 @@ public sealed class Player
         _commands.AddRange(commands);
 
         // Sort only the new portion then merge
-        _commands.Sort(insertStart, commands.Count, Comparer<RenderCommand>.Create((a, b) =>
-        {
-            int cmp = a.StartTime.CompareTo(b.StartTime);
-            return cmp != 0 ? cmp : a.Priority.CompareTo(b.Priority);
-        }));
+        _commands.Sort(insertStart, commands.Count, RenderCommandComparers.ComparerByStartTimeThenPriority);
 
         // If new commands have start times before current time, we need to re-sort
         if (commands.Count > 0)
         {
             // Full sort to handle interleaving
-            _commands.Sort((a, b) =>
-            {
-                int cmp = a.StartTime.CompareTo(b.StartTime);
-                return cmp != 0 ? cmp : a.Priority.CompareTo(b.Priority);
-            });
+            _commands.Sort(RenderCommandComparers.ByStartTimeThenPriority);
 
             // Recalculate next command index - find first command not yet started
             _nextCommandIndex = _commands.Count;

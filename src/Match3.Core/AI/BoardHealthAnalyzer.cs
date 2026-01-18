@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
+using Match3.Core.Utility.Pools;
 
 namespace Match3.Core.AI;
 
@@ -17,39 +18,54 @@ internal sealed class BoardHealthAnalyzer
     public BoardHealth Analyze(in GameState state)
     {
         int bombCount = 0;
-        var typeCounts = new Dictionary<TileType, int>();
         int isolatedCount = 0;
 
-        for (int y = 0; y < state.Height; y++)
+        // Use object pool to avoid allocation
+        var typeCounts = Pools.Obtain<Dictionary<TileType, int>>();
+        try
         {
-            for (int x = 0; x < state.Width; x++)
+            for (int y = 0; y < state.Height; y++)
             {
-                var tile = state.GetTile(x, y);
-                if (tile.Type == TileType.None) continue;
+                for (int x = 0; x < state.Width; x++)
+                {
+                    var tile = state.GetTile(x, y);
+                    if (tile.Type == TileType.None) continue;
 
-                if (tile.Bomb != BombType.None)
-                    bombCount++;
+                    if (tile.Bomb != BombType.None)
+                        bombCount++;
 
-                if (!typeCounts.ContainsKey(tile.Type))
-                    typeCounts[tile.Type] = 0;
-                typeCounts[tile.Type]++;
+                    // Use TryGetValue to minimize lookups (single lookup on hit, two on miss)
+                    if (typeCounts.TryGetValue(tile.Type, out int existingCount))
+                    {
+                        typeCounts[tile.Type] = existingCount + 1;
+                    }
+                    else
+                    {
+                        typeCounts[tile.Type] = 1;
+                    }
 
-                // Check if isolated (no adjacent same-type)
-                if (IsIsolated(state, x, y, tile.Type))
-                    isolatedCount++;
+                    // Check if isolated (no adjacent same-type)
+                    if (IsIsolated(state, x, y, tile.Type))
+                        isolatedCount++;
+                }
             }
+
+            float variance = CalculateVariance(typeCounts);
+
+            return new BoardHealth
+            {
+                ExistingBombs = bombCount,
+                TypeDistributionVariance = variance,
+                IsolatedTiles = isolatedCount,
+                ClusterCount = 0, // Would need flood fill for accurate count
+                AverageClusterSize = 0
+            };
         }
-
-        float variance = CalculateVariance(typeCounts);
-
-        return new BoardHealth
+        finally
         {
-            ExistingBombs = bombCount,
-            TypeDistributionVariance = variance,
-            IsolatedTiles = isolatedCount,
-            ClusterCount = 0, // Would need flood fill for accurate count
-            AverageClusterSize = 0
-        };
+            typeCounts.Clear();
+            Pools.Release(typeCounts);
+        }
     }
 
     private static bool IsIsolated(in GameState state, int x, int y, TileType type)

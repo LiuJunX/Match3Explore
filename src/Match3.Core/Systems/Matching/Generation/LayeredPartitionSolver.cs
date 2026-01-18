@@ -1,3 +1,4 @@
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using Match3.Core.Models.Gameplay;
@@ -5,6 +6,42 @@ using Match3.Core.Models.Grid;
 using Match3.Core.Utility.Pools;
 
 namespace Match3.Core.Systems.Matching.Generation;
+
+/// <summary>
+/// Static comparers for partition solving to avoid Lambda closure allocations.
+/// </summary>
+internal static class PartitionComparers
+{
+    /// <summary>
+    /// Compare by cell count descending (for Rainbow layer).
+    /// </summary>
+    public static Comparison<int> CreateCellCountDescending(List<DetectedShape> candidates)
+    {
+        return (a, b) => candidates[b].Cells!.Count.CompareTo(candidates[a].Cells!.Count);
+    }
+
+    /// <summary>
+    /// Compare by weight descending, then cell count ascending (for TNT/Rocket layer).
+    /// </summary>
+    public static Comparison<int> CreateWeightDescThenCellCountAsc(List<DetectedShape> candidates)
+    {
+        return (a, b) =>
+        {
+            int weightDiff = candidates[b].Weight.CompareTo(candidates[a].Weight);
+            if (weightDiff != 0) return weightDiff;
+            // Same weight: prefer smaller size (blocks less space)
+            return candidates[a].Cells!.Count.CompareTo(candidates[b].Cells!.Count);
+        };
+    }
+
+    /// <summary>
+    /// Compare by weight descending (for LocalSearchOptimizer).
+    /// </summary>
+    public static Comparison<int> CreateWeightDescending(List<DetectedShape> candidates)
+    {
+        return (a, b) => candidates[b].Weight.CompareTo(candidates[a].Weight);
+    }
+}
 
 /// <summary>
 /// Solves the optimal partition problem using a layered approach:
@@ -93,6 +130,10 @@ public sealed class LayeredPartitionSolver : IPartitionSolver
 
             var usedMask = new BitMask256();
 
+            // Create comparers once to avoid repeated closure allocations
+            var cellCountDescComparer = PartitionComparers.CreateCellCountDescending(candidates);
+            var weightDescCellAscComparer = PartitionComparers.CreateWeightDescThenCellCountAsc(candidates);
+
             // Phase 2: Solve Rainbow layer (highest priority)
             if (rainbowIndices.Count > 0)
             {
@@ -103,7 +144,7 @@ public sealed class LayeredPartitionSolver : IPartitionSolver
                 else
                 {
                     // Sort by size DESC (prefer larger rainbows that cover more)
-                    rainbowIndices.Sort((a, b) => candidates[b].Cells!.Count.CompareTo(candidates[a].Cells!.Count));
+                    rainbowIndices.Sort(cellCountDescComparer);
                     SolveGreedySubset(rainbowIndices, candidateMasks, ref usedMask, bestIndices);
                 }
                 foreach (var idx in bestIndices)
@@ -140,13 +181,7 @@ public sealed class LayeredPartitionSolver : IPartitionSolver
                     else
                     {
                         // Too many candidates - use smart greedy
-                        tntAndRocketIndices.Sort((a, b) =>
-                        {
-                            int weightDiff = candidates[b].Weight.CompareTo(candidates[a].Weight);
-                            if (weightDiff != 0) return weightDiff;
-                            // Same weight: prefer smaller size (blocks less space)
-                            return candidates[a].Cells!.Count.CompareTo(candidates[b].Cells!.Count);
-                        });
+                        tntAndRocketIndices.Sort(weightDescCellAscComparer);
                         SolveGreedySubset(tntAndRocketIndices, candidateMasks, ref usedMask, bestIndices);
                     }
 

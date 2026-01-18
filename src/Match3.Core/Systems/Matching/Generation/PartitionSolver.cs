@@ -94,6 +94,10 @@ internal static class PartitionSolver
 
             var usedMask = new BitMask256();
 
+            // Create comparers once to avoid repeated closure allocations
+            var cellCountDescComparer = PartitionComparers.CreateCellCountDescending(candidates);
+            var weightDescCellAscComparer = PartitionComparers.CreateWeightDescThenCellCountAsc(candidates);
+
             // Phase 2: Solve Rainbow layer (highest priority)
             if (rainbowIndices.Count > 0)
             {
@@ -104,7 +108,7 @@ internal static class PartitionSolver
                 else
                 {
                     // Sort by size DESC (prefer larger rainbows that cover more)
-                    rainbowIndices.Sort((a, b) => candidates[b].Cells!.Count.CompareTo(candidates[a].Cells!.Count));
+                    rainbowIndices.Sort(cellCountDescComparer);
                     SolveGreedySubset(rainbowIndices, candidateMasks, ref usedMask, bestIndices);
                 }
                 foreach (var idx in bestIndices)
@@ -141,13 +145,7 @@ internal static class PartitionSolver
                     else
                     {
                         // Too many candidates - use smart greedy
-                        tntAndRocketIndices.Sort((a, b) =>
-                        {
-                            int weightDiff = candidates[b].Weight.CompareTo(candidates[a].Weight);
-                            if (weightDiff != 0) return weightDiff;
-                            // Same weight: prefer smaller size (blocks less space)
-                            return candidates[a].Cells!.Count.CompareTo(candidates[b].Cells!.Count);
-                        });
+                        tntAndRocketIndices.Sort(weightDescCellAscComparer);
                         SolveGreedySubset(tntAndRocketIndices, candidateMasks, ref usedMask, bestIndices);
                     }
 
