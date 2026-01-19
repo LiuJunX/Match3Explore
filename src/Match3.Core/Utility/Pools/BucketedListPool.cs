@@ -1,27 +1,25 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace Match3.Core.Utility.Pools
 {
     /// <summary>
     /// A specialized pool for List&lt;T&gt; that categorizes lists by capacity to reduce memory waste.
+    /// Uses ThreadLocal storage to avoid lock contention in parallel scenarios.
     /// </summary>
     /// <typeparam name="T">The type of elements in the list.</typeparam>
     public class BucketedListPool<T> : IObjectPool<List<T>>
     {
-        // Lists with Capacity < SmallCapacityThreshold go here.
-        private readonly Stack<List<T>> _smallPool = new Stack<List<T>>();
-        
-        // Lists with Capacity >= SmallCapacityThreshold go here.
-        private readonly Stack<List<T>> _largePool = new Stack<List<T>>();
-
-        private readonly object _lock = new object();
+        // ThreadLocal pools - each thread has its own small and large pool
+        private readonly ThreadLocal<Stack<List<T>>> _smallPool = new(() => new Stack<List<T>>(), trackAllValues: false);
+        private readonly ThreadLocal<Stack<List<T>>> _largePool = new(() => new Stack<List<T>>(), trackAllValues: false);
 
         // Thresholds
         private const int SmallCapacityThreshold = 128;
         private const int MaxRetainCapacity = 2048;
-        
-        // Limits on pool size to prevent hoarding too many unused lists
+
+        // Limits on pool size to prevent hoarding too many unused lists (per thread)
         private const int MaxSmallPoolCount = 128;
         private const int MaxLargePoolCount = 32;
 
@@ -41,23 +39,22 @@ namespace Match3.Core.Utility.Pools
         {
             List<T>? list = null;
 
-            lock (_lock)
+            // If the user requests a large capacity, try the large pool first.
+            if (capacity >= SmallCapacityThreshold)
             {
-                // If the user requests a large capacity, try the large pool first.
-                if (capacity >= SmallCapacityThreshold)
+                var largePool = _largePool.Value!;
+                if (largePool.Count > 0)
                 {
-                    if (_largePool.Count > 0)
-                    {
-                        list = _largePool.Pop();
-                    }
+                    list = largePool.Pop();
                 }
-                else
+            }
+            else
+            {
+                // For small requests, try the small pool first.
+                var smallPool = _smallPool.Value!;
+                if (smallPool.Count > 0)
                 {
-                    // For small requests, try the small pool first.
-                    if (_smallPool.Count > 0)
-                    {
-                        list = _smallPool.Pop();
-                    }
+                    list = smallPool.Pop();
                 }
             }
 
@@ -70,8 +67,8 @@ namespace Match3.Core.Utility.Pools
             }
             else
             {
-                // Ensure the recycled list meets the requirement (in case we pulled from a pool but it's still too small, 
-                // though our logic tries to match buckets. 
+                // Ensure the recycled list meets the requirement (in case we pulled from a pool but it's still too small,
+                // though our logic tries to match buckets.
                 // Note: If we pulled from SmallPool, it might have cap 64. If user asked for 100, 64 < 100.
                 // List auto-expansion handles this, or we can force it.
                 if (list.Capacity < capacity)
@@ -99,22 +96,21 @@ namespace Match3.Core.Utility.Pools
                 return;
             }
 
-            lock (_lock)
+            // 2. Bucketing: Put it in the right stack based on its CURRENT capacity.
+            if (list.Capacity >= SmallCapacityThreshold)
             {
-                // 2. Bucketing: Put it in the right stack based on its CURRENT capacity.
-                if (list.Capacity >= SmallCapacityThreshold)
+                var largePool = _largePool.Value!;
+                if (largePool.Count < MaxLargePoolCount)
                 {
-                    if (_largePool.Count < MaxLargePoolCount)
-                    {
-                        _largePool.Push(list);
-                    }
+                    largePool.Push(list);
                 }
-                else
+            }
+            else
+            {
+                var smallPool = _smallPool.Value!;
+                if (smallPool.Count < MaxSmallPoolCount)
                 {
-                    if (_smallPool.Count < MaxSmallPoolCount)
-                    {
-                        _smallPool.Push(list);
-                    }
+                    smallPool.Push(list);
                 }
             }
         }
