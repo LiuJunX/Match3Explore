@@ -24,6 +24,8 @@ public sealed class SimulationEngine : IDisposable
     private readonly IPowerUpHandler _powerUpHandler;
     private readonly SimulationOrchestrator _orchestrator;
     private readonly ISwapOperations _swapOperations;
+    private readonly IDeadlockDetectionSystem? _deadlockDetector;
+    private readonly IBoardShuffleSystem? _shuffleSystem;
 
     private IEventCollector _eventCollector;
     private long _currentTick;
@@ -79,7 +81,9 @@ public sealed class SimulationEngine : IDisposable
         IPowerUpHandler powerUpHandler,
         IProjectileSystem? projectileSystem = null,
         IEventCollector? eventCollector = null,
-        IExplosionSystem? explosionSystem = null)
+        IExplosionSystem? explosionSystem = null,
+        IDeadlockDetectionSystem? deadlockDetector = null,
+        IBoardShuffleSystem? shuffleSystem = null)
     {
         State = initialState;
         _config = config ?? new SimulationConfig();
@@ -103,6 +107,10 @@ public sealed class SimulationEngine : IDisposable
         // Initialize shared swap operations with instant context
         var swapContext = new InstantSwapContext(SwapAnimationDuration);
         _swapOperations = new SwapOperations(_matchFinder, swapContext);
+
+        // Initialize deadlock detection and shuffle systems
+        _deadlockDetector = deadlockDetector;
+        _shuffleSystem = shuffleSystem;
 
         _currentTick = 0;
         _elapsedTime = 0f;
@@ -202,6 +210,35 @@ public sealed class SimulationEngine : IDisposable
                 // Clear swap foci after first match processing (cascade matches don't use swap priority)
                 _lastSwapFrom = Position.Invalid;
                 _lastSwapTo = Position.Invalid;
+            }
+        }
+
+        // 5.5. Deadlock detection and auto-shuffle
+        if (_config.EnableDeadlockDetection && _deadlockDetector != null && _shuffleSystem != null && IsStable())
+        {
+            if (!_deadlockDetector.HasValidMoves(in state))
+            {
+                // Emit deadlock detected event
+                if (_eventCollector.IsEnabled)
+                {
+                    _eventCollector.Emit(new DeadlockDetectedEvent
+                    {
+                        Tick = _currentTick,
+                        SimulationTime = _elapsedTime,
+                        Score = state.Score,
+                        MoveCount = state.MoveCount
+                    });
+                }
+
+                // Shuffle until solvable
+                bool success = _shuffleSystem.ShuffleUntilSolvable(
+                    ref state, _eventCollector, maxAttempts: _config.ShuffleMaxAttempts);
+
+                if (!success)
+                {
+                    // Extreme case: still deadlocked after max attempts
+                    // Could log warning here if logger is available
+                }
             }
         }
 

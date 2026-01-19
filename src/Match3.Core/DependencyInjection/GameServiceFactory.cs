@@ -36,6 +36,8 @@ public sealed class GameServiceFactory : IGameServiceFactory
     private readonly Func<BombEffectRegistry> _bombRegistryFactory;
     private readonly Func<IRandom, ISpawnModel> _spawnModelFactory;
     private readonly Func<IRandom, ITileGenerator> _tileGeneratorFactory;
+    private readonly Func<IMatchFinder, IDeadlockDetectionSystem> _deadlockDetectorFactory;
+    private readonly Func<IDeadlockDetectionSystem, IBoardShuffleSystem> _shuffleSystemFactory;
 
     internal GameServiceFactory(
         Func<Match3Config, IRandom, IPhysicsSimulation> physicsFactory,
@@ -50,7 +52,9 @@ public sealed class GameServiceFactory : IGameServiceFactory
         Func<IScoreSystem> scoreSystemFactory,
         Func<BombEffectRegistry> bombRegistryFactory,
         Func<IRandom, ISpawnModel> spawnModelFactory,
-        Func<IRandom, ITileGenerator> tileGeneratorFactory)
+        Func<IRandom, ITileGenerator> tileGeneratorFactory,
+        Func<IMatchFinder, IDeadlockDetectionSystem> deadlockDetectorFactory,
+        Func<IDeadlockDetectionSystem, IBoardShuffleSystem> shuffleSystemFactory)
     {
         _physicsFactory = physicsFactory;
         _refillFactory = refillFactory;
@@ -65,6 +69,8 @@ public sealed class GameServiceFactory : IGameServiceFactory
         _bombRegistryFactory = bombRegistryFactory;
         _spawnModelFactory = spawnModelFactory;
         _tileGeneratorFactory = tileGeneratorFactory;
+        _deadlockDetectorFactory = deadlockDetectorFactory;
+        _shuffleSystemFactory = shuffleSystemFactory;
     }
 
     /// <inheritdoc />
@@ -93,6 +99,10 @@ public sealed class GameServiceFactory : IGameServiceFactory
         var physics = _physicsFactory(match3Config, initialState.Random);
         var refill = _refillFactory(spawnModel);
 
+        // Create deadlock detection and shuffle systems
+        var deadlockDetector = _deadlockDetectorFactory(matchFinder);
+        var shuffleSystem = _shuffleSystemFactory(deadlockDetector);
+
         return new SimulationEngine(
             initialState,
             config,
@@ -103,7 +113,9 @@ public sealed class GameServiceFactory : IGameServiceFactory
             powerUpHandler,
             projectileSystem,
             collector,
-            explosionSystem);
+            explosionSystem,
+            deadlockDetector,
+            shuffleSystem);
     }
 
     /// <inheritdoc />
@@ -156,6 +168,10 @@ public sealed class GameServiceFactory : IGameServiceFactory
         var physics = _physicsFactory(match3Config, seedManager.GetRandom(RandomDomain.Physics));
         var refill = _refillFactory(spawnModel);
 
+        // Create deadlock detection and shuffle systems
+        var deadlockDetector = _deadlockDetectorFactory(matchFinder);
+        var shuffleSystem = _shuffleSystemFactory(deadlockDetector);
+
         var engine = new SimulationEngine(
             state,
             configuration.SimulationConfig,
@@ -166,7 +182,9 @@ public sealed class GameServiceFactory : IGameServiceFactory
             powerUpHandler,
             projectileSystem,
             eventCollector,
-            explosionSystem);
+            explosionSystem,
+            deadlockDetector,
+            shuffleSystem);
 
         return new GameSession(engine, eventCollector, seedManager, configuration);
     }

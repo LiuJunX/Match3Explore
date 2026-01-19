@@ -83,56 +83,22 @@ public sealed class RandomMoveSelector : IMoveSelector
     /// <inheritdoc />
     public IReadOnlyList<MoveAction> GetAllCandidates(in GameState state)
     {
+        var validMoves = ValidMoveDetector.FindAllValidMoves(in state, _matchFinder);
         var candidates = Pools.ObtainList<MoveAction>();
-        var stateCopy = state;
 
-        // 水平交换
-        for (int y = 0; y < state.Height; y++)
+        try
         {
-            for (int x = 0; x < state.Width - 1; x++)
+            foreach (var (from, to) in validMoves)
             {
-                var from = new Position(x, y);
-                var to = new Position(x + 1, y);
-
-                if (!GridUtility.IsSwapValid(in state, from, to))
-                    continue;
-
-                GridUtility.SwapTilesForCheck(ref stateCopy, from, to);
-                bool hasMatch = _matchFinder.HasMatchAt(in stateCopy, from) ||
-                               _matchFinder.HasMatchAt(in stateCopy, to);
-                GridUtility.SwapTilesForCheck(ref stateCopy, from, to);
-
-                if (hasMatch)
-                {
-                    candidates.Add(MoveAction.Swap(from, to, _config.Weights.Normal));
-                }
+                candidates.Add(MoveAction.Swap(from, to, _config.Weights.Normal));
             }
-        }
 
-        // 垂直交换
-        for (int y = 0; y < state.Height - 1; y++)
+            return candidates;
+        }
+        finally
         {
-            for (int x = 0; x < state.Width; x++)
-            {
-                var from = new Position(x, y);
-                var to = new Position(x, y + 1);
-
-                if (!GridUtility.IsSwapValid(in state, from, to))
-                    continue;
-
-                GridUtility.SwapTilesForCheck(ref stateCopy, from, to);
-                bool hasMatch = _matchFinder.HasMatchAt(in stateCopy, from) ||
-                               _matchFinder.HasMatchAt(in stateCopy, to);
-                GridUtility.SwapTilesForCheck(ref stateCopy, from, to);
-
-                if (hasMatch)
-                {
-                    candidates.Add(MoveAction.Swap(from, to, _config.Weights.Normal));
-                }
-            }
+            Pools.Release(validMoves);
         }
-
-        return candidates;
     }
 
     /// <inheritdoc />

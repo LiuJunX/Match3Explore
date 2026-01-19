@@ -443,6 +443,36 @@ public sealed class Choreographer : IEventVisitor
         _commands.Add(effectCommand);
     }
 
+    /// <inheritdoc />
+    public void Visit(DeadlockDetectedEvent evt)
+    {
+        // Deadlock detection events don't generate render commands
+        // UI can handle deadlock notification separately
+    }
+
+    /// <inheritdoc />
+    public void Visit(BoardShuffledEvent evt)
+    {
+        float startTime = GetStartTime(evt);
+
+        // Emit update commands for all changed tiles
+        foreach (var change in evt.Changes)
+        {
+            var updateCommand = new UpdateTileTypeCommand
+            {
+                TileId = change.TileId,
+                Position = change.Position,
+                TileType = change.NewType,
+                StartTime = startTime,
+                Duration = 0 // Instant update
+            };
+            _commands.Add(updateCommand);
+        }
+
+        // Optional: Add visual effect for shuffle notification
+        // UI can show a shuffle animation/notification if needed
+    }
+
     #endregion
 
     #region Cascade Timing

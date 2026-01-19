@@ -128,6 +128,21 @@ public sealed record UpdateTileBombCommand : RenderCommand
     public BombType BombType { get; init; }
 }
 
+/// <summary>
+/// Update a tile's type (when tile is shuffled).
+/// </summary>
+public sealed record UpdateTileTypeCommand : RenderCommand
+{
+    /// <summary>Unique identifier of the tile.</summary>
+    public long TileId { get; init; }
+
+    /// <summary>Position of the tile.</summary>
+    public Position Position { get; init; }
+
+    /// <summary>New tile type.</summary>
+    public TileType TileType { get; init; }
+}
+
 #endregion
 
 #region Effect Commands

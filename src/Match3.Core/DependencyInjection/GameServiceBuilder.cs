@@ -33,6 +33,8 @@ public sealed class GameServiceBuilder
     private Func<BombEffectRegistry>? _bombRegistryFactory;
     private Func<IRandom, ISpawnModel>? _spawnModelFactory;
     private Func<IRandom, ITileGenerator>? _tileGeneratorFactory;
+    private Func<IMatchFinder, IDeadlockDetectionSystem>? _deadlockDetectorFactory;
+    private Func<IDeadlockDetectionSystem, IBoardShuffleSystem>? _shuffleSystemFactory;
 
     /// <summary>
     /// Configure custom physics system factory.
@@ -152,6 +154,24 @@ public sealed class GameServiceBuilder
     }
 
     /// <summary>
+    /// Configure custom deadlock detection system factory.
+    /// </summary>
+    public GameServiceBuilder WithDeadlockDetection(Func<IMatchFinder, IDeadlockDetectionSystem> factory)
+    {
+        _deadlockDetectorFactory = factory;
+        return this;
+    }
+
+    /// <summary>
+    /// Configure custom shuffle system factory.
+    /// </summary>
+    public GameServiceBuilder WithShuffleSystem(Func<IDeadlockDetectionSystem, IBoardShuffleSystem> factory)
+    {
+        _shuffleSystemFactory = factory;
+        return this;
+    }
+
+    /// <summary>
     /// Use all default service implementations.
     /// </summary>
     public GameServiceBuilder UseDefaultServices()
@@ -169,6 +189,8 @@ public sealed class GameServiceBuilder
         _bombRegistryFactory = () => BombEffectRegistry.CreateDefault();
         _spawnModelFactory = rng => new RuleBasedSpawnModel(rng);
         _tileGeneratorFactory = rng => new StandardTileGenerator(rng);
+        _deadlockDetectorFactory = matchFinder => new DeadlockDetectionSystem(matchFinder);
+        _shuffleSystemFactory = deadlockDetector => new BoardShuffleSystem(deadlockDetector);
 
         return this;
     }
@@ -194,7 +216,9 @@ public sealed class GameServiceBuilder
             _scoreSystemFactory!,
             _bombRegistryFactory!,
             _spawnModelFactory!,
-            _tileGeneratorFactory!);
+            _tileGeneratorFactory!,
+            _deadlockDetectorFactory!,
+            _shuffleSystemFactory!);
     }
 
     private void UseDefaultServicesIfNotSet()
@@ -212,5 +236,7 @@ public sealed class GameServiceBuilder
         _bombRegistryFactory ??= () => BombEffectRegistry.CreateDefault();
         _spawnModelFactory ??= rng => new RuleBasedSpawnModel(rng);
         _tileGeneratorFactory ??= rng => new StandardTileGenerator(rng);
+        _deadlockDetectorFactory ??= matchFinder => new DeadlockDetectionSystem(matchFinder);
+        _shuffleSystemFactory ??= deadlockDetector => new BoardShuffleSystem(deadlockDetector);
     }
 }

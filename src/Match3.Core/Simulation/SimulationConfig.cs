@@ -37,6 +37,18 @@ public class SimulationConfig
     public float TimeScale { get; set; } = 1.0f;
 
     /// <summary>
+    /// Whether to enable deadlock detection and auto-shuffle.
+    /// Default: true (enabled).
+    /// </summary>
+    public bool EnableDeadlockDetection { get; set; } = true;
+
+    /// <summary>
+    /// Maximum number of shuffle attempts when trying to resolve deadlock.
+    /// Default: 10.
+    /// </summary>
+    public int ShuffleMaxAttempts { get; set; } = 10;
+
+    /// <summary>
     /// Creates a config optimized for AI simulation.
     /// Uses larger time step and disables events.
     /// </summary>

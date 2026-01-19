@@ -56,4 +56,10 @@ public interface IEventVisitor
 
     /// <summary>Visit a ground destroyed event.</summary>
     void Visit(GroundDestroyedEvent evt);
+
+    /// <summary>Visit a deadlock detected event.</summary>
+    void Visit(DeadlockDetectedEvent evt);
+
+    /// <summary>Visit a board shuffled event.</summary>
+    void Visit(BoardShuffledEvent evt);
 }
