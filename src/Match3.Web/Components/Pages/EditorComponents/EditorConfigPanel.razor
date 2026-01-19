@@ -4,30 +4,30 @@
 @inject LevelEditorViewModel VM
 
 <aside class="bg-light border-end d-flex flex-column" style="width: 320px; min-width: 320px; overflow-y: auto;">
-    @if (VM.CurrentMode == EditorMode.Scenario)
-    {
-        <!-- Tab Navigation (Scenario Mode Only) -->
-        <ul class="nav nav-tabs nav-fill border-bottom-0 px-2 pt-2" style="background: #e9ecef;">
-            <li class="nav-item">
-                <button class="nav-link @(VM.ActiveTabIndex == 0 ? "active" : "")" @onclick="() => VM.ActiveTabIndex = 0">
-                    <i class="bi bi-grid-3x3"></i> Grid
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link @(VM.ActiveTabIndex == 1 ? "active" : "")" @onclick="() => VM.ActiveTabIndex = 1">
-                    <i class="bi bi-folder"></i> Files
-                </button>
-            </li>
+    <!-- Tab Navigation -->
+    <ul class="nav nav-tabs nav-fill border-bottom-0 px-2 pt-2" style="background: #e9ecef;">
+        <li class="nav-item">
+            <button class="nav-link @(VM.ActiveTabIndex == 0 ? "active" : "")" @onclick="() => VM.ActiveTabIndex = 0">
+                <i class="bi bi-grid-3x3"></i> Grid
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(VM.ActiveTabIndex == 1 ? "active" : "")" @onclick="() => VM.ActiveTabIndex = 1">
+                <i class="bi bi-folder"></i> Files
+            </button>
+        </li>
+        @if (VM.CurrentMode == EditorMode.Scenario)
+        {
             <li class="nav-item">
                 <button class="nav-link @(VM.ActiveTabIndex == 2 ? "active" : "")" @onclick="() => VM.ActiveTabIndex = 2">
                     <i class="bi bi-check2-square"></i> Test
                 </button>
             </li>
-        </ul>
-    }
+        }
+    </ul>
 
     <div class="flex-grow-1 d-flex flex-column overflow-hidden">
-        @if (VM.CurrentMode == EditorMode.Level || VM.ActiveTabIndex == 0)
+        @if (VM.ActiveTabIndex == 0)
         {
             <!-- Tab: Grid -->
             <div class="p-3 flex-grow-1 overflow-auto">
@@ -66,7 +66,124 @@
                             <span>Hard</span>
                         </div>
                     </div>
+
+                    <!-- Objectives Editor -->
+                    <div class="mb-3 p-2 border rounded bg-white">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="text-uppercase text-muted small fw-bold mb-0">
+                                <i class="bi bi-bullseye me-1"></i>
+                                Objectives (@VM.ActiveObjectiveCount / @LevelEditorViewModel.MaxObjectives)
+                            </h6>
+                            @if (VM.ActiveObjectiveCount < LevelEditorViewModel.MaxObjectives)
+                            {
+                                <button class="btn btn-sm btn-outline-primary p-1" @onclick="VM.AddObjective" title="Add Objective">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            }
+                        </div>
+
+                        @for (int i = 0; i < VM.Objectives.Length; i++)
+                        {
+                            var obj = VM.Objectives[i];
+                            var index = i;
+                            if (obj.TargetLayer != Match3.Core.Models.Enums.ObjectiveTargetLayer.None)
+                            {
+                                <div class="border rounded p-2 mb-2 bg-light">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="badge bg-secondary">Objective @(index + 1)</span>
+                                        <button class="btn btn-sm p-0 text-danger fw-bold" style="font-size: 0.75rem; line-height: 1;" @onclick="() => VM.RemoveObjective(index)" title="Remove">
+                                            ✕
+                                        </button>
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <label class="form-label small mb-1">Layer</label>
+                                        <select class="form-select form-select-sm"
+                                                value="@obj.TargetLayer"
+                                                @onchange="e => OnObjectiveLayerChanged(index, e)">
+                                            @foreach (var layer in LevelEditorViewModel.ObjectiveTargetLayers)
+                                            {
+                                                if (layer != Match3.Core.Models.Enums.ObjectiveTargetLayer.None)
+                                                {
+                                                    <option value="@layer">@layer</option>
+                                                }
+                                            }
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <label class="form-label small mb-1">Element</label>
+                                        <select class="form-select form-select-sm"
+                                                value="@obj.ElementType"
+                                                @onchange="e => OnObjectiveElementChanged(index, e)">
+                                            @foreach (var (value, name) in LevelEditorViewModel.GetElementTypesForLayer(obj.TargetLayer))
+                                            {
+                                                <option value="@value">@name</option>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label class="form-label small mb-1">Target Count</label>
+                                        <input type="number" class="form-control form-control-sm"
+                                               value="@obj.TargetCount"
+                                               min="1"
+                                               @onchange="e => OnObjectiveCountChanged(index, e)" />
+                                    </div>
+                                </div>
+                            }
+                        }
+
+                        @if (VM.ActiveObjectiveCount == 0)
+                        {
+                            <div class="text-muted small text-center py-2">
+                                No objectives. Click + to add one.
+                            </div>
+                        }
+                    </div>
                 }
+
+                <!-- Level Analysis -->
+                <div class="mb-3 p-2 border rounded bg-white">
+                    <h6 class="text-uppercase text-muted small fw-bold mb-2">
+                        <i class="bi bi-graph-up me-1"></i>
+                        Level Analysis
+                        @if (VM.IsAnalyzing)
+                        {
+                            <span class="spinner-border spinner-border-sm ms-2" role="status"></span>
+                        }
+                    </h6>
+
+                    @if (VM.IsAnalyzing)
+                    {
+                        <div class="progress mb-2" style="height: 6px;">
+                            <div class="progress-bar" role="progressbar"
+                                 style="width: @((VM.AnalysisProgress * 100).ToString("F0"))%"></div>
+                        </div>
+                    }
+
+                    <div class="row g-2 text-center small">
+                        <div class="col-6">
+                            <div class="text-muted">Win Rate</div>
+                            <div class="fw-bold @GetWinRateClass(VM.WinRate)">@(VM.WinRate.ToString("P0"))</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted">Deadlock</div>
+                            <div class="fw-bold text-danger">@(VM.DeadlockRate.ToString("P0"))</div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(VM.DifficultyText))
+                    {
+                        <div class="text-center mt-2 small text-muted">
+                            @VM.DifficultyText
+                        </div>
+                    }
+
+                    <button class="btn btn-sm btn-outline-primary w-100 mt-2" @onclick="VM.RestartAnalysis" disabled="@VM.IsAnalyzing">
+                        <i class="bi bi-arrow-repeat"></i> Re-analyze
+                    </button>
+                </div>
 
                 <button class="btn btn-sm btn-outline-secondary w-100" @onclick="VM.GenerateRandomLevel">
                     <i class="bi bi-shuffle"></i> Randomize
@@ -75,42 +192,96 @@
         }
         else if (VM.ActiveTabIndex == 1)
         {
-            <!-- Tab: Files (Scenario Info + File Browser) -->
-            <div class="p-3 flex-grow-1 overflow-auto d-flex flex-column">
-                <div class="mb-3">
-                    <h6 class="text-uppercase text-muted small fw-bold mb-2">Scenario Info</h6>
-                    <label class="form-label small mb-1">Name</label>
-                    <input type="text" class="form-control form-control-sm mb-2" @bind="VM.ScenarioName" @bind:event="oninput" />
-
-                    <label class="form-label small mb-1">Description</label>
-                    <textarea class="form-control form-control-sm" rows="2" @bind="VM.ScenarioDescription" @bind:event="oninput"></textarea>
-                </div>
-
-                <div class="flex-grow-1 d-flex flex-column min-h-0">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="text-uppercase text-muted small fw-bold mb-0">Files</h6>
-                        <button class="btn btn-sm btn-link p-0 text-decoration-none" @onclick="VM.RefreshScenarioList">
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
-                    </div>
-
-                    <div class="border rounded bg-white flex-grow-1 overflow-auto">
-                        @if (VM.RootFolderNode != null)
+            @if (VM.CurrentMode == EditorMode.Level)
+            {
+                <!-- Tab: Files (Level Mode - Level File Browser) -->
+                <div class="p-3 flex-grow-1 overflow-auto d-flex flex-column">
+                    <!-- Save Actions -->
+                    <div class="mb-3">
+                        <div class="d-flex gap-2">
+                            @if (!string.IsNullOrEmpty(VM.CurrentLevelFilePath))
+                            {
+                                <button class="btn btn-sm btn-primary flex-grow-1" @onclick="OnSaveLevel">
+                                    <i class="bi bi-save me-1"></i> Save
+                                </button>
+                            }
+                            <button class="btn btn-sm btn-outline-primary flex-grow-1" @onclick="OnSaveAsNewLevel">
+                                <i class="bi bi-file-earmark-plus me-1"></i> Save As New
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(VM.CurrentLevelFilePath))
                         {
-                            <ScenarioTreeItem Folder="VM.RootFolderNode"
-                                              CurrentFilePath="@VM.CurrentFilePath"
-                                              ExpandedPaths="VM.ExpandedPaths"
-                                              OnSelectFile="OnSelectScenarioFile"
-                                              OnOpenFile="OnOpenScenarioFile"
-                                              OnContextMenuAction="OnContextMenuAction" />
-                        }
-                        else
-                        {
-                            <div class="p-3 text-center text-muted small">Loading...</div>
+                            <div class="small text-muted mt-1 text-truncate" title="@VM.CurrentLevelFilePath">
+                                <i class="bi bi-file-earmark me-1"></i>@System.IO.Path.GetFileName(VM.CurrentLevelFilePath)
+                            </div>
                         }
                     </div>
+
+                    <div class="flex-grow-1 d-flex flex-column min-h-0">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="text-uppercase text-muted small fw-bold mb-0">Level Files</h6>
+                            <button class="btn btn-sm btn-link p-0 text-decoration-none" @onclick="VM.RefreshLevelList">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+
+                        <div class="border rounded bg-white flex-grow-1 overflow-auto">
+                            @if (VM.RootLevelFolderNode != null)
+                            {
+                                <ScenarioTreeItem Folder="VM.RootLevelFolderNode"
+                                                  CurrentFilePath="@VM.CurrentLevelFilePath"
+                                                  ExpandedPaths="VM.LevelExpandedPaths"
+                                                  OnSelectFile="OnSelectLevelFile"
+                                                  OnOpenFile="OnOpenLevelFile"
+                                                  OnContextMenuAction="OnLevelContextMenuAction" />
+                            }
+                            else
+                            {
+                                <div class="p-3 text-center text-muted small">Loading...</div>
+                            }
+                        </div>
+                    </div>
                 </div>
-            </div>
+            }
+            else
+            {
+                <!-- Tab: Files (Scenario Mode - Scenario Info + File Browser) -->
+                <div class="p-3 flex-grow-1 overflow-auto d-flex flex-column">
+                    <div class="mb-3">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-2">Scenario Info</h6>
+                        <label class="form-label small mb-1">Name</label>
+                        <input type="text" class="form-control form-control-sm mb-2" @bind="VM.ScenarioName" @bind:event="oninput" />
+
+                        <label class="form-label small mb-1">Description</label>
+                        <textarea class="form-control form-control-sm" rows="2" @bind="VM.ScenarioDescription" @bind:event="oninput"></textarea>
+                    </div>
+
+                    <div class="flex-grow-1 d-flex flex-column min-h-0">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="text-uppercase text-muted small fw-bold mb-0">Files</h6>
+                            <button class="btn btn-sm btn-link p-0 text-decoration-none" @onclick="VM.RefreshScenarioList">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+
+                        <div class="border rounded bg-white flex-grow-1 overflow-auto">
+                            @if (VM.RootFolderNode != null)
+                            {
+                                <ScenarioTreeItem Folder="VM.RootFolderNode"
+                                                  CurrentFilePath="@VM.CurrentFilePath"
+                                                  ExpandedPaths="VM.ExpandedPaths"
+                                                  OnSelectFile="OnSelectScenarioFile"
+                                                  OnOpenFile="OnOpenScenarioFile"
+                                                  OnContextMenuAction="OnContextMenuAction" />
+                            }
+                            else
+                            {
+                                <div class="p-3 text-center text-muted small">Loading...</div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
         }
         else if (VM.ActiveTabIndex == 2)
         {
@@ -187,18 +358,36 @@
             <h6 class="dropdown-header small text-truncate">@ContextMenuTargetName</h6>
             @if (ContextMenuType == "folder")
             {
-                <button class="btn btn-sm btn-light w-100 text-start mb-1" @onclick="CreateNewScenario">
-                    <i class="bi bi-file-earmark-plus me-2"></i> New Scenario
-                </button>
+                @if (IsLevelContextMenu)
+                {
+                    <button class="btn btn-sm btn-light w-100 text-start mb-1" @onclick="CreateNewLevel">
+                        <i class="bi bi-file-earmark-plus me-2"></i> New Level
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-sm btn-light w-100 text-start mb-1" @onclick="CreateNewScenario">
+                        <i class="bi bi-file-earmark-plus me-2"></i> New Scenario
+                    </button>
+                }
                 <button class="btn btn-sm btn-light w-100 text-start" @onclick="CreateNewFolder">
                     <i class="bi bi-folder-plus me-2"></i> New Folder
                 </button>
             }
             else
             {
-                <button class="btn btn-sm btn-light w-100 text-start mb-1" @onclick="DuplicateScenario">
-                    <i class="bi bi-files me-2"></i> Duplicate
-                </button>
+                @if (IsLevelContextMenu)
+                {
+                    <button class="btn btn-sm btn-light w-100 text-start mb-1" @onclick="DuplicateLevel">
+                        <i class="bi bi-files me-2"></i> Duplicate
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-sm btn-light w-100 text-start mb-1" @onclick="DuplicateScenario">
+                        <i class="bi bi-files me-2"></i> Duplicate
+                    </button>
+                }
                 <hr class="dropdown-divider my-1">
                 <button class="btn btn-sm btn-danger w-100 text-start" @onclick="DeleteFile">
                     <i class="bi bi-trash me-2"></i> Delete
@@ -232,8 +421,10 @@
     private double ContextMenuY = 0;
     private string ContextMenuType = "";
     private string ContextMenuPath = "";
+    private bool IsLevelContextMenu = false;
     private string ContextMenuTargetName => System.IO.Path.GetFileName(ContextMenuPath);
 
+    // --- Scenario File Handlers ---
     private void OnSelectScenarioFile(string path)
     {
         VM.CurrentFilePath = path;
@@ -246,13 +437,40 @@
 
     private void OnContextMenuAction((MouseEventArgs e, string type, string path) args)
     {
+        IsLevelContextMenu = false;
         ContextMenuType = args.type;
         ContextMenuPath = args.path;
+        SetContextMenuPosition(args.e);
+        ShowContextMenu = true;
+    }
 
-        if (args.e != null)
+    // --- Level File Handlers ---
+    private void OnSelectLevelFile(string path)
+    {
+        VM.CurrentLevelFilePath = path;
+    }
+
+    private async Task OnOpenLevelFile(string path)
+    {
+        await VM.LoadLevelAsync(path);
+    }
+
+    private void OnLevelContextMenuAction((MouseEventArgs e, string type, string path) args)
+    {
+        IsLevelContextMenu = true;
+        ContextMenuType = args.type;
+        ContextMenuPath = args.path;
+        SetContextMenuPosition(args.e);
+        ShowContextMenu = true;
+    }
+
+    // --- Context Menu Helpers ---
+    private void SetContextMenuPosition(MouseEventArgs? e)
+    {
+        if (e != null)
         {
-            ContextMenuX = args.e.ClientX;
-            ContextMenuY = args.e.ClientY;
+            ContextMenuX = e.ClientX;
+            ContextMenuY = e.ClientY;
         }
         else
         {
@@ -261,8 +479,6 @@
         }
 
         if (ContextMenuX > 1000) ContextMenuX = 800;
-
-        ShowContextMenu = true;
     }
 
     private void CloseContextMenu()
@@ -276,10 +492,23 @@
         await VM.CreateNewScenarioAsync(ContextMenuPath);
     }
 
+    private async Task CreateNewLevel()
+    {
+        CloseContextMenu();
+        await VM.CreateNewLevelAsync(ContextMenuPath);
+    }
+
     private async Task CreateNewFolder()
     {
         CloseContextMenu();
-        await VM.CreateNewFolderAsync(ContextMenuPath);
+        if (IsLevelContextMenu)
+        {
+            await VM.CreateNewLevelFolderAsync(ContextMenuPath);
+        }
+        else
+        {
+            await VM.CreateNewFolderAsync(ContextMenuPath);
+        }
     }
 
     private async Task DuplicateScenario()
@@ -288,10 +517,33 @@
         await VM.DuplicateScenarioAsync(ContextMenuPath);
     }
 
+    private async Task DuplicateLevel()
+    {
+        CloseContextMenu();
+        await VM.DuplicateLevelAsync(ContextMenuPath);
+    }
+
+    private async Task OnSaveLevel()
+    {
+        await VM.SaveLevelAsync();
+    }
+
+    private async Task OnSaveAsNewLevel()
+    {
+        await VM.CreateNewLevelAsync("");
+    }
+
     private async Task DeleteFile()
     {
         CloseContextMenu();
-        await VM.DeleteFileAsync(ContextMenuPath, ContextMenuType == "folder");
+        if (IsLevelContextMenu)
+        {
+            await VM.DeleteLevelFileAsync(ContextMenuPath, ContextMenuType == "folder");
+        }
+        else
+        {
+            await VM.DeleteFileAsync(ContextMenuPath, ContextMenuType == "folder");
+        }
     }
 
     private string GetBombIcon(Match3.Core.Models.Enums.BombType bomb) => bomb switch
@@ -303,4 +555,37 @@
         Match3.Core.Models.Enums.BombType.Color => "C",
         _ => ""
     };
+
+    private static string GetWinRateClass(float winRate) => winRate switch
+    {
+        >= 0.8f => "text-success",
+        >= 0.6f => "text-info",
+        >= 0.4f => "text-warning",
+        _ => "text-danger"
+    };
+
+    // --- Objective Editing Handlers ---
+    private void OnObjectiveLayerChanged(int index, ChangeEventArgs e)
+    {
+        if (Enum.TryParse<Match3.Core.Models.Enums.ObjectiveTargetLayer>(e.Value?.ToString(), out var layer))
+        {
+            VM.SetObjectiveLayer(index, layer);
+        }
+    }
+
+    private void OnObjectiveElementChanged(int index, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var elementType))
+        {
+            VM.SetObjectiveElementType(index, elementType);
+        }
+    }
+
+    private void OnObjectiveCountChanged(int index, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var count))
+        {
+            VM.SetObjectiveTargetCount(index, count);
+        }
+    }
 }
