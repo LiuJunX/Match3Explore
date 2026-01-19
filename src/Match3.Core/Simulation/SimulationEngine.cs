@@ -2,7 +2,9 @@ using System;
 using Match3.Core.Events;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
+using Match3.Core.Systems.Layers;
 using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.Objectives;
 using Match3.Core.Systems.Physics;
 using Match3.Core.Systems.PowerUps;
 using Match3.Core.Systems.Projectiles;
@@ -26,6 +28,7 @@ public sealed class SimulationEngine : IDisposable
     private readonly ISwapOperations _swapOperations;
     private readonly IDeadlockDetectionSystem? _deadlockDetector;
     private readonly IBoardShuffleSystem? _shuffleSystem;
+    private readonly ILevelObjectiveSystem? _objectiveSystem;
 
     private IEventCollector _eventCollector;
     private long _currentTick;
@@ -42,6 +45,9 @@ public sealed class SimulationEngine : IDisposable
     // Swap positions for bomb generation (cleared after first match processing)
     private Position _lastSwapFrom = Position.Invalid;
     private Position _lastSwapTo = Position.Invalid;
+
+    // Deadlock protection: prevent infinite shuffle attempts
+    private bool _shuffleFailed;
 
     /// <summary>
     /// Current game state.
@@ -83,7 +89,8 @@ public sealed class SimulationEngine : IDisposable
         IEventCollector? eventCollector = null,
         IExplosionSystem? explosionSystem = null,
         IDeadlockDetectionSystem? deadlockDetector = null,
-        IBoardShuffleSystem? shuffleSystem = null)
+        IBoardShuffleSystem? shuffleSystem = null,
+        ILevelObjectiveSystem? objectiveSystem = null)
     {
         State = initialState;
         _config = config ?? new SimulationConfig();
@@ -93,6 +100,7 @@ public sealed class SimulationEngine : IDisposable
         _matchProcessor = matchProcessor ?? throw new ArgumentNullException(nameof(matchProcessor));
         _powerUpHandler = powerUpHandler ?? throw new ArgumentNullException(nameof(powerUpHandler));
         _eventCollector = eventCollector ?? NullEventCollector.Instance;
+        _objectiveSystem = objectiveSystem;
 
         // Create orchestrator to coordinate subsystems
         _orchestrator = new SimulationOrchestrator(
@@ -102,7 +110,8 @@ public sealed class SimulationEngine : IDisposable
             matchProcessor,
             powerUpHandler,
             projectileSystem ?? new ProjectileSystem(),
-            explosionSystem ?? new ExplosionSystem());
+            explosionSystem ?? new ExplosionSystem(),
+            objectiveSystem);
 
         // Initialize shared swap operations with instant context
         var swapContext = new InstantSwapContext(SwapAnimationDuration);
@@ -210,11 +219,15 @@ public sealed class SimulationEngine : IDisposable
                 // Clear swap foci after first match processing (cascade matches don't use swap priority)
                 _lastSwapFrom = Position.Invalid;
                 _lastSwapTo = Position.Invalid;
+                // Reset shuffle failed flag - board state changed, may have valid moves now
+                _shuffleFailed = false;
             }
         }
 
         // 5.5. Deadlock detection and auto-shuffle
-        if (_config.EnableDeadlockDetection && _deadlockDetector != null && _shuffleSystem != null && IsStable())
+        // Skip if previous shuffle already failed (prevent infinite loop)
+        if (_config.EnableDeadlockDetection && !_shuffleFailed &&
+            _deadlockDetector != null && _shuffleSystem != null && IsStable())
         {
             if (!_deadlockDetector.HasValidMoves(in state))
             {
@@ -237,7 +250,8 @@ public sealed class SimulationEngine : IDisposable
                 if (!success)
                 {
                     // Extreme case: still deadlocked after max attempts
-                    // Could log warning here if logger is available
+                    // Mark as failed to prevent infinite shuffle loop
+                    _shuffleFailed = true;
                 }
             }
         }
@@ -249,6 +263,13 @@ public sealed class SimulationEngine : IDisposable
         State = state;
 
         var isStable = IsStable();
+
+        // 7. Update level status when stable
+        if (isStable && _objectiveSystem != null)
+        {
+            _objectiveSystem.UpdateLevelStatus(ref state, _currentTick, _elapsedTime, _eventCollector);
+            State = state;
+        }
 
         return new TickResult
         {
@@ -559,7 +580,10 @@ public sealed class SimulationEngine : IDisposable
             _powerUpHandler,
             new ProjectileSystem(), // Each clone gets its own projectile system
             NullEventCollector.Instance, // Clones always use null collector
-            new ExplosionSystem() // Each clone gets its own explosion system
+            new ExplosionSystem(new CoverSystem(_objectiveSystem), new GroundSystem(_objectiveSystem), _objectiveSystem), // Each clone gets its own explosion system
+            _deadlockDetector,
+            _shuffleSystem,
+            _objectiveSystem
         );
     }
 

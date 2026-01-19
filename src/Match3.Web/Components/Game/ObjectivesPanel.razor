@@ -1,0 +1,86 @@
+@using Match3.Web.Services
+@using Match3.Core.Models.Enums
+@using Match3.Core.Models.Gameplay
+@inject Match3GameService GameService
+@implements IDisposable
+
+<div class="objectives-panel">
+    @for (int i = 0; i < 4; i++)
+    {
+        var index = i;
+        var obj = GetObjective(index);
+        if (obj.IsActive)
+        {
+            <div class="objective @(obj.IsCompleted ? "completed" : "")">
+                <span class="objective-icon">@GetIcon(obj)</span>
+                <span class="objective-progress">@obj.CurrentCount / @obj.TargetCount</span>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        GameService.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        GameService.OnChange -= StateHasChanged;
+    }
+
+    private ObjectiveProgress GetObjective(int index)
+    {
+        var objectives = GameService.Objectives;
+        if (objectives == null || index >= objectives.Length)
+            return default;
+        return objectives[index];
+    }
+
+    private string GetIcon(ObjectiveProgress obj)
+    {
+        return obj.TargetLayer switch
+        {
+            ObjectiveTargetLayer.Tile => GetTileIcon((TileType)obj.ElementType),
+            ObjectiveTargetLayer.Cover => GetCoverIcon((CoverType)obj.ElementType),
+            ObjectiveTargetLayer.Ground => GetGroundIcon((GroundType)obj.ElementType),
+            _ => "?"
+        };
+    }
+
+    private string GetTileIcon(TileType type)
+    {
+        return type switch
+        {
+            TileType.Red => "R",
+            TileType.Green => "G",
+            TileType.Blue => "B",
+            TileType.Yellow => "Y",
+            TileType.Purple => "P",
+            TileType.Orange => "O",
+            TileType.Rainbow => "*",
+            _ => "T"
+        };
+    }
+
+    private string GetCoverIcon(CoverType type)
+    {
+        return type switch
+        {
+            CoverType.Cage => "X",
+            CoverType.Chain => "C",
+            CoverType.Bubble => "B",
+            _ => "V"
+        };
+    }
+
+    private string GetGroundIcon(GroundType type)
+    {
+        return type switch
+        {
+            GroundType.Ice => "I",
+            _ => "D"
+        };
+    }
+}

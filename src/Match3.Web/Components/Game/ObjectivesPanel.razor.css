@@ -1,0 +1,39 @@
+.objectives-panel {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 0.5rem;
+    min-height: 40px;
+}
+
+.objective {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.375rem;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+}
+
+.objective.completed {
+    background: #d1fae5;
+    border-color: #a7f3d0;
+}
+
+.objective.completed .objective-progress {
+    color: #166534;
+}
+
+.objective-icon {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #374151;
+}
+
+.objective-progress {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #4b5563;
+}

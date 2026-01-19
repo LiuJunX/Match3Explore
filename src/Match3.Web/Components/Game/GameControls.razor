@@ -1,23 +1,8 @@
 @using Match3.Web.Services
-@using Match3.Editor.Interfaces
-@using Match3.Core.Config
 @inject Match3GameService GameService
-@inject ScenarioLibraryService ScenarioService
-@inject IJsonService JsonService
 @implements IDisposable
 
 <div class="controls">
-    <div class="mb-3">
-        <label class="form-label fw-bold text-secondary small">SCENARIOS</label>
-        <select class="form-select" @onchange="OnScenarioChanged">
-            <option value="">Random Level</option>
-            @foreach (var scenario in Scenarios)
-            {
-                <option value="@scenario.RelativePath">@scenario.Name</option>
-            }
-        </select>
-    </div>
-
     <button @onclick="ResetGame" class="btn-reset">New Game</button>
     <button @onclick="ToggleAutoPlay" class="btn-reset" style="margin-left: 10px; background-color: #3b82f6;">
         @(GameService.IsAutoPlaying ? "Stop Auto" : "Auto Play")
@@ -70,24 +55,9 @@
 </div>
 
 @code {
-    private List<Match3.Editor.ViewModels.ScenarioFileEntry> Scenarios = new();
-    private string SelectedScenarioPath = "";
-
     protected override void OnInitialized()
     {
         GameService.OnChange += StateHasChanged;
-        LoadScenarios();
-    }
-
-    private void LoadScenarios()
-    {
-        // Load all scenarios flattened
-        Scenarios = ScenarioService.SearchFiles("").OrderBy(s => s.Name).ToList();
-    }
-
-    private void OnScenarioChanged(ChangeEventArgs e)
-    {
-        SelectedScenarioPath = e.Value?.ToString() ?? "";
     }
 
     public void Dispose()
@@ -97,39 +67,9 @@
 
     private void ResetGame()
     {
-        LevelConfig? config = null;
-        if (!string.IsNullOrEmpty(SelectedScenarioPath))
-        {
-            try
-            {
-                var json = ScenarioService.ReadScenarioJson(SelectedScenarioPath);
-                // Try to parse as ScenarioConfig first, if fails or no Operations, treat as LevelConfig?
-                // Actually the files are likely ScenarioConfig JSONs.
-                // But Match3GameService.StartNewGame expects LevelConfig.
-                // We need to extract InitialState from ScenarioConfig.
-                
-                // Assuming the JSON structure matches ScenarioConfig or LevelConfig
-                // Let's try to parse as ScenarioConfig first
-                if (json.Contains("Operations"))
-                {
-                    var scenario = JsonService.Deserialize<ScenarioConfig>(json);
-                    config = scenario.InitialState;
-                }
-                else
-                {
-                    // Fallback or direct LevelConfig
-                     config = JsonService.Deserialize<LevelConfig>(json);
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to load scenario: {ex.Message}");
-            }
-        }
-        
-        GameService.StartNewGame(config);
+        GameService.StartNewGame();
     }
-    
+
     private void ToggleAutoPlay() => GameService.ToggleAutoPlay();
     private void TogglePause() => GameService.TogglePause();
 

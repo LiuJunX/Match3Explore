@@ -6,8 +6,10 @@ using Match3.Core.Models.Grid;
 using Match3.Core.Simulation;
 using Match3.Core.Systems.Core;
 using Match3.Core.Systems.Generation;
+using Match3.Core.Systems.Layers;
 using Match3.Core.Systems.Matching;
 using Match3.Core.Systems.Matching.Generation;
+using Match3.Core.Systems.Objectives;
 using Match3.Core.Systems.Physics;
 using Match3.Core.Systems.PowerUps;
 using Match3.Core.Systems.Projectiles;
@@ -38,6 +40,7 @@ public sealed class GameServiceFactory : IGameServiceFactory
     private readonly Func<IRandom, ITileGenerator> _tileGeneratorFactory;
     private readonly Func<IMatchFinder, IDeadlockDetectionSystem> _deadlockDetectorFactory;
     private readonly Func<IDeadlockDetectionSystem, IBoardShuffleSystem> _shuffleSystemFactory;
+    private readonly Func<ILevelObjectiveSystem> _objectiveSystemFactory;
 
     internal GameServiceFactory(
         Func<Match3Config, IRandom, IPhysicsSimulation> physicsFactory,
@@ -54,7 +57,8 @@ public sealed class GameServiceFactory : IGameServiceFactory
         Func<IRandom, ISpawnModel> spawnModelFactory,
         Func<IRandom, ITileGenerator> tileGeneratorFactory,
         Func<IMatchFinder, IDeadlockDetectionSystem> deadlockDetectorFactory,
-        Func<IDeadlockDetectionSystem, IBoardShuffleSystem> shuffleSystemFactory)
+        Func<IDeadlockDetectionSystem, IBoardShuffleSystem> shuffleSystemFactory,
+        Func<ILevelObjectiveSystem>? objectiveSystemFactory = null)
     {
         _physicsFactory = physicsFactory;
         _refillFactory = refillFactory;
@@ -71,6 +75,7 @@ public sealed class GameServiceFactory : IGameServiceFactory
         _tileGeneratorFactory = tileGeneratorFactory;
         _deadlockDetectorFactory = deadlockDetectorFactory;
         _shuffleSystemFactory = shuffleSystemFactory;
+        _objectiveSystemFactory = objectiveSystemFactory ?? (() => new LevelObjectiveSystem());
     }
 
     /// <inheritdoc />
@@ -89,7 +94,8 @@ public sealed class GameServiceFactory : IGameServiceFactory
         var matchProcessor = _matchProcessorFactory(scoreSystem, bombRegistry);
         var powerUpHandler = _powerUpFactory(scoreSystem);
         var projectileSystem = _projectileFactory();
-        var explosionSystem = _explosionFactory();
+        var objectiveSystem = _objectiveSystemFactory();
+        var explosionSystem = new ExplosionSystem(new CoverSystem(objectiveSystem), new GroundSystem(objectiveSystem), objectiveSystem);
 
         // Use provided event collector or create based on config
         var collector = eventCollector ?? _eventCollectorFactory(true);
@@ -115,7 +121,8 @@ public sealed class GameServiceFactory : IGameServiceFactory
             collector,
             explosionSystem,
             deadlockDetector,
-            shuffleSystem);
+            shuffleSystem,
+            objectiveSystem);
     }
 
     /// <inheritdoc />
@@ -137,12 +144,15 @@ public sealed class GameServiceFactory : IGameServiceFactory
         // Create initial state
         var state = new GameState(width, height, configuration.TileTypesCount, mainRng);
 
+        // Create objective system
+        var objectiveSystem = _objectiveSystemFactory();
+
         // Initialize board
         var tileGenerator = _tileGeneratorFactory(seedManager.GetRandom(RandomDomain.Refill));
 
         if (levelConfig?.Grid != null && HasValidTiles(levelConfig.Grid))
         {
-            var initializer = new BoardInitializer(tileGenerator);
+            var initializer = new BoardInitializer(tileGenerator, objectiveSystem);
             initializer.Initialize(ref state, levelConfig);
         }
         else
@@ -164,7 +174,7 @@ public sealed class GameServiceFactory : IGameServiceFactory
         var matchProcessor = _matchProcessorFactory(scoreSystem, bombRegistry);
         var powerUpHandler = _powerUpFactory(scoreSystem);
         var projectileSystem = _projectileFactory();
-        var explosionSystem = _explosionFactory();
+        var explosionSystem = new ExplosionSystem(new CoverSystem(objectiveSystem), new GroundSystem(objectiveSystem), objectiveSystem);
         var physics = _physicsFactory(match3Config, seedManager.GetRandom(RandomDomain.Physics));
         var refill = _refillFactory(spawnModel);
 
@@ -184,7 +194,8 @@ public sealed class GameServiceFactory : IGameServiceFactory
             eventCollector,
             explosionSystem,
             deadlockDetector,
-            shuffleSystem);
+            shuffleSystem,
+            objectiveSystem);
 
         return new GameSession(engine, eventCollector, seedManager, configuration);
     }

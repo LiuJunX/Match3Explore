@@ -5,6 +5,7 @@ using Match3.Core.Events.Enums;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
 using Match3.Core.Systems.Layers;
+using Match3.Core.Systems.Objectives;
 using Match3.Core.Utility.Pools;
 
 namespace Match3.Core.Systems.PowerUps;
@@ -15,19 +16,21 @@ public class ExplosionSystem : IExplosionSystem
     private readonly List<Explosion> _explosionsToRemove = new();
     private readonly ICoverSystem _coverSystem;
     private readonly IGroundSystem _groundSystem;
+    private readonly ILevelObjectiveSystem? _objectiveSystem;
 
     // Config
     private const float WaveInterval = 0.1f; // 100ms per wave
 
     public ExplosionSystem()
-        : this(new CoverSystem(), new GroundSystem())
+        : this(new CoverSystem(), new GroundSystem(), null)
     {
     }
 
-    public ExplosionSystem(ICoverSystem coverSystem, IGroundSystem groundSystem)
+    public ExplosionSystem(ICoverSystem coverSystem, IGroundSystem groundSystem, ILevelObjectiveSystem? objectiveSystem = null)
     {
         _coverSystem = coverSystem;
         _groundSystem = groundSystem;
+        _objectiveSystem = objectiveSystem;
     }
 
     public bool HasActiveExplosions => _activeExplosions.Count > 0;
@@ -202,6 +205,9 @@ public class ExplosionSystem : IExplosionSystem
                             Reason = DestroyReason.BombEffect
                         });
                     }
+
+                    // Track objective progress before destroying
+                    _objectiveSystem?.OnTileDestroyed(ref state, tile.Type, tick, simTime, eventCollector);
 
                     // Destroy (Set to None, clears IsSuspended)
                     state.SetTile(pos.X, pos.Y, new Tile(0, TileType.None, pos.X, pos.Y));
