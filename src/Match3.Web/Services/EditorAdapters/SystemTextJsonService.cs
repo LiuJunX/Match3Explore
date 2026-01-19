@@ -5,10 +5,11 @@ namespace Match3.Web.Services.EditorAdapters
 {
     public class SystemTextJsonService : IJsonService
     {
-        private readonly JsonSerializerOptions _options = new JsonSerializerOptions 
-        { 
+        private readonly JsonSerializerOptions _options = new JsonSerializerOptions
+        {
             WriteIndented = true,
-            PropertyNameCaseInsensitive = true
+            PropertyNameCaseInsensitive = true,
+            IncludeFields = true
         };
 
         public string Serialize<T>(T obj)
