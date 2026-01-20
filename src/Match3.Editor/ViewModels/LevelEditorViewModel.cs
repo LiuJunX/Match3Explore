@@ -226,6 +226,31 @@ namespace Match3.Editor.ViewModels
             private set { _difficultyText = value; OnPropertyChanged(nameof(DifficultyText)); }
         }
 
+        // --- Deep Analysis State ---
+        private bool _isDeepAnalysis;
+        public bool IsDeepAnalysis
+        {
+            get => _isDeepAnalysis;
+            set { _isDeepAnalysis = value; OnPropertyChanged(nameof(IsDeepAnalysis)); }
+        }
+
+        private DeepAnalysisResult? _deepResult;
+        public DeepAnalysisResult? DeepResult
+        {
+            get => _deepResult;
+            private set { _deepResult = value; OnPropertyChanged(nameof(DeepResult)); }
+        }
+
+        /// <summary>
+        /// 当前关卡的分析快照（从独立文件加载）
+        /// </summary>
+        private LevelAnalysisSnapshot? _currentAnalysisSnapshot;
+        public LevelAnalysisSnapshot? CurrentAnalysisSnapshot
+        {
+            get => _currentAnalysisSnapshot;
+            private set { _currentAnalysisSnapshot = value; OnPropertyChanged(nameof(CurrentAnalysisSnapshot)); }
+        }
+
         // --- File Browser State (Scenario) ---
         public ScenarioFolderNode? RootFolderNode { get; private set; }
         public List<ScenarioFileEntry> SearchResults { get; private set; } = new List<ScenarioFileEntry>();
@@ -489,22 +514,52 @@ namespace Match3.Editor.ViewModels
         // --- Level Analysis ---
 
         /// <summary>
-        /// 从缓存加载分析数据（如果有）
+        /// 从独立文件加载分析数据（如果有）
         /// </summary>
         public void LoadCachedAnalysis()
         {
-            var cache = ActiveLevelConfig.AnalysisCache;
-            if (cache != null)
+            // 尝试从独立分析文件加载
+            LevelAnalysisSnapshot? snapshot = null;
+            if (!string.IsNullOrEmpty(CurrentLevelFilePath))
             {
-                WinRate = cache.WinRate;
-                DeadlockRate = cache.DeadlockRate;
-                DifficultyText = $"{cache.Difficulty} ({cache.WinRate:P0})";
+                snapshot = _levelService.ReadAnalysisSnapshot(CurrentLevelFilePath);
+            }
+
+            CurrentAnalysisSnapshot = snapshot;
+
+            if (snapshot?.Basic != null)
+            {
+                WinRate = snapshot.Basic.WinRate;
+                DeadlockRate = snapshot.Basic.DeadlockRate;
+                DifficultyText = $"{snapshot.Basic.DifficultyRating} ({snapshot.Basic.WinRate:P0})";
+
+                // 如果有 Deep 结果，也加载
+                if (snapshot.Deep != null)
+                {
+                    DeepResult = snapshot.Deep.ToResult();
+                }
+                else
+                {
+                    DeepResult = null;
+                }
             }
             else
             {
-                WinRate = 0;
-                DeadlockRate = 0;
-                DifficultyText = "未分析";
+                // 向后兼容：尝试从旧的 AnalysisCache 读取
+                var cache = ActiveLevelConfig.AnalysisCache;
+                if (cache != null)
+                {
+                    WinRate = cache.WinRate;
+                    DeadlockRate = cache.DeadlockRate;
+                    DifficultyText = $"{cache.Difficulty} ({cache.WinRate:P0})";
+                }
+                else
+                {
+                    WinRate = 0;
+                    DeadlockRate = 0;
+                    DifficultyText = "未分析";
+                }
+                DeepResult = null;
             }
         }
 
@@ -535,9 +590,18 @@ namespace Match3.Editor.ViewModels
 
             IsAnalyzing = true;
             AnalysisProgress = 0;
-            AnalysisProgressText = "0 / 500";
 
-            _ = RunAnalysisAsync(_analysisCts.Token);
+            if (IsDeepAnalysis)
+            {
+                DeepResult = null;
+                AnalysisProgressText = "Deep 0%";
+                _ = RunDeepAnalysisAsync(_analysisCts.Token);
+            }
+            else
+            {
+                AnalysisProgressText = "0 / 500";
+                _ = RunAnalysisAsync(_analysisCts.Token);
+            }
         }
 
         private async Task RunAnalysisAsync(CancellationToken token)
@@ -565,16 +629,8 @@ namespace Match3.Editor.ViewModels
                     DeadlockRate = result.DeadlockRate;
                     DifficultyText = $"{GetDifficultyName(result.DifficultyRating)} ({result.WinRate:P0})";
 
-                    // 保存分析结果到缓存
-                    ActiveLevelConfig.AnalysisCache = new LevelAnalysisCacheData
-                    {
-                        WinRate = result.WinRate,
-                        DeadlockRate = result.DeadlockRate,
-                        AverageMovesUsed = result.AverageMovesUsed,
-                        Difficulty = result.DifficultyRating.ToString(),
-                        SimulationCount = result.TotalSimulations,
-                        AnalyzedAt = DateTime.Now
-                    };
+                    // 保存分析结果到独立文件
+                    SaveAnalysisSnapshot(BasicAnalysisData.FromResult(result), null);
                 }
             }
             catch (OperationCanceledException)
@@ -584,6 +640,103 @@ namespace Match3.Editor.ViewModels
             finally
             {
                 IsAnalyzing = false;
+            }
+        }
+
+        private async Task RunDeepAnalysisAsync(CancellationToken token)
+        {
+            var deepService = new DeepAnalysisService();
+            var progress = new Progress<DeepAnalysisProgress>(p =>
+            {
+                AnalysisProgress = p.Progress;
+                AnalysisProgressText = $"Deep {p.Progress:P0}";
+                DifficultyText = p.Stage;
+            });
+
+            try
+            {
+                var result = await deepService.AnalyzeAsync(
+                    ActiveLevelConfig,
+                    simulationsPerTier: 250,
+                    progress,
+                    token);
+
+                if (!result.WasCancelled)
+                {
+                    DeepResult = result;
+
+                    // 更新基础指标（使用 Casual 玩家胜率作为主显示）
+                    float casualWinRate = 0;
+                    float deadlockRate = 0;
+                    if (result.TierWinRates.TryGetValue("Casual", out casualWinRate))
+                    {
+                        WinRate = casualWinRate;
+                    }
+
+                    // 构建难度描述
+                    var skillDesc = result.SkillSensitivity > 0.5f ? "技能关" : "运气关";
+                    DifficultyText = $"Deep完成 ({skillDesc})";
+
+                    // 保存分析结果到独立文件（包含 Deep 数据）
+                    var basicData = new BasicAnalysisData
+                    {
+                        TotalSimulations = result.TotalSimulations,
+                        WinRate = casualWinRate,
+                        DeadlockRate = deadlockRate,
+                        DifficultyRating = skillDesc,
+                        ElapsedMs = result.ElapsedMs
+                    };
+                    SaveAnalysisSnapshot(basicData, DeepAnalysisData.FromResult(result));
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // 被取消，忽略
+            }
+            finally
+            {
+                IsAnalyzing = false;
+            }
+        }
+
+        /// <summary>
+        /// 保存分析结果到独立文件
+        /// </summary>
+        private void SaveAnalysisSnapshot(BasicAnalysisData? basic, DeepAnalysisData? deep)
+        {
+            if (string.IsNullOrEmpty(CurrentLevelFilePath)) return;
+
+            try
+            {
+                var snapshot = new LevelAnalysisSnapshot
+                {
+                    Version = 1,
+                    AnalyzedAt = DateTime.UtcNow,
+                    LevelFileName = _fileSystem.GetFileName(CurrentLevelFilePath),
+                    Basic = basic,
+                    Deep = deep
+                };
+
+                // 如果已有快照且只更新了部分数据，保留另一部分
+                if (CurrentAnalysisSnapshot != null)
+                {
+                    if (basic == null && CurrentAnalysisSnapshot.Basic != null)
+                    {
+                        snapshot.Basic = CurrentAnalysisSnapshot.Basic;
+                    }
+                    if (deep == null && CurrentAnalysisSnapshot.Deep != null)
+                    {
+                        snapshot.Deep = CurrentAnalysisSnapshot.Deep;
+                    }
+                }
+
+                _levelService.WriteAnalysisSnapshot(CurrentLevelFilePath, snapshot);
+                CurrentAnalysisSnapshot = snapshot;
+            }
+            catch (Exception ex)
+            {
+                // 保存失败时不阻塞，仅记录
+                System.Diagnostics.Debug.WriteLine($"Failed to save analysis snapshot: {ex.Message}");
             }
         }
 

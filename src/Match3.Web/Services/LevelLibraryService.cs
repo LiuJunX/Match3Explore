@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using Match3.Core.Analysis;
 using Match3.Core.Scenarios;
 using Match3.Editor.Interfaces;
 using Match3.Editor.ViewModels;
@@ -132,6 +134,54 @@ public sealed class LevelLibraryService : ILevelService
             Directory.Move(fullPath, newFullPath);
         }
     }
+
+    public string GetAnalysisFilePath(string levelRelativePath)
+    {
+        // Level: levels/Folder/Level1.json -> levels/Folder/Level1.analysis.json
+        var fullPath = ToFullPath(levelRelativePath, isFile: true);
+        var directory = Path.GetDirectoryName(fullPath) ?? _rootDir;
+        var levelName = Path.GetFileNameWithoutExtension(fullPath);
+        return Path.Combine(directory, $"{levelName}.analysis.json");
+    }
+
+    public LevelAnalysisSnapshot? ReadAnalysisSnapshot(string levelRelativePath)
+    {
+        var analysisPath = GetAnalysisFilePath(levelRelativePath);
+        if (!File.Exists(analysisPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(analysisPath);
+            return JsonSerializer.Deserialize<LevelAnalysisSnapshot>(json, _jsonOptions);
+        }
+        catch
+        {
+            // 解析失败时返回 null
+            return null;
+        }
+    }
+
+    public void WriteAnalysisSnapshot(string levelRelativePath, LevelAnalysisSnapshot snapshot)
+    {
+        var analysisPath = GetAnalysisFilePath(levelRelativePath);
+        var directory = Path.GetDirectoryName(analysisPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var json = JsonSerializer.Serialize(snapshot, _jsonOptions);
+        File.WriteAllText(analysisPath, json);
+    }
+
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
     private ScenarioFolderNode BuildFolderNode(string fullPath, string relativePath)
     {

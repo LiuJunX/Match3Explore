@@ -4,6 +4,7 @@
 @using Match3.Core.Models.Enums
 @using Match3.Core.Models.Grid
 @using Match3.Core.Scenarios
+@using Match3.Core.Analysis
 @inject LevelEditorViewModel VM
 @implements IDisposable
 
@@ -11,7 +12,7 @@
     <!-- Level Analysis Panel (Top Right) -->
     @if (VM.CurrentMode == EditorMode.Level)
     {
-        <div class="position-absolute top-0 end-0 m-3 bg-white shadow rounded p-2" style="z-index: 100; min-width: 160px;">
+        <div class="position-absolute top-0 end-0 m-3 bg-white shadow rounded p-2" style="z-index: 100; min-width: 160px; max-width: 320px;">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="text-uppercase text-muted small fw-bold">Analysis</span>
                 @if (VM.IsAnalyzing)
@@ -38,9 +39,75 @@
                 </div>
             }
 
+            <!-- Deep Analysis Checkbox -->
+            <div class="form-check mt-2" style="font-size: 0.75rem;">
+                <input class="form-check-input" type="checkbox" id="deepAnalysisCheck" @bind="VM.IsDeepAnalysis" disabled="@VM.IsAnalyzing">
+                <label class="form-check-label text-muted" for="deepAnalysisCheck">
+                    Deep (~30s)
+                </label>
+            </div>
+
             <button class="btn btn-sm btn-outline-primary w-100 mt-2 py-0" style="font-size: 0.75rem;" @onclick="VM.RestartAnalysis" disabled="@VM.IsAnalyzing">
                 <i class="bi bi-arrow-repeat"></i> Analyze
             </button>
+
+            <!-- Deep Analysis Results -->
+            @if (VM.DeepResult != null)
+            {
+                <div class="mt-3 pt-2 border-top">
+                    <div class="text-uppercase text-muted small fw-bold mb-2">Deep Results</div>
+
+                    <!-- Flow Curve -->
+                    <div class="mb-2">
+                        <div class="text-muted mb-1" style="font-size: 0.65rem;">Flow Curve</div>
+                        <FlowCurveSvg FlowCurve="@VM.DeepResult.FlowCurve"
+                                      FlowMin="@VM.DeepResult.FlowMin"
+                                      FlowMax="@VM.DeepResult.FlowMax"
+                                      FlowAverage="@VM.DeepResult.FlowAverage"
+                                      Width="280" Height="60" />
+                    </div>
+
+                    <!-- Tier Win Rates -->
+                    <div class="mb-2">
+                        <div class="text-muted mb-1" style="font-size: 0.65rem;">Tier Win Rates</div>
+                        <div class="d-flex flex-wrap gap-1" style="font-size: 0.7rem;">
+                            @foreach (var tier in VM.DeepResult.TierWinRates)
+                            {
+                                <span class="badge @GetTierBadgeClass(tier.Key)">@tier.Key: @tier.Value.ToString("P0")</span>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Key Metrics -->
+                    <div class="row g-1" style="font-size: 0.65rem;">
+                        <div class="col-6">
+                            <div class="text-muted">Skill Sens.</div>
+                            <div class="fw-bold">@VM.DeepResult.SkillSensitivity.ToString("P0")</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted">Luck Dep.</div>
+                            <div class="fw-bold">@VM.DeepResult.LuckDependency.ToString("P0")</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted">Frustration</div>
+                            <div class="fw-bold @GetFrustrationClass(VM.DeepResult.FrustrationRisk)">@VM.DeepResult.FrustrationRisk.ToString("P0")</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-muted">P95 Clears</div>
+                            <div class="fw-bold">@VM.DeepResult.P95ClearAttempts</div>
+                        </div>
+                    </div>
+
+                    <!-- Bottleneck -->
+                    @if (!string.IsNullOrEmpty(VM.DeepResult.BottleneckObjective))
+                    {
+                        <div class="mt-2" style="font-size: 0.65rem;">
+                            <div class="text-muted">Bottleneck</div>
+                            <div class="fw-bold text-warning">@VM.DeepResult.BottleneckObjective (@VM.DeepResult.BottleneckFailureRate.ToString("P0"))</div>
+                        </div>
+                    }
+                </div>
+            }
         </div>
     }
 
@@ -200,5 +267,21 @@
         >= 0.6f => "text-info",
         >= 0.4f => "text-warning",
         _ => "text-danger"
+    };
+
+    private static string GetTierBadgeClass(string tierName) => tierName switch
+    {
+        "Expert" => "bg-success",
+        "Core" => "bg-info",
+        "Casual" => "bg-primary",
+        "Novice" => "bg-secondary",
+        _ => "bg-secondary"
+    };
+
+    private static string GetFrustrationClass(float risk) => risk switch
+    {
+        >= 0.3f => "text-danger",
+        >= 0.15f => "text-warning",
+        _ => "text-success"
     };
 }

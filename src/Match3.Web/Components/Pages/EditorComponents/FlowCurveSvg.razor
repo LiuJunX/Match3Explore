@@ -1,0 +1,121 @@
+@* SVG 心流曲线组件 *@
+
+<svg width="@Width" height="@Height" class="flow-curve-svg">
+    @* 背景 *@
+    <rect width="@Width" height="@Height" fill="#f8f9fa" rx="4"/>
+
+    @* 网格线 *@
+    @for (int i = 1; i < 4; i++)
+    {
+        var y = Height * i / 4;
+        <line x1="0" y1="@y" x2="@Width" y2="@y" stroke="#e9ecef" stroke-width="1"/>
+    }
+
+    @* 平均线 *@
+    @if (AverageY > 0)
+    {
+        <line x1="0" y1="@AverageY" x2="@Width" y2="@AverageY"
+              stroke="#6c757d" stroke-width="1" stroke-dasharray="4,2"/>
+    }
+
+    @* 折线 *@
+    @if (!string.IsNullOrEmpty(PointsString))
+    {
+        <polyline points="@PointsString"
+                  fill="none"
+                  stroke="#4CAF50"
+                  stroke-width="2"
+                  stroke-linejoin="round"/>
+    }
+
+    @* 数据点 *@
+    @if (ShowDataPoints && DataPoints != null)
+    {
+        @foreach (var point in DataPoints)
+        {
+            <circle cx="@point.X" cy="@point.Y" r="3" fill="#4CAF50"/>
+        }
+    }
+</svg>
+
+@code {
+    [Parameter] public float[] FlowCurve { get; set; } = Array.Empty<float>();
+    [Parameter] public float FlowMin { get; set; }
+    [Parameter] public float FlowMax { get; set; }
+    [Parameter] public float FlowAverage { get; set; }
+    [Parameter] public int Width { get; set; } = 280;
+    [Parameter] public int Height { get; set; } = 80;
+    [Parameter] public bool ShowDataPoints { get; set; } = false;
+
+    private string PointsString => BuildPointsString();
+    private float AverageY => MapY(FlowAverage);
+    private List<(float X, float Y)>? DataPoints => ShowDataPoints ? BuildDataPoints() : null;
+
+    private string BuildPointsString()
+    {
+        if (FlowCurve == null || FlowCurve.Length == 0)
+            return "";
+
+        var points = new List<string>();
+        float range = FlowMax - FlowMin;
+        if (range < 0.01f) range = 1f;
+
+        int padding = 5;
+        float availableWidth = Width - padding * 2;
+        float availableHeight = Height - padding * 2;
+
+        for (int i = 0; i < FlowCurve.Length; i++)
+        {
+            float x = padding + (availableWidth * i / Math.Max(1, FlowCurve.Length - 1));
+            float normalizedY = (FlowCurve[i] - FlowMin) / range;
+            float y = padding + availableHeight * (1 - normalizedY); // Y 轴反转
+
+            points.Add($"{x:F1},{y:F1}");
+        }
+
+        return string.Join(" ", points);
+    }
+
+    private float MapY(float value)
+    {
+        float range = FlowMax - FlowMin;
+        if (range < 0.01f) return Height / 2f;
+
+        int padding = 5;
+        float availableHeight = Height - padding * 2;
+        float normalizedY = (value - FlowMin) / range;
+        return padding + availableHeight * (1 - normalizedY);
+    }
+
+    private List<(float X, float Y)> BuildDataPoints()
+    {
+        var points = new List<(float X, float Y)>();
+        if (FlowCurve == null || FlowCurve.Length == 0)
+            return points;
+
+        float range = FlowMax - FlowMin;
+        if (range < 0.01f) range = 1f;
+
+        int padding = 5;
+        float availableWidth = Width - padding * 2;
+        float availableHeight = Height - padding * 2;
+
+        for (int i = 0; i < FlowCurve.Length; i++)
+        {
+            float x = padding + (availableWidth * i / Math.Max(1, FlowCurve.Length - 1));
+            float normalizedY = (FlowCurve[i] - FlowMin) / range;
+            float y = padding + availableHeight * (1 - normalizedY);
+
+            points.Add((x, y));
+        }
+
+        return points;
+    }
+}
+
+<style>
+    .flow-curve-svg {
+        border-radius: 4px;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+    }
+</style>
