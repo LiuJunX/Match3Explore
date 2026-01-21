@@ -21,7 +21,7 @@
                 }
             </div>
 
-            <div class="d-flex gap-3 small">
+            <div class="d-flex gap-3 small justify-content-center">
                 <div class="text-center">
                     <div class="text-muted" style="font-size: 0.7rem;">Win</div>
                     <div class="fw-bold @GetWinRateClass(VM.WinRate)">@(VM.WinRate.ToString("P0"))</div>
@@ -39,17 +39,15 @@
                 </div>
             }
 
-            <!-- Deep Analysis Checkbox -->
-            <div class="form-check mt-2" style="font-size: 0.75rem;">
-                <input class="form-check-input" type="checkbox" id="deepAnalysisCheck" @bind="VM.IsDeepAnalysis" disabled="@VM.IsAnalyzing">
-                <label class="form-check-label text-muted" for="deepAnalysisCheck">
-                    Deep (~30s)
-                </label>
+            <div class="d-flex align-items-center gap-2 mt-2">
+                <button class="btn btn-sm btn-outline-primary py-0" style="font-size: 0.75rem;" @onclick="VM.RestartAnalysis" disabled="@VM.IsAnalyzing">
+                    <i class="bi bi-arrow-repeat"></i> Analyze
+                </button>
+                <div class="form-check mb-0" style="font-size: 0.75rem;">
+                    <input class="form-check-input" type="checkbox" id="deepAnalysisCheck" @bind="VM.IsDeepAnalysis" disabled="@VM.IsAnalyzing">
+                    <label class="form-check-label text-muted" for="deepAnalysisCheck">Deep (~3min)</label>
+                </div>
             </div>
-
-            <button class="btn btn-sm btn-outline-primary w-100 mt-2 py-0" style="font-size: 0.75rem;" @onclick="VM.RestartAnalysis" disabled="@VM.IsAnalyzing">
-                <i class="bi bi-arrow-repeat"></i> Analyze
-            </button>
 
             <!-- Deep Analysis Results -->
             @if (VM.DeepResult != null)
