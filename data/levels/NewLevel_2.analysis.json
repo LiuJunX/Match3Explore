@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "analyzedAt": "2026-01-21T12:02:35.9182293Z",
+  "levelFileName": "NewLevel_2.json",
+  "basic": {
+    "totalSimulations": 1000,
+    "winRate": 0.328,
+    "deadlockRate": 0,
+    "outOfMovesRate": 0,
+    "averageMovesUsed": 0,
+    "averageScore": 0,
+    "difficultyRating": "\u8FD0\u6C14\u5173",
+    "elapsedMs": 90781.9843
+  },
+  "deep": {
+    "flowCurve": [
+      1.494,
+      23.212,
+      19.961,
+      12.052,
+      9.455,
+      11.149,
+      13.732,
+      14.778,
+      13.586,
+      12.036,
+      12.413,
+      11.75,
+      12.892,
+      11.636,
+      12.776,
+      11.59,
+      11.796,
+      10.41,
+      11.218,
+      10.008,
+      9.286,
+      8.035,
+      7.47,
+      9.422,
+      7.01
+    ],
+    "flowMin": 1.494,
+    "flowMax": 23.212,
+    "flowAverage": 11.566681,
+    "tierWinRates": {
+      "Novice": 0.304,
+      "Core": 0.344,
+      "Expert": 0.38,
+      "Casual": 0.328
+    },
+    "bottleneckObjective": "Red",
+    "bottleneckFailureRate": 1,
+    "skillSensitivity": 0.20000002,
+    "frustrationRisk": 0.485,
+    "luckDependency": 0.97975004,
+    "p95ClearAttempts": 10,
+    "totalSimulations": 1000,
+    "elapsedMs": 90781.9843
+  }
+}
