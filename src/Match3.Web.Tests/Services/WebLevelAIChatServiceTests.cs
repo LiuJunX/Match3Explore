@@ -403,6 +403,306 @@ namespace Match3.Web.Tests.Services
 
         #endregion
 
+        #region Deep Thinking Mode Tests
+
+        [Fact]
+        public async Task SendMessageAsync_WithNeedDeepThinkingTool_TriggersDeepThinkingFlow()
+        {
+            // Arrange: First call returns need_deep_thinking, second call returns edit tools
+            var mockClient = new DeepThinkingMockLLMClient();
+            var options = Options.Create(new LLMOptions
+            {
+                ReasonerModel = "deepseek-reasoner",
+                ReasonerMaxTokens = 1024
+            });
+            var service = new WebLevelAIChatService(mockClient, options, _logger);
+            var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
+
+            // Act
+            var response = await service.SendMessageAsync(
+                "设计一个有趣的关卡",
+                context,
+                new List<ChatMessage>());
+
+            // Assert
+            Assert.True(response.Success);
+            Assert.True(response.UsedDeepThinking);
+            Assert.True(mockClient.ReasonerModelCalled);
+        }
+
+        [Fact]
+        public async Task SendMessageAsync_WithoutReasonerModel_SkipsDeepThinking()
+        {
+            // Arrange: need_deep_thinking called but ReasonerModel not configured
+            var toolCalls = new List<ToolCall>
+            {
+                new ToolCall
+                {
+                    Id = "call_1",
+                    Type = "function",
+                    Function = new FunctionCall
+                    {
+                        Name = "need_deep_thinking",
+                        Arguments = """{"reason": "complex task", "task_summary": "design level"}"""
+                    }
+                }
+            };
+            var mockClient = new MockLLMClient(toolCalls, "好的，我来帮你设计。");
+            var options = Options.Create(new LLMOptions { ReasonerModel = null }); // Not configured
+            var service = new WebLevelAIChatService(mockClient, options, _logger);
+            var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
+
+            // Act
+            var response = await service.SendMessageAsync(
+                "设计一个有趣的关卡",
+                context,
+                new List<ChatMessage>());
+
+            // Assert
+            Assert.True(response.Success);
+            Assert.False(response.UsedDeepThinking);
+        }
+
+        [Fact]
+        public async Task SendMessageAsync_InEditOnlyMode_RejectsAnalysisTools()
+        {
+            // Arrange: Simulate edit-only mode by calling analysis tool after deep thinking
+            var mockClient = new EditOnlyModeMockLLMClient();
+            var options = Options.Create(new LLMOptions
+            {
+                ReasonerModel = "deepseek-reasoner",
+                ReasonerMaxTokens = 1024
+            });
+            var service = new WebLevelAIChatService(mockClient, options, _logger);
+            var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
+
+            // Act
+            var response = await service.SendMessageAsync(
+                "设计一个关卡",
+                context,
+                new List<ChatMessage>());
+
+            // Assert
+            Assert.True(response.Success);
+            Assert.True(mockClient.AnalysisToolRejected);
+        }
+
+        /// <summary>
+        /// Mock client that simulates deep thinking flow:
+        /// 1. First call: returns need_deep_thinking
+        /// 2. R1 call: returns design plan
+        /// 3. Second call: returns edit tools
+        /// 4. Final call: returns completion message
+        /// </summary>
+        private class DeepThinkingMockLLMClient : ILLMClient
+        {
+            private int _sendAsyncCallCount = 0;
+            private int _sendWithToolsCallCount = 0;
+            public bool ReasonerModelCalled { get; private set; }
+
+            public bool IsAvailable => true;
+
+            public Task<LLMResponse> SendAsync(IReadOnlyList<LLMMessage> messages, CancellationToken ct = default)
+                => SendAsync(messages, "default", 2048, ct);
+
+            public Task<LLMResponse> SendAsync(IReadOnlyList<LLMMessage> messages, string model, CancellationToken ct = default)
+                => SendAsync(messages, model, 2048, ct);
+
+            public Task<LLMResponse> SendAsync(IReadOnlyList<LLMMessage> messages, string model, int maxTokens, CancellationToken ct = default)
+            {
+                _sendAsyncCallCount++;
+                if (model == "deepseek-reasoner")
+                {
+                    ReasonerModelCalled = true;
+                    return Task.FromResult(new LLMResponse
+                    {
+                        Success = true,
+                        Content = "grid: 8,8\nmoves: 25\nobjectives:\n- Tile,0,30"
+                    });
+                }
+                return Task.FromResult(new LLMResponse { Success = true, Content = "Done" });
+            }
+
+            public async IAsyncEnumerable<string> SendStreamAsync(
+                IReadOnlyList<LLMMessage> messages,
+                [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+            {
+                yield return "stream";
+                await Task.CompletedTask;
+            }
+
+            public Task<LLMResponse> SendWithToolsAsync(
+                IReadOnlyList<LLMMessage> messages,
+                IReadOnlyList<ToolDefinition> tools,
+                CancellationToken ct = default)
+            {
+                _sendWithToolsCallCount++;
+
+                // First call: return need_deep_thinking
+                if (_sendWithToolsCallCount == 1)
+                {
+                    return Task.FromResult(new LLMResponse
+                    {
+                        Success = true,
+                        ToolCalls = new List<ToolCall>
+                        {
+                            new ToolCall
+                            {
+                                Id = "call_dt",
+                                Type = "function",
+                                Function = new FunctionCall
+                                {
+                                    Name = "need_deep_thinking",
+                                    Arguments = """{"reason": "complex design", "task_summary": "create fun level"}"""
+                                }
+                            }
+                        },
+                        FinishReason = "tool_calls"
+                    });
+                }
+
+                // After deep thinking: return edit tools
+                if (_sendWithToolsCallCount == 2)
+                {
+                    return Task.FromResult(new LLMResponse
+                    {
+                        Success = true,
+                        ToolCalls = new List<ToolCall>
+                        {
+                            new ToolCall
+                            {
+                                Id = "call_edit",
+                                Type = "function",
+                                Function = new FunctionCall
+                                {
+                                    Name = "set_grid_size",
+                                    Arguments = """{"width": 8, "height": 8}"""
+                                }
+                            }
+                        },
+                        FinishReason = "tool_calls"
+                    });
+                }
+
+                // Final: return completion
+                return Task.FromResult(new LLMResponse
+                {
+                    Success = true,
+                    Content = "关卡设计完成！",
+                    FinishReason = "stop"
+                });
+            }
+        }
+
+        /// <summary>
+        /// Mock client that verifies analysis tools are rejected in edit-only mode
+        /// </summary>
+        private class EditOnlyModeMockLLMClient : ILLMClient
+        {
+            private int _sendWithToolsCallCount = 0;
+            public bool AnalysisToolRejected { get; private set; }
+
+            public bool IsAvailable => true;
+
+            public Task<LLMResponse> SendAsync(IReadOnlyList<LLMMessage> messages, CancellationToken ct = default)
+                => SendAsync(messages, "default", 2048, ct);
+
+            public Task<LLMResponse> SendAsync(IReadOnlyList<LLMMessage> messages, string model, CancellationToken ct = default)
+                => SendAsync(messages, model, 2048, ct);
+
+            public Task<LLMResponse> SendAsync(IReadOnlyList<LLMMessage> messages, string model, int maxTokens, CancellationToken ct = default)
+            {
+                return Task.FromResult(new LLMResponse
+                {
+                    Success = true,
+                    Content = "grid: 8,8\nmoves: 20"
+                });
+            }
+
+            public async IAsyncEnumerable<string> SendStreamAsync(
+                IReadOnlyList<LLMMessage> messages,
+                [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+            {
+                yield return "stream";
+                await Task.CompletedTask;
+            }
+
+            public Task<LLMResponse> SendWithToolsAsync(
+                IReadOnlyList<LLMMessage> messages,
+                IReadOnlyList<ToolDefinition> tools,
+                CancellationToken ct = default)
+            {
+                _sendWithToolsCallCount++;
+
+                // First call: return need_deep_thinking
+                if (_sendWithToolsCallCount == 1)
+                {
+                    return Task.FromResult(new LLMResponse
+                    {
+                        Success = true,
+                        ToolCalls = new List<ToolCall>
+                        {
+                            new ToolCall
+                            {
+                                Id = "call_dt",
+                                Type = "function",
+                                Function = new FunctionCall
+                                {
+                                    Name = "need_deep_thinking",
+                                    Arguments = """{"reason": "test", "task_summary": "test"}"""
+                                }
+                            }
+                        },
+                        FinishReason = "tool_calls"
+                    });
+                }
+
+                // Second call (after R1): try to call analyze_level (should be rejected)
+                if (_sendWithToolsCallCount == 2)
+                {
+                    // Check if tools list excludes analysis tools (edit-only mode)
+                    bool hasAnalysisTool = false;
+                    foreach (var tool in tools)
+                    {
+                        if (tool.Function.Name == "analyze_level")
+                        {
+                            hasAnalysisTool = true;
+                            break;
+                        }
+                    }
+                    AnalysisToolRejected = !hasAnalysisTool;
+
+                    return Task.FromResult(new LLMResponse
+                    {
+                        Success = true,
+                        ToolCalls = new List<ToolCall>
+                        {
+                            new ToolCall
+                            {
+                                Id = "call_edit",
+                                Type = "function",
+                                Function = new FunctionCall
+                                {
+                                    Name = "set_move_limit",
+                                    Arguments = """{"moves": 20}"""
+                                }
+                            }
+                        },
+                        FinishReason = "tool_calls"
+                    });
+                }
+
+                return Task.FromResult(new LLMResponse
+                {
+                    Success = true,
+                    Content = "完成",
+                    FinishReason = "stop"
+                });
+            }
+        }
+
+        #endregion
+
         #region Mock LLM Client
 
         private class MockLLMClient : ILLMClient

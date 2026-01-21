@@ -2,7 +2,7 @@
 
 | 文档状态 | 作者 | 日期 | 对应版本 |
 | :--- | :--- | :--- | :--- |
-| **Implemented** | AI Assistant | 2026-01-21 | v2.0 |
+| **Implemented** | AI Assistant | 2026-01-22 | v2.1 |
 
 ## 1. 概述 (Overview)
 
@@ -56,7 +56,7 @@ AI 对话式关卡编辑允许用户通过自然语言描述来创建和修改�
 │   │         ▼               ▼               ▼               │   │
 │   │  ┌────────────┐ ┌────────────┐ ┌────────────────────┐  │   │
 │   │  │ToolRegistry│ │ ILLMClient │ │ Analysis Services  │  │   │
-│   │  │ 18个工具   │ │ (可插拔)   │ │ • LevelAnalysis    │  │   │
+│   │  │ 19个工具   │ │ (可插拔)   │ │ • LevelAnalysis    │  │   │
 │   │  │ 定义      │ │            │ │ • DeepAnalysis     │  │   │
 │   │  └────────────┘ └────────────┘ └────────────────────┘  │   │
 │   └─────────────────────────────────────────────────────────┘   │
@@ -206,7 +206,23 @@ public class LLMMessage
 | `deep_analyze` | simulations_per_tier? | 深度分析：分层胜率、技能敏感度、挫败风险等 |
 | `get_bottleneck` | - | 瓶颈分析：最难目标和失败原因 |
 
-### 3.3 可用元素
+### 3.3 路由工具 (1个)
+
+| 工具名 | 参数 | 描述 |
+| :--- | :--- | :--- |
+| `need_deep_thinking` | reason, task_summary | 触发深度思考模式，适用于复杂设计任务 |
+
+**触发条件**：
+- 用户请求需要深度创意设计
+- 复杂分析或问题诊断
+- 开放式建议或优化
+- "帮我设计一个有趣的关卡" 等创意性任务
+
+**不适用于**：
+- 简单的参数修改（如 "把步数改成 20"）
+- 直接的编辑操作（如 "在左上角放一个炸弹"）
+
+### 3.4 可用元素
 
 | 类型 | 可选值 |
 | :--- | :--- |
@@ -420,9 +436,70 @@ public class LLMMessage
 | 等待响应 | 输入框禁用，显示加载动画 |
 | AI 不可用 | 显示警告提示 |
 
-## 6. 配置
+## 6. 深度思考模式 (v2.1)
 
-### 6.1 LLM 配置选项
+### 6.1 概述
+
+深度思考模式利用 DeepSeek R1 推理模型处理复杂的关卡设计任务。当 AI 判断任务需要深度创意或复杂分析时，会自动触发此模式。
+
+### 6.2 工作流程
+
+```
+用户输入: "帮我设计一个有趣的中等难度关卡"
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Phase 1: 路由判断                                               │
+│  • Chat 模型评估任务复杂度                                        │
+│  • 调用 need_deep_thinking { reason, task_summary }              │
+└────────────────────────┬────────────────────────────────────────┘
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Phase 2: 深度思考 (DeepSeek R1)                                 │
+│  • 切换到 ReasonerModel (deepseek-reasoner)                     │
+│  • 生成详细设计方案（网格、步数、目标、布局）                       │
+│  • 限制输出长度 (ReasonerMaxTokens = 1024)                       │
+│  • UI 显示: "💭 深度思考中..."                                    │
+└────────────────────────┬────────────────────────────────────────┘
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Phase 3: 执行阶段                                               │
+│  • 切换回 Chat 模型                                              │
+│  • 启用 editOnlyMode (禁止分析工具，防止循环)                     │
+│  • 按方案调用编辑工具 (set_grid_size, set_objective, etc.)       │
+│  • UI 显示: "执行操作..."                                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 6.3 配置
+
+```json
+{
+  "LLM": {
+    "Model": "deepseek-chat",
+    "ReasonerModel": "deepseek-reasoner",
+    "ReasonerMaxTokens": 1024
+  }
+}
+```
+
+| 参数 | 说明 |
+| :--- | :--- |
+| `ReasonerModel` | 推理模型名称，为空则禁用深度思考 |
+| `ReasonerMaxTokens` | 推理输出最大 token 数，限制等待时间 |
+
+### 6.4 适用场景
+
+| 场景 | 示例 |
+| :--- | :--- |
+| 创意设计 | "设计一个有趣的新手引导关" |
+| 难度调优 | "这个关卡太难了，帮我优化一下" |
+| 综合建议 | "分析一下这个关卡，给出改进建议" |
+| 主题关卡 | "设计一个圣诞节主题的关卡" |
+
+## 7. 配置
+
+### 7.1 LLM 配置选项
 
 ```json
 // appsettings.json
@@ -432,13 +509,15 @@ public class LLMMessage
     "BaseUrl": "https://api.deepseek.com/v1",
     "ApiKey": "sk-xxx",
     "Model": "deepseek-chat",
+    "ReasonerModel": "deepseek-reasoner",
+    "ReasonerMaxTokens": 1024,
     "MaxTokens": 2048,
     "Temperature": 0.7
   }
 }
 ```
 
-### 6.2 支持 Function Calling 的提供商
+### 7.2 支持 Function Calling 的提供商
 
 | Provider | BaseUrl | Function Calling 支持 |
 | :--- | :--- | :--- |
@@ -478,12 +557,25 @@ public class LLMMessage
 
 ### 9.1 单元测试覆盖
 
-| 测试类 | 测试内容 |
-| :--- | :--- |
-| `WebLevelAIChatServiceTests` | 工具调用解析、Intent 转换、参数转换 |
-| `ToolRegistry` 测试 | 工具数量、映射完整性、分析工具识别 |
+| 测试区域 | 测试数 | 测试内容 |
+| :--- | :--- | :--- |
+| Tool Call Response | 4 | 工具调用解析、多工具调用、无工具调用、API 错误 |
+| Tool Type | 2 | 16 种工具类型映射、未知工具跳过 |
+| Parameter Conversion | 4 | snake_case→camelCase、目标参数、区域参数、中心坐标 |
+| ToolRegistry | 4 | 工具数量 (19)、映射完整性、分析工具识别、editOnly 工具集 |
+| Deep Thinking Mode | 3 | 深度思考流程、ReasonerModel 未配置、editOnlyMode 拒绝分析工具 |
 
-### 9.2 集成测试场景
+**总计**: 31 个测试（含 Theory 数据点）
+
+### 9.2 深度思考测试场景
+
+| 测试 | 验证内容 |
+| :--- | :--- |
+| `WithNeedDeepThinkingTool_TriggersDeepThinkingFlow` | R1 模型被调用、`UsedDeepThinking=true` |
+| `WithoutReasonerModel_SkipsDeepThinking` | ReasonerModel 未配置时跳过深度思考 |
+| `InEditOnlyMode_RejectsAnalysisTools` | 深度思考后工具集不含分析工具 |
+
+### 9.3 集成测试场景
 
 | 场景 | 验证内容 |
 | :--- | :--- |
@@ -491,6 +583,7 @@ public class LLMMessage
 | "分析一下这个关卡" | `analyze_level` 被调用，返回分析结果 |
 | "在中心放一个彩虹炸弹" | `place_bomb` 参数正确，center 处理正确 |
 | 多工具调用 | 多个工具按顺序执行，intents 都被收集 |
+| "设计一个有趣的关卡" | 触发深度思考，R1→Chat→执行编辑工具 |
 
 ## 10. 版本历史
 
@@ -498,3 +591,4 @@ public class LLMMessage
 | :--- | :--- | :--- |
 | v1.0 | 2026-01-20 | 初始实现：JSON 响应解析，14 种意图类型 |
 | v2.0 | 2026-01-21 | **重构为 Function Calling**：原生工具调用，新增 3 个分析工具，共 18 个工具 |
+| v2.1 | 2026-01-22 | **深度思考模式**：集成 DeepSeek R1，新增 need_deep_thinking 路由工具，共 19 个工具 |

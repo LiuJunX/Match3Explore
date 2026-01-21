@@ -2,7 +2,7 @@
 
 本指南说明如何配置 AI 对话式关卡编辑器的 LLM 后端。
 
-> **v2.0 更新**: AI 编辑器现已使用 Function Calling，需要选择支持 tools 参数的 LLM 提供商。
+> **v2.1 更新**: AI 编辑器支持深度思考模式（DeepSeek R1），可通过 ReasonerModel 配置启用。
 
 ## 快速开始
 
@@ -17,6 +17,8 @@
     "BaseUrl": "https://api.deepseek.com/v1",
     "ApiKey": "your-api-key-here",
     "Model": "deepseek-chat",
+    "ReasonerModel": "deepseek-reasoner",
+    "ReasonerMaxTokens": 1024,
     "MaxTokens": 2048,
     "Temperature": 0.7
   }
@@ -46,10 +48,11 @@ AI 编辑器 v2.0 使用 Function Calling（工具调用）来执行操作，这
 
 ### 可用工具
 
-系统提供 18 个工具供 AI 调用：
+系统提供 19 个工具供 AI 调用：
 
 - **编辑工具 (15个)**: `set_grid_size`, `set_move_limit`, `set_objective`, `add_objective`, `remove_objective`, `paint_tile`, `paint_tile_region`, `paint_cover`, `paint_cover_region`, `paint_ground`, `paint_ground_region`, `place_bomb`, `generate_random_level`, `clear_region`, `clear_all`
 - **分析工具 (3个)**: `analyze_level`, `deep_analyze`, `get_bottleneck`
+- **路由工具 (1个)**: `need_deep_thinking` - 触发深度思考模式
 
 详细工具定义见 [AI 关卡编辑器文档](../03-design/features/ai-level-editor.md)。
 
@@ -132,6 +135,8 @@ AI 编辑器 v2.0 使用 Function Calling（工具调用）来执行操作，这
 | `BaseUrl` | string | - | API 基础 URL |
 | `ApiKey` | string | - | API 密钥 |
 | `Model` | string | "deepseek-chat" | 模型名称 |
+| `ReasonerModel` | string | null | 推理模型（深度思考），为空则禁用 |
+| `ReasonerMaxTokens` | int | 1024 | 推理模型最大输出 token 数 |
 | `MaxTokens` | int | 2048 | 最大输出 token 数 |
 | `Temperature` | float | 0.7 | 创造性（0.0-1.0） |
 
