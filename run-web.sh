@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# 切换到脚本所在目录
+cd "$(dirname "$0")"
+
 PORT=5015
 PROJECT="src/Match3.Web/Match3.Web.csproj"
 
