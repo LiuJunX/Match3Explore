@@ -126,6 +126,45 @@ Assert.True(tile.Position.Y > 0 && tile.Position.Y < target, "应该在移动中
 
 ---
 
+## 测试分类与运行
+
+### 测试分类
+
+| 分类 | Trait 标记 | 说明 |
+|------|-----------|------|
+| **普通测试** | 无 | 功能测试、单元测试、集成测试 |
+| **性能测试** | `Category=Performance` | 有阈值检查的基准测试（蒙特卡洛、AI性能等） |
+| **慢速测试** | `Category=Slow` | 耗时长的测试 |
+
+### 运行命令
+
+```bash
+# 日常开发：排除性能和慢速测试
+dotnet test --filter "Category!=Performance&Category!=Slow"
+
+# 只运行性能测试
+dotnet test --filter "Category=Performance"
+
+# 运行全部测试
+dotnet test
+```
+
+### 添加新性能测试
+
+新增性能测试时，在类或方法上添加 Trait：
+
+```csharp
+[Trait("Category", "Performance")]
+public class MyPerformanceTests { ... }
+
+// 或单个方法
+[Fact]
+[Trait("Category", "Performance")]
+public void MyTest_ShouldRunFast() { ... }
+```
+
+---
+
 ## PR 自查清单
 
 提交 PR 前，确认：
@@ -134,4 +173,4 @@ Assert.True(tile.Position.Y > 0 && tile.Position.Y < target, "应该在移动中
 2. **集成测试**：与其他系统的协作正确性
 3. **方向/边界**：覆盖所有输入变体
 4. **多帧动画**：使用 AnimationTestHelper 测试动画流程
-5. **回归测试**：运行 `dotnet test` 确保没有破坏现有功能
+5. **回归测试**：运行 `dotnet test --filter "Category!=Performance"` 确保没有破坏现有功能
