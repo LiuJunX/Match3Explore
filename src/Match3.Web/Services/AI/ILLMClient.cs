@@ -10,11 +10,41 @@ namespace Match3.Web.Services.AI
     public class LLMMessage
     {
         public string Role { get; set; } = "";
-        public string Content { get; set; } = "";
+        public string? Content { get; set; }
+
+        /// <summary>
+        /// 工具调用列表 - 当 Role 为 assistant 且响应包含工具调用时使用
+        /// </summary>
+        public List<ToolCall>? ToolCalls { get; set; }
+
+        /// <summary>
+        /// 工具调用 ID - 当 Role 为 tool 时使用
+        /// </summary>
+        public string? ToolCallId { get; set; }
 
         public static LLMMessage System(string content) => new LLMMessage { Role = "system", Content = content };
         public static LLMMessage User(string content) => new LLMMessage { Role = "user", Content = content };
         public static LLMMessage Assistant(string content) => new LLMMessage { Role = "assistant", Content = content };
+
+        /// <summary>
+        /// 创建包含工具调用的助手消息
+        /// </summary>
+        public static LLMMessage AssistantWithToolCalls(List<ToolCall> toolCalls) => new LLMMessage
+        {
+            Role = "assistant",
+            Content = null,
+            ToolCalls = toolCalls
+        };
+
+        /// <summary>
+        /// 创建工具结果消息
+        /// </summary>
+        public static LLMMessage Tool(string toolCallId, string content) => new LLMMessage
+        {
+            Role = "tool",
+            Content = content,
+            ToolCallId = toolCallId
+        };
     }
 
     /// <summary>
@@ -27,6 +57,21 @@ namespace Match3.Web.Services.AI
         public string? Error { get; set; }
         public int PromptTokens { get; set; }
         public int CompletionTokens { get; set; }
+
+        /// <summary>
+        /// 工具调用列表 - 当模型请求调用工具时填充
+        /// </summary>
+        public List<ToolCall>? ToolCalls { get; set; }
+
+        /// <summary>
+        /// 完成原因：stop, tool_calls, length, content_filter
+        /// </summary>
+        public string? FinishReason { get; set; }
+
+        /// <summary>
+        /// 是否包含工具调用
+        /// </summary>
+        public bool HasToolCalls => ToolCalls != null && ToolCalls.Count > 0;
     }
 
     /// <summary>
@@ -46,6 +91,14 @@ namespace Match3.Web.Services.AI
         /// </summary>
         IAsyncEnumerable<string> SendStreamAsync(
             IReadOnlyList<LLMMessage> messages,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// 发送消息并支持工具调用
+        /// </summary>
+        Task<LLMResponse> SendWithToolsAsync(
+            IReadOnlyList<LLMMessage> messages,
+            IReadOnlyList<ToolDefinition> tools,
             CancellationToken cancellationToken = default);
 
         /// <summary>

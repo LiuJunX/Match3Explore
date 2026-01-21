@@ -11,26 +11,31 @@ using Xunit;
 namespace Match3.Web.Tests.Services
 {
     /// <summary>
-    /// Tests for WebLevelAIChatService, focusing on AI response parsing.
+    /// Tests for WebLevelAIChatService with Function Calling support.
     /// </summary>
     public class WebLevelAIChatServiceTests
     {
         private readonly ILogger<WebLevelAIChatService> _logger = NullLogger<WebLevelAIChatService>.Instance;
 
-        #region Response Parsing Tests
+        #region Tool Call Response Tests
 
         [Fact]
-        public async Task SendMessageAsync_WithValidJsonResponse_ParsesIntents()
+        public async Task SendMessageAsync_WithSetGridSizeToolCall_ParsesIntent()
         {
-            var mockClient = new MockLLMClient(
-                """
+            var toolCalls = new List<ToolCall>
+            {
+                new ToolCall
                 {
-                    "message": "好的，我来帮你设置网格大小。",
-                    "intents": [
-                        {"type": "SetGridSize", "parameters": {"width": 10, "height": 10}}
-                    ]
+                    Id = "call_1",
+                    Type = "function",
+                    Function = new FunctionCall
+                    {
+                        Name = "set_grid_size",
+                        Arguments = """{"width": 10, "height": 10}"""
+                    }
                 }
-                """);
+            };
+            var mockClient = new MockLLMClient(toolCalls, "好的，我来帮你设置网格大小。");
 
             var service = new WebLevelAIChatService(mockClient, _logger);
             var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
@@ -38,7 +43,6 @@ namespace Match3.Web.Tests.Services
             var response = await service.SendMessageAsync("把网格改成 10x10", context, new List<ChatMessage>());
 
             Assert.True(response.Success);
-            Assert.Equal("好的，我来帮你设置网格大小。", response.Message);
             Assert.Single(response.Intents);
             Assert.Equal(LevelIntentType.SetGridSize, response.Intents[0].Type);
             Assert.Equal(10, response.Intents[0].GetInt("width"));
@@ -46,18 +50,32 @@ namespace Match3.Web.Tests.Services
         }
 
         [Fact]
-        public async Task SendMessageAsync_WithMultipleIntents_ParsesAll()
+        public async Task SendMessageAsync_WithMultipleToolCalls_ParsesAll()
         {
-            var mockClient = new MockLLMClient(
-                """
+            var toolCalls = new List<ToolCall>
+            {
+                new ToolCall
                 {
-                    "message": "已设置网格和步数。",
-                    "intents": [
-                        {"type": "SetGridSize", "parameters": {"width": 6, "height": 6}},
-                        {"type": "SetMoveLimit", "parameters": {"moves": 15}}
-                    ]
+                    Id = "call_1",
+                    Type = "function",
+                    Function = new FunctionCall
+                    {
+                        Name = "set_grid_size",
+                        Arguments = """{"width": 6, "height": 6}"""
+                    }
+                },
+                new ToolCall
+                {
+                    Id = "call_2",
+                    Type = "function",
+                    Function = new FunctionCall
+                    {
+                        Name = "set_move_limit",
+                        Arguments = """{"moves": 15}"""
+                    }
                 }
-                """);
+            };
+            var mockClient = new MockLLMClient(toolCalls, "已设置网格和步数。");
 
             var service = new WebLevelAIChatService(mockClient, _logger);
             var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
@@ -71,15 +89,9 @@ namespace Match3.Web.Tests.Services
         }
 
         [Fact]
-        public async Task SendMessageAsync_WithEmptyIntents_ReturnsEmptyList()
+        public async Task SendMessageAsync_WithNoToolCalls_ReturnsMessageOnly()
         {
-            var mockClient = new MockLLMClient(
-                """
-                {
-                    "message": "你好！有什么可以帮你的？",
-                    "intents": []
-                }
-                """);
+            var mockClient = new MockLLMClient(null, "你好！有什么可以帮你的？");
 
             var service = new WebLevelAIChatService(mockClient, _logger);
             var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
@@ -88,60 +100,6 @@ namespace Match3.Web.Tests.Services
 
             Assert.True(response.Success);
             Assert.Equal("你好！有什么可以帮你的？", response.Message);
-            Assert.Empty(response.Intents);
-        }
-
-        [Fact]
-        public async Task SendMessageAsync_WithPlainTextResponse_ReturnsMessageOnly()
-        {
-            var mockClient = new MockLLMClient("这是一个普通的文本回复，没有JSON。");
-
-            var service = new WebLevelAIChatService(mockClient, _logger);
-            var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
-
-            var response = await service.SendMessageAsync("说点什么", context, new List<ChatMessage>());
-
-            Assert.True(response.Success);
-            Assert.Equal("这是一个普通的文本回复，没有JSON。", response.Message);
-            Assert.Empty(response.Intents);
-        }
-
-        [Fact]
-        public async Task SendMessageAsync_WithJsonInMarkdownBlock_ExtractsJson()
-        {
-            var mockClient = new MockLLMClient(
-                """
-                我来帮你设置：
-                ```json
-                {
-                    "message": "已设置",
-                    "intents": [{"type": "SetMoveLimit", "parameters": {"moves": 25}}]
-                }
-                ```
-                """);
-
-            var service = new WebLevelAIChatService(mockClient, _logger);
-            var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
-
-            var response = await service.SendMessageAsync("步数25", context, new List<ChatMessage>());
-
-            Assert.True(response.Success);
-            Assert.Single(response.Intents);
-            Assert.Equal(LevelIntentType.SetMoveLimit, response.Intents[0].Type);
-        }
-
-        [Fact]
-        public async Task SendMessageAsync_WithInvalidJson_ReturnsOriginalContent()
-        {
-            var mockClient = new MockLLMClient("{invalid json content");
-
-            var service = new WebLevelAIChatService(mockClient, _logger);
-            var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
-
-            var response = await service.SendMessageAsync("test", context, new List<ChatMessage>());
-
-            Assert.True(response.Success);
-            Assert.Equal("{invalid json content", response.Message);
             Assert.Empty(response.Intents);
         }
 
@@ -161,29 +119,40 @@ namespace Match3.Web.Tests.Services
 
         #endregion
 
-        #region Intent Type Parsing Tests
+        #region Tool Type Tests
 
         [Theory]
-        [InlineData("SetGridSize")]
-        [InlineData("SetMoveLimit")]
-        [InlineData("SetObjective")]
-        [InlineData("PaintTile")]
-        [InlineData("PaintTileRegion")]
-        [InlineData("PaintCover")]
-        [InlineData("PaintCoverRegion")]
-        [InlineData("PaintGround")]
-        [InlineData("PaintGroundRegion")]
-        [InlineData("PlaceBomb")]
-        [InlineData("GenerateRandomLevel")]
-        [InlineData("ClearRegion")]
-        [InlineData("ClearAll")]
-        public async Task SendMessageAsync_AllIntentTypes_ParseCorrectly(string intentType)
+        [InlineData("set_grid_size", LevelIntentType.SetGridSize)]
+        [InlineData("set_move_limit", LevelIntentType.SetMoveLimit)]
+        [InlineData("set_objective", LevelIntentType.SetObjective)]
+        [InlineData("add_objective", LevelIntentType.AddObjective)]
+        [InlineData("remove_objective", LevelIntentType.RemoveObjective)]
+        [InlineData("paint_tile", LevelIntentType.PaintTile)]
+        [InlineData("paint_tile_region", LevelIntentType.PaintTileRegion)]
+        [InlineData("paint_cover", LevelIntentType.PaintCover)]
+        [InlineData("paint_cover_region", LevelIntentType.PaintCoverRegion)]
+        [InlineData("paint_ground", LevelIntentType.PaintGround)]
+        [InlineData("paint_ground_region", LevelIntentType.PaintGroundRegion)]
+        [InlineData("place_bomb", LevelIntentType.PlaceBomb)]
+        [InlineData("generate_random_level", LevelIntentType.GenerateRandomLevel)]
+        [InlineData("clear_region", LevelIntentType.ClearRegion)]
+        [InlineData("clear_all", LevelIntentType.ClearAll)]
+        public async Task SendMessageAsync_AllToolTypes_MapToCorrectIntents(string toolName, LevelIntentType expectedType)
         {
-            var jsonResponse = $@"{{
-                ""message"": ""Done"",
-                ""intents"": [{{""type"": ""{intentType}"", ""parameters"": {{}}}}]
-            }}";
-            var mockClient = new MockLLMClient(jsonResponse);
+            var toolCalls = new List<ToolCall>
+            {
+                new ToolCall
+                {
+                    Id = "call_1",
+                    Type = "function",
+                    Function = new FunctionCall
+                    {
+                        Name = toolName,
+                        Arguments = "{}"
+                    }
+                }
+            };
+            var mockClient = new MockLLMClient(toolCalls, "Done");
 
             var service = new WebLevelAIChatService(mockClient, _logger);
             var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
@@ -192,23 +161,36 @@ namespace Match3.Web.Tests.Services
 
             Assert.True(response.Success);
             Assert.Single(response.Intents);
-            Assert.True(System.Enum.TryParse<LevelIntentType>(intentType, out var expected));
-            Assert.Equal(expected, response.Intents[0].Type);
+            Assert.Equal(expectedType, response.Intents[0].Type);
         }
 
         [Fact]
-        public async Task SendMessageAsync_WithUnknownIntentType_SkipsInvalidIntent()
+        public async Task SendMessageAsync_WithUnknownTool_SkipsInvalidTool()
         {
-            var mockClient = new MockLLMClient(
-                """
+            var toolCalls = new List<ToolCall>
+            {
+                new ToolCall
                 {
-                    "message": "Done",
-                    "intents": [
-                        {"type": "UnknownType", "parameters": {}},
-                        {"type": "SetGridSize", "parameters": {"width": 8, "height": 8}}
-                    ]
+                    Id = "call_1",
+                    Type = "function",
+                    Function = new FunctionCall
+                    {
+                        Name = "unknown_tool",
+                        Arguments = "{}"
+                    }
+                },
+                new ToolCall
+                {
+                    Id = "call_2",
+                    Type = "function",
+                    Function = new FunctionCall
+                    {
+                        Name = "set_grid_size",
+                        Arguments = """{"width": 8, "height": 8}"""
+                    }
                 }
-                """);
+            };
+            var mockClient = new MockLLMClient(toolCalls, "Done");
 
             var service = new WebLevelAIChatService(mockClient, _logger);
             var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
@@ -216,28 +198,32 @@ namespace Match3.Web.Tests.Services
             var response = await service.SendMessageAsync("test", context, new List<ChatMessage>());
 
             Assert.True(response.Success);
-            // Only valid intent should be parsed
+            // Only valid tool should create intent
             Assert.Single(response.Intents);
             Assert.Equal(LevelIntentType.SetGridSize, response.Intents[0].Type);
         }
 
         #endregion
 
-        #region Parameter Parsing Tests
+        #region Parameter Conversion Tests
 
         [Fact]
-        public async Task SendMessageAsync_WithStringEnumParameter_ParsesCorrectly()
+        public async Task SendMessageAsync_ConvertsSnakeCaseToCamelCase()
         {
-            var mockClient = new MockLLMClient(
-                """
+            var toolCalls = new List<ToolCall>
+            {
+                new ToolCall
                 {
-                    "message": "放置红色方块",
-                    "intents": [{
-                        "type": "PaintTile",
-                        "parameters": {"x": 3, "y": 4, "tileType": "Blue", "bombType": "Horizontal"}
-                    }]
+                    Id = "call_1",
+                    Type = "function",
+                    Function = new FunctionCall
+                    {
+                        Name = "paint_tile",
+                        Arguments = """{"x": 3, "y": 4, "tile_type": "Blue", "bomb_type": "Horizontal"}"""
+                    }
                 }
-                """);
+            };
+            var mockClient = new MockLLMClient(toolCalls, "放置蓝色方块");
 
             var service = new WebLevelAIChatService(mockClient, _logger);
             var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
@@ -255,16 +241,20 @@ namespace Match3.Web.Tests.Services
         [Fact]
         public async Task SendMessageAsync_WithObjectiveParameters_ParsesCorrectly()
         {
-            var mockClient = new MockLLMClient(
-                """
+            var toolCalls = new List<ToolCall>
+            {
+                new ToolCall
                 {
-                    "message": "设置目标",
-                    "intents": [{
-                        "type": "SetObjective",
-                        "parameters": {"layer": "Tile", "elementType": 0, "count": 30}
-                    }]
+                    Id = "call_1",
+                    Type = "function",
+                    Function = new FunctionCall
+                    {
+                        Name = "set_objective",
+                        Arguments = """{"layer": "Tile", "element_type": 0, "count": 30}"""
+                    }
                 }
-                """);
+            };
+            var mockClient = new MockLLMClient(toolCalls, "设置目标");
 
             var service = new WebLevelAIChatService(mockClient, _logger);
             var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
@@ -274,8 +264,109 @@ namespace Match3.Web.Tests.Services
             Assert.True(response.Success);
             var intent = response.Intents[0];
             Assert.Equal("Tile", intent.GetString("layer"));
-            Assert.Equal(0, intent.GetInt("elementType"));
+            Assert.Equal(0, intent.GetInt("elementType")); // 0 = Red
             Assert.Equal(30, intent.GetInt("count"));
+        }
+
+        [Fact]
+        public async Task SendMessageAsync_WithRegionParameters_ParsesCorrectly()
+        {
+            var toolCalls = new List<ToolCall>
+            {
+                new ToolCall
+                {
+                    Id = "call_1",
+                    Type = "function",
+                    Function = new FunctionCall
+                    {
+                        Name = "paint_tile_region",
+                        Arguments = """{"x1": 0, "y1": 0, "x2": 3, "y2": 3, "tile_type": "None"}"""
+                    }
+                }
+            };
+            var mockClient = new MockLLMClient(toolCalls, "清空左上角区域");
+
+            var service = new WebLevelAIChatService(mockClient, _logger);
+            var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
+
+            var response = await service.SendMessageAsync("test", context, new List<ChatMessage>());
+
+            Assert.True(response.Success);
+            var intent = response.Intents[0];
+            Assert.Equal(0, intent.GetInt("x1"));
+            Assert.Equal(0, intent.GetInt("y1"));
+            Assert.Equal(3, intent.GetInt("x2"));
+            Assert.Equal(3, intent.GetInt("y2"));
+            Assert.Equal("None", intent.GetString("tileType"));
+        }
+
+        [Fact]
+        public async Task SendMessageAsync_WithPlaceBombCenter_AddsCenterParameter()
+        {
+            var toolCalls = new List<ToolCall>
+            {
+                new ToolCall
+                {
+                    Id = "call_1",
+                    Type = "function",
+                    Function = new FunctionCall
+                    {
+                        Name = "place_bomb",
+                        Arguments = """{"x": -1, "y": -1, "bomb_type": "Color"}"""
+                    }
+                }
+            };
+            var mockClient = new MockLLMClient(toolCalls, "在中心放置彩虹炸弹");
+
+            var service = new WebLevelAIChatService(mockClient, _logger);
+            var context = new LevelContext { Width = 8, Height = 8, MoveLimit = 20 };
+
+            var response = await service.SendMessageAsync("test", context, new List<ChatMessage>());
+
+            Assert.True(response.Success);
+            var intent = response.Intents[0];
+            Assert.Equal(LevelIntentType.PlaceBomb, intent.Type);
+            Assert.True(intent.Parameters.ContainsKey("center"));
+            Assert.Equal(true, intent.Parameters["center"]);
+        }
+
+        #endregion
+
+        #region ToolRegistry Tests
+
+        [Fact]
+        public void ToolRegistry_GetAllTools_Returns18Tools()
+        {
+            var tools = ToolRegistry.GetAllTools();
+
+            // 15 edit tools + 3 analysis tools = 18 total
+            Assert.Equal(18, tools.Count);
+        }
+
+        [Fact]
+        public void ToolRegistry_AllEditToolsHaveIntentMapping()
+        {
+            var tools = ToolRegistry.GetAllTools();
+
+            foreach (var tool in tools)
+            {
+                var name = tool.Function.Name;
+                // Skip analysis tools
+                if (ToolRegistry.AnalysisToolNames.Contains(name))
+                    continue;
+
+                Assert.True(ToolRegistry.ToolNameToIntentType.ContainsKey(name),
+                    $"Tool '{name}' should have an intent type mapping");
+            }
+        }
+
+        [Fact]
+        public void ToolRegistry_AnalysisToolsAreIdentified()
+        {
+            Assert.Contains("analyze_level", ToolRegistry.AnalysisToolNames);
+            Assert.Contains("deep_analyze", ToolRegistry.AnalysisToolNames);
+            Assert.Contains("get_bottleneck", ToolRegistry.AnalysisToolNames);
+            Assert.Equal(3, ToolRegistry.AnalysisToolNames.Count);
         }
 
         #endregion
@@ -287,6 +378,7 @@ namespace Match3.Web.Tests.Services
             private readonly string _responseContent;
             private readonly bool _success;
             private readonly string? _error;
+            private readonly List<ToolCall>? _toolCalls;
 
             public MockLLMClient(string responseContent)
             {
@@ -299,6 +391,13 @@ namespace Match3.Web.Tests.Services
                 _responseContent = "";
                 _success = success;
                 _error = error;
+            }
+
+            public MockLLMClient(List<ToolCall>? toolCalls, string? finalMessage = null)
+            {
+                _toolCalls = toolCalls;
+                _responseContent = finalMessage ?? "";
+                _success = true;
             }
 
             public bool IsAvailable => true;
@@ -319,6 +418,46 @@ namespace Match3.Web.Tests.Services
             {
                 yield return _responseContent;
                 await Task.CompletedTask;
+            }
+
+            public Task<LLMResponse> SendWithToolsAsync(
+                IReadOnlyList<LLMMessage> messages,
+                IReadOnlyList<ToolDefinition> tools,
+                CancellationToken cancellationToken = default)
+            {
+                // Check if this is a follow-up call after tool results
+                bool hasToolResults = false;
+                foreach (var msg in messages)
+                {
+                    if (msg.Role == "tool")
+                    {
+                        hasToolResults = true;
+                        break;
+                    }
+                }
+
+                if (hasToolResults || _toolCalls == null)
+                {
+                    // Return final response without tool calls
+                    return Task.FromResult(new LLMResponse
+                    {
+                        Success = _success,
+                        Content = _responseContent,
+                        Error = _error,
+                        ToolCalls = null,
+                        FinishReason = "stop"
+                    });
+                }
+
+                // First call - return tool calls
+                return Task.FromResult(new LLMResponse
+                {
+                    Success = _success,
+                    Content = null,
+                    Error = _error,
+                    ToolCalls = _toolCalls,
+                    FinishReason = "tool_calls"
+                });
             }
         }
 

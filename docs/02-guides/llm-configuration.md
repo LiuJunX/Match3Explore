@@ -2,6 +2,8 @@
 
 本指南说明如何配置 AI 对话式关卡编辑器的 LLM 后端。
 
+> **v2.0 更新**: AI 编辑器现已使用 Function Calling，需要选择支持 tools 参数的 LLM 提供商。
+
 ## 快速开始
 
 ### 1. 配置文件位置
@@ -28,6 +30,28 @@
 | DeepSeek | https://platform.deepseek.com/api_keys |
 | OpenAI | https://platform.openai.com/api-keys |
 | Azure OpenAI | Azure Portal → OpenAI 资源 → 密钥 |
+
+## Function Calling 支持
+
+AI 编辑器 v2.0 使用 Function Calling（工具调用）来执行操作，这比 JSON 解析更可靠。
+
+### 支持情况
+
+| 提供商 | Function Calling | 推荐模型 |
+| :--- | :--- | :--- |
+| DeepSeek | ✅ 支持 | deepseek-chat |
+| OpenAI | ✅ 支持 | gpt-4o-mini, gpt-4o |
+| Azure OpenAI | ✅ 支持 | 按部署配置 |
+| Ollama | ⚠️ 部分支持 | qwen2.5:7b (需确认版本) |
+
+### 可用工具
+
+系统提供 18 个工具供 AI 调用：
+
+- **编辑工具 (15个)**: `set_grid_size`, `set_move_limit`, `set_objective`, `add_objective`, `remove_objective`, `paint_tile`, `paint_tile_region`, `paint_cover`, `paint_cover_region`, `paint_ground`, `paint_ground_region`, `place_bomb`, `generate_random_level`, `clear_region`, `clear_all`
+- **分析工具 (3个)**: `analyze_level`, `deep_analyze`, `get_bottleneck`
+
+详细工具定义见 [AI 关卡编辑器文档](../03-design/features/ai-level-editor.md)。
 
 ## 支持的提供商
 
