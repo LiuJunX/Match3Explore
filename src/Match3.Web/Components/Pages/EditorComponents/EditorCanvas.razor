@@ -40,7 +40,8 @@
             }
 
             <div class="form-check mt-2" style="font-size: 0.75rem;">
-                <input class="form-check-input" type="checkbox" id="deepAnalysisCheck" @bind="VM.IsDeepAnalysis" disabled="@VM.IsAnalyzing">
+                <input class="form-check-input" type="checkbox" id="deepAnalysisCheck" @bind="VM.IsDeepAnalysis" disabled="@VM.IsAnalyzing"
+                       style="border: 1.5px solid #adb5bd;">
                 <label class="form-check-label text-muted" for="deepAnalysisCheck">
                     Deep (~3min)
                 </label>
