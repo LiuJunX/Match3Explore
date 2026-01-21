@@ -197,6 +197,7 @@ public sealed class LevelLibraryService : ILevelService
             .ToList();
 
         var files = Directory.EnumerateFiles(fullPath, "*.json", SearchOption.TopDirectoryOnly)
+            .Where(f => !f.EndsWith(".analysis.json", StringComparison.OrdinalIgnoreCase))
             .Select(CreateFileEntryFromDisk)
             .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
