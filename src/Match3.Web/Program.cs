@@ -16,18 +16,18 @@ builder.Services.AddScoped<Match3GameService>();
 // Editor Services
 builder.Services.AddScoped<Match3.Editor.Interfaces.IPlatformService, Match3.Web.Services.EditorAdapters.WebPlatformService>();
 builder.Services.AddScoped<Match3.Editor.Interfaces.IFileSystemService>(sp =>
-    new Match3.Web.Services.EditorAdapters.PhysicalFileSystemService(@"d:\GitWorkSpace\LiuJun\ThreeMatchTrea\src\Match3.Core.Tests\Scenarios\Data"));
+    new Match3.Web.Services.EditorAdapters.PhysicalFileSystemService(@"d:\GitWorkSpace\LiuJun\Match3Explore\src\Match3.Core.Tests\Scenarios\Data"));
 builder.Services.AddScoped<Match3.Editor.Interfaces.IJsonService, Match3.Web.Services.EditorAdapters.SystemTextJsonService>();
 builder.Services.AddScoped<Match3.Core.Utility.IGameLogger>(sp => new MicrosoftGameLogger(sp.GetRequiredService<ILogger<MicrosoftGameLogger>>()));
 builder.Services.AddScoped<Match3.Editor.Logic.GridManipulator>();
 builder.Services.AddScoped<Match3.Editor.ViewModels.LevelEditorViewModel>();
 
 builder.Services.AddScoped<ScenarioLibraryService>(sp =>
-    new ScenarioLibraryService(@"d:\GitWorkSpace\LiuJun\ThreeMatchTrea\src\Match3.Core.Tests\Scenarios\Data"));
+    new ScenarioLibraryService(@"d:\GitWorkSpace\LiuJun\Match3Explore\src\Match3.Core.Tests\Scenarios\Data"));
 builder.Services.AddScoped<Match3.Editor.Interfaces.IScenarioService>(sp => sp.GetRequiredService<ScenarioLibraryService>());
 
 builder.Services.AddScoped<LevelLibraryService>(sp =>
-    new LevelLibraryService(@"d:\GitWorkSpace\LiuJun\ThreeMatchTrea\data\levels"));
+    new LevelLibraryService(@"d:\GitWorkSpace\LiuJun\Match3Explore\data\levels"));
 builder.Services.AddScoped<Match3.Editor.Interfaces.ILevelService>(sp => sp.GetRequiredService<LevelLibraryService>());
 
 // AI Chat Services

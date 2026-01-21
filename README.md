@@ -1,4 +1,4 @@
-# ThreeMatchTrea
+# Match3Explore
 
 AI-Assisted Match-3 Game Engine (C# / Blazor)
 
