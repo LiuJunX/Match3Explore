@@ -9,16 +9,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\Match3.Core\Match3.Core.csproj" />
     <ProjectReference Include="..\Match3.Random\Match3.Random.csproj" />
     <ProjectReference Include="..\Match3.Editor\Match3.Editor.csproj" />
     <ProjectReference Include="..\Match3.Presentation\Match3.Presentation.csproj" />
+    <ProjectReference Include="..\Match3.Web.Client\Match3.Web.Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.12" />
     <PackageReference Include="ZString" Version="2.6.0" />
   </ItemGroup>
 

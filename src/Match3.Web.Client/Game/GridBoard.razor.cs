@@ -5,9 +5,9 @@ using Match3.Core;
 using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
 using Match3.Presentation;
-using Match3.Web.Services;
+using Match3.Web.Client.Services;
 
-namespace Match3.Web.Components.Game;
+namespace Match3.Web.Client.Game;
 
 public partial class GridBoard : IDisposable
 {

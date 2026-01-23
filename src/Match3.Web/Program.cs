@@ -1,5 +1,4 @@
 using Match3.Core.DependencyInjection;
-using Match3.Web.Components;
 using Match3.Web.Services;
 using Match3.Web.Services.AI;
 
@@ -11,15 +10,10 @@ var scenariosPath = Path.Combine(builder.Environment.ContentRootPath,
 var levelsPath = Path.Combine(builder.Environment.ContentRootPath,
     builder.Configuration["DataPaths:LevelsPath"] ?? "data/levels");
 
-// Add services to the container.
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+// Add controllers for API
+builder.Services.AddControllers();
 
-// Register game service factory
-builder.Services.AddSingleton<IGameServiceFactory>(_ => new GameServiceBuilder().Build());
-builder.Services.AddScoped<Match3GameService>();
-
-// Editor Services
+// Editor Services (for API)
 builder.Services.AddScoped<Match3.Editor.Interfaces.IPlatformService, Match3.Web.Services.EditorAdapters.WebPlatformService>();
 builder.Services.AddScoped<Match3.Editor.Interfaces.IFileSystemService>(sp =>
     new Match3.Web.Services.EditorAdapters.PhysicalFileSystemService(scenariosPath));
@@ -45,17 +39,22 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+    app.UseExceptionHandler("/Error");
     app.UseHsts();
 }
-app.UseStatusCodePagesWithReExecute("/not-found");
+
 app.UseHttpsRedirection();
 
-app.UseAntiforgery();
+// Serve WebAssembly files
+app.UseBlazorFrameworkFiles();
+app.UseStaticFiles();
 
-app.MapStaticAssets();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+app.UseRouting();
+
+// Map API controllers
+app.MapControllers();
+
+// Fallback to index.html for SPA routing
+app.MapFallbackToFile("index.html");
 
 app.Run();
