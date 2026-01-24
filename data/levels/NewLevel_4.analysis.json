@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "analyzedAt": "2026-01-21T16:32:03.2641566Z",
+  "levelFileName": "NewLevel_4.json",
+  "basic": {
+    "totalSimulations": 500,
+    "winRate": 0,
+    "deadlockRate": 0.192,
+    "outOfMovesRate": 0.808,
+    "averageMovesUsed": 22.83,
+    "averageScore": 0,
+    "difficultyRating": "VeryHard",
+    "elapsedMs": 6135.335
+  },
+  "deep": null
+}

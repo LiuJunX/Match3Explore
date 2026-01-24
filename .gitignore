@@ -39,3 +39,4 @@ nul
 # AI Tools - Local Settings
 .claude/settings.local.json
 .trae/documents/
+publish/
