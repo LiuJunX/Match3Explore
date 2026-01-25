@@ -1,8 +1,14 @@
+using System;
 using Match3.Core.Choreography;
 using Match3.Core.DependencyInjection;
 using Match3.Core.Models.Grid;
+using Match3.Core.Systems.Matching;
+using Match3.Core.Systems.Matching.Generation;
+using Match3.Core.Systems.Selection;
 using Match3.Presentation;
+using Match3.Random;
 using Match3.Unity.Pools;
+using Match3.Unity.UI;
 using UnityEngine;
 
 namespace Match3.Unity.Bridge
@@ -26,6 +32,7 @@ namespace Match3.Unity.Bridge
         private GameSession _session;
         private Choreographer _choreographer;
         private Player _player;
+        private WeightedMoveSelector _autoPlaySelector;
 
         private bool _initialized;
 
@@ -69,6 +76,67 @@ namespace Match3.Unity.Bridge
         /// </summary>
         public GameState CurrentState => _session?.Engine.State ?? default;
 
+        #region UI Properties
+
+        private float _gameSpeed = 1.0f;
+        private bool _isPaused;
+        private bool _isAutoPlaying;
+        private int _lastMovesRemaining = -1;
+        private int _lastScore = -1;
+
+        /// <summary>
+        /// Game simulation speed multiplier (0.1x - 5.0x).
+        /// </summary>
+        public float GameSpeed
+        {
+            get => _gameSpeed;
+            set => _gameSpeed = Mathf.Clamp(value, 0.1f, 5.0f);
+        }
+
+        /// <summary>
+        /// Whether the game is paused.
+        /// </summary>
+        public bool IsPaused
+        {
+            get => _isPaused;
+            set
+            {
+                _isPaused = value;
+                _session?.Engine.SetPaused(value);
+            }
+        }
+
+        /// <summary>
+        /// Whether auto-play mode is active.
+        /// </summary>
+        public bool IsAutoPlaying
+        {
+            get => _isAutoPlaying;
+            set => _isAutoPlaying = value;
+        }
+
+        /// <summary>
+        /// Event fired when moves remaining changes.
+        /// </summary>
+        public event Action<int> OnMovesChanged;
+
+        /// <summary>
+        /// Event fired when score changes.
+        /// </summary>
+        public event Action<int> OnScoreChanged;
+
+        /// <summary>
+        /// Event fired when game ends (victory, score).
+        /// </summary>
+        public event Action<bool, int> OnGameEnded;
+
+        /// <summary>
+        /// Event fired when objectives are updated.
+        /// </summary>
+        public event Action<ObjectiveProgress[]> OnObjectivesUpdated;
+
+        #endregion
+
         /// <summary>
         /// Initialize the bridge with default or serialized parameters.
         /// </summary>
@@ -110,11 +178,22 @@ namespace Match3.Unity.Bridge
             _choreographer = new Choreographer();
             _player = new Player();
 
+            // Create auto-play selector (same as Web version)
+            var matchFinder = new ClassicMatchFinder(new BombGenerator());
+            var uiRandom = _session.SeedManager.GetRandom(RandomDomain.Main);
+            _autoPlaySelector = new WeightedMoveSelector(matchFinder, uiRandom);
+
             // Sync initial state
             var state = _session.Engine.State;
             _player.SyncFromGameState(in state);
 
             _initialized = true;
+
+            // Reset UI state tracking
+            _lastMovesRemaining = -1;
+            _lastScore = -1;
+            _isPaused = false;
+            _isAutoPlaying = false;
 
             Debug.Log($"Match3Bridge initialized: {width}x{height}, seed={seed}");
         }
@@ -125,10 +204,14 @@ namespace Match3.Unity.Bridge
         /// </summary>
         public void Tick(float deltaTime)
         {
-            if (!_initialized) return;
+            if (!_initialized || _session == null) return;
+            if (_isPaused) return;
+
+            // Apply game speed
+            var scaledDelta = deltaTime * _gameSpeed;
 
             // Tick the simulation engine
-            _session.Engine.Tick(deltaTime);
+            _session.Engine.Tick(scaledDelta);
 
             // Drain events and convert to render commands
             var events = _session.DrainEvents();
@@ -139,7 +222,7 @@ namespace Match3.Unity.Bridge
             }
 
             // Tick the animation player
-            _player.Tick(deltaTime);
+            _player.Tick(scaledDelta);
 
             // Sync falling tiles from game state (physics-driven positions)
             if (!HasActiveAnimations)
@@ -147,6 +230,76 @@ namespace Match3.Unity.Bridge
                 var state = _session.Engine.State;
                 _player.VisualState.SyncFallingTilesFromGameState(in state);
             }
+
+            // Check for UI state changes
+            CheckStateChanges();
+
+            // Handle auto-play (same logic as Web version)
+            if (_isAutoPlaying && _session.Engine.IsStable() && !HasActiveAnimations)
+            {
+                TryMakeAutoMove();
+            }
+        }
+
+        private void TryMakeAutoMove()
+        {
+            if (_autoPlaySelector == null) return;
+
+            // Invalidate cache after board changes
+            _autoPlaySelector.InvalidateCache();
+
+            // Use Core's weighted move selector (same as Web)
+            var state = _session.Engine.State;
+            if (_autoPlaySelector.TryGetMove(in state, out var action))
+            {
+                if (action.ActionType == MoveActionType.Tap)
+                {
+                    _session.Engine.HandleTap(action.From);
+                }
+                else
+                {
+                    _session.Engine.ApplyMove(action.From, action.To);
+                }
+            }
+        }
+
+        private void CheckStateChanges()
+        {
+            var state = _session.Engine.State;
+
+            // Check moves changed (MovesRemaining = MoveLimit - MoveCount)
+            var currentMoves = state.MoveLimit - (int)state.MoveCount;
+            if (currentMoves != _lastMovesRemaining)
+            {
+                _lastMovesRemaining = currentMoves;
+                OnMovesChanged?.Invoke(currentMoves);
+            }
+
+            // Check score changed
+            var currentScore = (int)state.Score;
+            if (currentScore != _lastScore)
+            {
+                _lastScore = currentScore;
+                OnScoreChanged?.Invoke(currentScore);
+            }
+        }
+
+        /// <summary>
+        /// Notify UI that the game has ended.
+        /// Call this from GameController when game ends.
+        /// </summary>
+        public void NotifyGameEnded(bool isVictory, int finalScore)
+        {
+            OnGameEnded?.Invoke(isVictory, finalScore);
+        }
+
+        /// <summary>
+        /// Update objectives and notify UI.
+        /// Call this when objectives change.
+        /// </summary>
+        public void NotifyObjectivesUpdated(ObjectiveProgress[] objectives)
+        {
+            OnObjectivesUpdated?.Invoke(objectives);
         }
 
         /// <summary>
@@ -234,7 +387,14 @@ namespace Match3.Unity.Bridge
             _session = null;
             _player = null;
             _choreographer = null;
+            _autoPlaySelector = null;
             _initialized = false;
+
+            // Clear events to prevent memory leaks
+            OnMovesChanged = null;
+            OnScoreChanged = null;
+            OnGameEnded = null;
+            OnObjectivesUpdated = null;
 
             // Clear static caches to prevent stale references
             SpriteFactory.ClearCache();

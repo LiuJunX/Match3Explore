@@ -60,6 +60,11 @@ public sealed class SimulationEngine : IDisposable
     public bool IsPaused { get; private set; }
 
     /// <summary>
+    /// Match finder for external AI/auto-play usage.
+    /// </summary>
+    public IMatchFinder MatchFinder => _matchFinder;
+
+    /// <summary>
     /// Current tick number.
     /// </summary>
     public long CurrentTick => _currentTick;

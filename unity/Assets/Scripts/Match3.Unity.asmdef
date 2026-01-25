@@ -1,7 +1,9 @@
 {
     "name": "Match3.Unity",
     "rootNamespace": "Match3.Unity",
-    "references": [],
+    "references": [
+        "Unity.TextMeshPro"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

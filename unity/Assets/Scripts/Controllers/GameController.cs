@@ -1,4 +1,6 @@
+using System;
 using Match3.Unity.Bridge;
+using Match3.Unity.UI;
 using Match3.Unity.Views;
 using UnityEngine;
 
@@ -15,6 +17,16 @@ namespace Match3.Unity.Controllers
         [SerializeField] private BoardView _boardView;
         [SerializeField] private InputController _inputController;
         [SerializeField] private EffectManager _effectManager;
+
+        [Header("UI")]
+        [SerializeField] private bool _enableUI = true;
+        private UIManager _uiManager;
+
+        // Cached delegates for proper unsubscription
+        private Action<float> _onSpeedChangedHandler;
+        private Action _onPauseToggledHandler;
+        private Action _onAutoPlayToggledHandler;
+        private Action _onRestartClickedHandler;
 
         [Header("Auto Initialize")]
         [SerializeField] private bool _autoInitialize = true;
@@ -104,9 +116,44 @@ namespace Match3.Unity.Controllers
             // Initialize input
             _inputController.Initialize(_bridge, _boardView);
 
+            // Initialize UI
+            if (_enableUI)
+            {
+                InitializeUI();
+            }
+
             _initialized = true;
 
             Debug.Log("GameController initialized");
+        }
+
+        private void InitializeUI()
+        {
+            // Create UIManager
+            var uiGo = new GameObject("UIManager");
+            uiGo.transform.SetParent(transform, false);
+            _uiManager = uiGo.AddComponent<UIManager>();
+            _uiManager.Initialize(_bridge);
+
+            // Create cached delegates for proper cleanup
+            _onSpeedChangedHandler = speed => _bridge.GameSpeed = speed;
+            _onPauseToggledHandler = () =>
+            {
+                _bridge.IsPaused = !_bridge.IsPaused;
+                _uiManager.SetPaused(_bridge.IsPaused);
+            };
+            _onAutoPlayToggledHandler = () =>
+            {
+                _bridge.IsAutoPlaying = !_bridge.IsAutoPlaying;
+                _uiManager.SetAutoPlay(_bridge.IsAutoPlaying);
+            };
+            _onRestartClickedHandler = RestartGame;
+
+            // Wire UI callbacks
+            _uiManager.OnSpeedChanged += _onSpeedChangedHandler;
+            _uiManager.OnPauseToggled += _onPauseToggledHandler;
+            _uiManager.OnAutoPlayToggled += _onAutoPlayToggledHandler;
+            _uiManager.OnRestartClicked += _onRestartClickedHandler;
         }
 
         /// <summary>
@@ -129,7 +176,33 @@ namespace Match3.Unity.Controllers
             // Initialize input
             _inputController.Initialize(_bridge, _boardView);
 
+            // Initialize UI
+            if (_enableUI && _uiManager == null)
+            {
+                InitializeUI();
+            }
+            else if (_uiManager != null)
+            {
+                // Re-initialize existing UI with new bridge state
+                _uiManager.HideResult();
+            }
+
             _initialized = true;
+        }
+
+        /// <summary>
+        /// Restart the game with the same parameters.
+        /// </summary>
+        public void RestartGame()
+        {
+            var width = _bridge.Width;
+            var height = _bridge.Height;
+            var newSeed = System.Environment.TickCount;
+
+            Reset();
+            Initialize(width, height, newSeed);
+
+            Debug.Log($"Game restarted with seed: {newSeed}");
         }
 
         private void Update()
@@ -153,7 +226,23 @@ namespace Match3.Unity.Controllers
         {
             _boardView.Clear();
             _effectManager.Clear();
+            _uiManager?.HideResult();
             _initialized = false;
+        }
+
+        private void OnDestroy()
+        {
+            // Unsubscribe from UI events to prevent memory leaks
+            if (_uiManager != null)
+            {
+                _uiManager.OnSpeedChanged -= _onSpeedChangedHandler;
+                _uiManager.OnPauseToggled -= _onPauseToggledHandler;
+                _uiManager.OnAutoPlayToggled -= _onAutoPlayToggledHandler;
+                _uiManager.OnRestartClicked -= _onRestartClickedHandler;
+
+                Destroy(_uiManager.gameObject);
+                _uiManager = null;
+            }
         }
     }
 }
