@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using Match3.Core.Config;
 using Match3.Presentation;
 using Match3.Unity.Bridge;
 using Match3.Unity.Pools;
+using Match3.Unity.Services;
 using UnityEngine;
 
 namespace Match3.Unity.Views
@@ -52,21 +54,42 @@ namespace Match3.Unity.Views
             _projectileContainer = new GameObject("ProjectileContainer").transform;
             _projectileContainer.SetParent(transform, false);
 
+            // Get pool sizes from config
+            var (tileInitial, tileMax) = GetPoolSize("tiles", 64, 128);
+            var (projInitial, projMax) = GetPoolSize("projectiles", 5, 20);
+
             // Create tile pool
             _tilePool = new ObjectPool<TileView>(
                 factory: () => ViewFactory.CreateTileView(_tileContainer),
                 parent: _tileContainer,
-                initialSize: 64,
-                maxSize: 128
+                initialSize: tileInitial,
+                maxSize: tileMax
             );
 
             // Create projectile pool
             _projectilePool = new ObjectPool<ProjectileView>(
                 factory: () => ViewFactory.CreateProjectileView(_projectileContainer),
                 parent: _projectileContainer,
-                initialSize: 5,
-                maxSize: 20
+                initialSize: projInitial,
+                maxSize: projMax
             );
+        }
+
+        private static (int initial, int max) GetPoolSize(string poolName, int defaultInitial, int defaultMax)
+        {
+            try
+            {
+                var config = UnityConfigProvider.Instance.GetGameConfig();
+                if (config.PoolSizes != null && config.PoolSizes.TryGetValue(poolName, out var poolConfig))
+                {
+                    return (poolConfig.Initial, poolConfig.Max);
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[BoardView] Failed to load pool config for '{poolName}': {ex.Message}");
+            }
+            return (defaultInitial, defaultMax);
         }
 
         /// <summary>

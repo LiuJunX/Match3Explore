@@ -1,4 +1,5 @@
 using Match3.Unity.Bridge;
+using Match3.Unity.Services;
 using UnityEngine;
 
 namespace Match3.Unity.Controllers
@@ -22,8 +23,25 @@ namespace Match3.Unity.Controllers
         {
             _camera = GetComponent<Camera>();
             _camera.orthographic = true;
-            _camera.backgroundColor = _backgroundColor;
+            _camera.backgroundColor = GetBackgroundColor();
             _camera.clearFlags = CameraClearFlags.SolidColor;
+        }
+
+        private Color GetBackgroundColor()
+        {
+            try
+            {
+                var config = UnityConfigProvider.Instance.GetVisualConfig();
+                if (!string.IsNullOrEmpty(config.BackgroundColor))
+                {
+                    return ConfigColorUtility.ParseHexColor(config.BackgroundColor, _backgroundColor);
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[CameraSetup] Failed to load background color: {ex.Message}");
+            }
+            return _backgroundColor;
         }
 
         private void Start()
