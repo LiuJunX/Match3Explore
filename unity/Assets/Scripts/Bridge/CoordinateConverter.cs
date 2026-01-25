@@ -28,16 +28,14 @@ namespace Match3.Unity.Bridge
         }
 
         /// <summary>
-        /// Convert grid position (float) to Unity world position (without height param for compatibility).
-        /// NOTE: Prefer the overload with height parameter for correct Y-flip.
+        /// OBSOLETE: Use the overload with height parameter for correct Y-flip.
+        /// This overload throws to prevent accidental usage.
         /// </summary>
+        [System.Obsolete("Use GridToWorld(gridPos, cellSize, origin, height) instead", true)]
         public static Vector3 GridToWorld(SysVector2 gridPos, float cellSize, Vector2 origin)
         {
-            // This overload assumes height is stored elsewhere or caller handles flip
-            // For backward compatibility, just do direct mapping (caller should use height version)
-            float worldX = origin.x + gridPos.X * cellSize + cellSize * 0.5f;
-            float worldY = origin.y - gridPos.Y * cellSize - cellSize * 0.5f;
-            return new Vector3(worldX, worldY, 0f);
+            throw new System.InvalidOperationException(
+                "Use GridToWorld(gridPos, cellSize, origin, height) for correct Y-axis conversion");
         }
 
         /// <summary>

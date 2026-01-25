@@ -17,6 +17,10 @@ namespace Match3.Unity.Views
         private readonly Dictionary<string, Queue<ParticleSystem>> _effectPools = new();
         private readonly Dictionary<int, ActiveEffect> _activeEffects = new();
 
+        // Pre-allocated collections to avoid GC in hot path
+        private readonly HashSet<int> _currentHashes = new();
+        private readonly List<int> _effectsToRemove = new();
+
         private struct ActiveEffect
         {
             public ParticleSystem ParticleSystem;
@@ -53,14 +57,15 @@ namespace Match3.Unity.Views
             var origin = _bridge.BoardOrigin;
             var height = _bridge.Height;
 
-            // Track which effects are still in state
-            var currentHashes = new HashSet<int>();
+            // Clear pre-allocated collections (no allocation)
+            _currentHashes.Clear();
+            _effectsToRemove.Clear();
 
             // Spawn new effects and track existing ones
             foreach (var effect in state.Effects)
             {
                 var hash = ComputeEffectHash(effect);
-                currentHashes.Add(hash);
+                _currentHashes.Add(hash);
 
                 // Skip if already playing
                 if (_activeEffects.ContainsKey(hash))
@@ -72,16 +77,15 @@ namespace Match3.Unity.Views
             }
 
             // Remove effects that are no longer in state
-            var toRemove = new List<int>();
             foreach (var kvp in _activeEffects)
             {
-                if (!currentHashes.Contains(kvp.Key))
+                if (!_currentHashes.Contains(kvp.Key))
                 {
-                    toRemove.Add(kvp.Key);
+                    _effectsToRemove.Add(kvp.Key);
                 }
             }
 
-            foreach (var hash in toRemove)
+            foreach (var hash in _effectsToRemove)
             {
                 if (_activeEffects.TryGetValue(hash, out var active))
                 {

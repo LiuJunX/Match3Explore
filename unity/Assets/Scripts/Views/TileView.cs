@@ -32,6 +32,9 @@ namespace Match3.Unity.Views
         /// </summary>
         public BombType BombType { get; private set; }
 
+        private Vector3 _baseScale = Vector3.one;
+        private bool _isHighlighted;
+
         private void Awake()
         {
             _renderer = GetComponent<SpriteRenderer>();
@@ -71,9 +74,10 @@ namespace Match3.Unity.Views
             var worldPos = CoordinateConverter.GridToWorld(visual.Position, cellSize, origin, height);
             transform.position = worldPos;
 
-            // Update scale
+            // Update scale (store base scale for highlight effect)
             var scale = visual.Scale;
-            transform.localScale = new Vector3(scale.X * cellSize, scale.Y * cellSize, 1f);
+            _baseScale = new Vector3(scale.X * cellSize, scale.Y * cellSize, 1f);
+            transform.localScale = _isHighlighted ? _baseScale * 1.1f : _baseScale;
 
             // Update alpha
             var color = _renderer.color;
@@ -118,9 +122,21 @@ namespace Match3.Unity.Views
         /// </summary>
         public void SetHighlighted(bool highlighted)
         {
-            if (highlighted)
+            if (_isHighlighted == highlighted) return;
+            _isHighlighted = highlighted;
+
+            transform.localScale = highlighted ? _baseScale * 1.1f : _baseScale;
+        }
+
+        /// <summary>
+        /// Update base scale (called after UpdateFromVisual sets the scale).
+        /// </summary>
+        public void SetBaseScale(Vector3 scale)
+        {
+            _baseScale = scale;
+            if (!_isHighlighted)
             {
-                transform.localScale *= 1.1f;
+                transform.localScale = _baseScale;
             }
         }
 
@@ -131,6 +147,8 @@ namespace Match3.Unity.Views
             TileId = -1;
             TileType = TileType.None;
             BombType = BombType.None;
+            _baseScale = Vector3.one;
+            _isHighlighted = false;
             transform.localScale = Vector3.one;
             _renderer.color = Color.white;
             _bombOverlayGo.SetActive(false);

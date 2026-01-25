@@ -17,6 +17,12 @@ namespace Match3.Unity.Views
         private readonly Dictionary<long, TileView> _activeTiles = new();
         private readonly Dictionary<long, ProjectileView> _activeProjectiles = new();
 
+        // Pre-allocated collections to avoid GC in hot path
+        private readonly HashSet<long> _activeTileIds = new();
+        private readonly HashSet<long> _activeProjectileIds = new();
+        private readonly List<long> _tilesToRemove = new();
+        private readonly List<long> _projectilesToRemove = new();
+
         private Match3Bridge _bridge;
         private Transform _tileContainer;
         private Transform _projectileContainer;
@@ -75,8 +81,9 @@ namespace Match3.Unity.Views
             var origin = _bridge.BoardOrigin;
             var height = _bridge.Height;
 
-            // Track which tiles are still active
-            var stillActive = new HashSet<long>();
+            // Clear pre-allocated collections (no allocation)
+            _activeTileIds.Clear();
+            _tilesToRemove.Clear();
 
             // Update existing tiles and create new ones
             foreach (var kvp in state.Tiles)
@@ -86,7 +93,7 @@ namespace Match3.Unity.Views
 
                 if (!visual.IsVisible) continue;
 
-                stillActive.Add(tileId);
+                _activeTileIds.Add(tileId);
 
                 if (!_activeTiles.TryGetValue(tileId, out var tileView))
                 {
@@ -101,16 +108,15 @@ namespace Match3.Unity.Views
             }
 
             // Remove tiles that are no longer active
-            var toRemove = new List<long>();
             foreach (var kvp in _activeTiles)
             {
-                if (!stillActive.Contains(kvp.Key))
+                if (!_activeTileIds.Contains(kvp.Key))
                 {
-                    toRemove.Add(kvp.Key);
+                    _tilesToRemove.Add(kvp.Key);
                 }
             }
 
-            foreach (var tileId in toRemove)
+            foreach (var tileId in _tilesToRemove)
             {
                 if (_activeTiles.TryGetValue(tileId, out var tileView))
                 {
@@ -125,8 +131,9 @@ namespace Match3.Unity.Views
 
         private void RenderProjectiles(VisualState state, float cellSize, Vector2 origin, int height)
         {
-            // Track which projectiles are still active
-            var stillActive = new HashSet<long>();
+            // Clear pre-allocated collections (no allocation)
+            _activeProjectileIds.Clear();
+            _projectilesToRemove.Clear();
 
             // Update existing projectiles and create new ones
             foreach (var kvp in state.Projectiles)
@@ -136,7 +143,7 @@ namespace Match3.Unity.Views
 
                 if (!visual.IsVisible) continue;
 
-                stillActive.Add(projectileId);
+                _activeProjectileIds.Add(projectileId);
 
                 if (!_activeProjectiles.TryGetValue(projectileId, out var projectileView))
                 {
@@ -151,16 +158,15 @@ namespace Match3.Unity.Views
             }
 
             // Remove projectiles that are no longer active
-            var toRemove = new List<long>();
             foreach (var kvp in _activeProjectiles)
             {
-                if (!stillActive.Contains(kvp.Key))
+                if (!_activeProjectileIds.Contains(kvp.Key))
                 {
-                    toRemove.Add(kvp.Key);
+                    _projectilesToRemove.Add(kvp.Key);
                 }
             }
 
-            foreach (var projectileId in toRemove)
+            foreach (var projectileId in _projectilesToRemove)
             {
                 if (_activeProjectiles.TryGetValue(projectileId, out var projectileView))
                 {

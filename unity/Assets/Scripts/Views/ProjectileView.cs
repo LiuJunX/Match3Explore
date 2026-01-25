@@ -11,6 +11,8 @@ namespace Match3.Unity.Views
     [RequireComponent(typeof(SpriteRenderer))]
     public sealed class ProjectileView : MonoBehaviour, IPoolable
     {
+        private static Material _sharedTrailMaterial;
+
         private SpriteRenderer _renderer;
         private TrailRenderer _trail;
 
@@ -37,7 +39,14 @@ namespace Match3.Unity.Views
             _trail.startWidth = 0.3f;
             _trail.endWidth = 0f;
             _trail.time = 0.2f;
-            _trail.material = new Material(Shader.Find("Sprites/Default"));
+
+            // Use shared material to avoid memory leak
+            if (_sharedTrailMaterial == null)
+            {
+                _sharedTrailMaterial = new Material(Shader.Find("Sprites/Default"));
+            }
+            _trail.sharedMaterial = _sharedTrailMaterial;
+
             _trail.startColor = new Color(0.5f, 1f, 0.5f, 0.8f);
             _trail.endColor = new Color(0.5f, 1f, 0.5f, 0f);
             _trail.sortingLayerName = "Projectiles";

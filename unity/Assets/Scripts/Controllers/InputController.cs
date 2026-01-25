@@ -1,4 +1,6 @@
+using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
+using Match3.Core.Systems.Input;
 using Match3.Unity.Bridge;
 using Match3.Unity.Views;
 using UnityEngine;
@@ -6,22 +8,16 @@ using UnityEngine;
 namespace Match3.Unity.Controllers
 {
     /// <summary>
-    /// Handles player input (touch/mouse).
-    /// Delegates to Core's SimulationEngine.HandleTap for game logic.
-    /// Only handles gesture detection (tap vs swipe).
+    /// Handles player input by delegating to Core's StandardInputSystem.
+    /// Only converts Unity screen coordinates to Core format.
     /// </summary>
     public sealed class InputController : MonoBehaviour
     {
-        [Header("Configuration")]
-        [SerializeField] private float _swipeThreshold = 0.3f;
-
         private Match3Bridge _bridge;
         private BoardView _boardView;
         private Camera _mainCamera;
 
-        private Vector3 _pointerDownWorld;
-        private Position _pointerDownGrid;
-        private bool _isPointerDown;
+        private StandardInputSystem _inputSystem;
 
         /// <summary>
         /// Initialize the input controller.
@@ -31,7 +27,23 @@ namespace Match3.Unity.Controllers
             _bridge = bridge;
             _boardView = boardView;
             _mainCamera = Camera.main;
-            _isPointerDown = false;
+
+            // Create Core's input system
+            _inputSystem = new StandardInputSystem();
+            _inputSystem.Configure(_bridge.CellSize);
+
+            // Subscribe to Core's input events
+            _inputSystem.TapDetected += OnTapDetected;
+            _inputSystem.SwipeDetected += OnSwipeDetected;
+        }
+
+        private void OnDestroy()
+        {
+            if (_inputSystem != null)
+            {
+                _inputSystem.TapDetected -= OnTapDetected;
+                _inputSystem.SwipeDetected -= OnSwipeDetected;
+            }
         }
 
         private void Update()
@@ -46,95 +58,55 @@ namespace Match3.Unity.Controllers
         {
             if (Input.GetMouseButtonDown(0))
             {
-                OnPointerDown(GetWorldPosition());
+                var (gridPos, screenPos) = GetPositions();
+                if (gridPos.IsValid)
+                {
+                    // Pass to Core's input system
+                    // Note: Core expects Y+ = down, Unity screen Y+ = up
+                    // So we flip screenY for Core
+                    _inputSystem.OnPointerDown(
+                        gridPos.X, gridPos.Y,
+                        screenPos.x, Screen.height - screenPos.y);
+                }
             }
 
             if (Input.GetMouseButtonUp(0))
             {
-                OnPointerUp(GetWorldPosition());
+                var screenPos = Input.mousePosition;
+                // Flip Y for Core
+                _inputSystem.OnPointerUp(screenPos.x, Screen.height - screenPos.y);
             }
         }
 
-        private void OnPointerDown(Vector3 worldPos)
+        private void OnTapDetected(Position pos)
         {
-            var gridPos = WorldToGrid(worldPos);
-            if (!gridPos.IsValid) return;
-
-            _pointerDownWorld = worldPos;
-            _pointerDownGrid = gridPos;
-            _isPointerDown = true;
-        }
-
-        private void OnPointerUp(Vector3 worldPos)
-        {
-            if (!_isPointerDown) return;
-            _isPointerDown = false;
-
             if (!_bridge.IsIdle()) return;
 
-            var delta = worldPos - _pointerDownWorld;
-            var cellSize = _bridge.CellSize;
-
-            // Check if this is a swipe or a tap
-            if (delta.magnitude > cellSize * _swipeThreshold)
-            {
-                // Swipe - determine direction and apply move
-                var targetPos = GetSwipeTarget(_pointerDownGrid, delta);
-                if (targetPos.IsValid)
-                {
-                    _bridge.ApplyMove(_pointerDownGrid, targetPos);
-                }
-            }
-            else
-            {
-                // Tap - delegate to Core's HandleTap
-                _bridge.HandleTap(_pointerDownGrid);
-            }
+            _bridge.HandleTap(pos);
         }
 
-        private Position GetSwipeTarget(Position from, Vector3 delta)
+        private void OnSwipeDetected(Position from, Direction direction)
         {
-            // Determine primary direction (horizontal or vertical)
-            // This handles 45-degree diagonal swipes by choosing dominant axis
-            Position target;
-            if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
-            {
-                // Horizontal swipe
-                target = delta.x > 0
-                    ? new Position(from.X + 1, from.Y)  // Right
-                    : new Position(from.X - 1, from.Y); // Left
-            }
-            else
-            {
-                // Vertical swipe
-                // Unity Y+ is up, but Core Y+ is down
-                // So Unity swipe up (delta.y > 0) = Core Y-1 (up in grid)
-                target = delta.y > 0
-                    ? new Position(from.X, from.Y - 1)  // Up in Unity = Up in Grid (Y-1)
-                    : new Position(from.X, from.Y + 1); // Down in Unity = Down in Grid (Y+1)
-            }
+            if (!_bridge.IsIdle()) return;
 
-            // Validate target is within bounds and has a tile
-            if (_bridge.GetTileIdAt(target) >= 0)
+            var to = _inputSystem.GetSwipeTarget(from, direction);
+            if (_bridge.GetTileIdAt(to) >= 0)
             {
-                return target;
+                _bridge.ApplyMove(from, to);
             }
-
-            return Position.Invalid;
         }
 
-        private Position WorldToGrid(Vector3 worldPos)
-        {
-            return CoordinateConverter.WorldToGrid(
-                worldPos, _bridge.CellSize, _bridge.BoardOrigin,
-                _bridge.Width, _bridge.Height);
-        }
-
-        private Vector3 GetWorldPosition()
+        private (Position gridPos, Vector3 screenPos) GetPositions()
         {
             var screenPos = Input.mousePosition;
             screenPos.z = -_mainCamera.transform.position.z;
-            return _mainCamera.ScreenToWorldPoint(screenPos);
+            var worldPos = _mainCamera.ScreenToWorldPoint(screenPos);
+
+            var gridPos = CoordinateConverter.WorldToGrid(
+                worldPos, _bridge.CellSize, _bridge.BoardOrigin,
+                _bridge.Width, _bridge.Height);
+
+            return (gridPos, screenPos);
         }
     }
 }

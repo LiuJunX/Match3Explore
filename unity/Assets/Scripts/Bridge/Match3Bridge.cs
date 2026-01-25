@@ -2,6 +2,7 @@ using Match3.Core.Choreography;
 using Match3.Core.DependencyInjection;
 using Match3.Core.Models.Grid;
 using Match3.Presentation;
+using Match3.Unity.Pools;
 using UnityEngine;
 
 namespace Match3.Unity.Bridge
@@ -64,9 +65,9 @@ namespace Match3.Unity.Bridge
         public bool IsInitialized => _initialized;
 
         /// <summary>
-        /// Current game state reference.
+        /// Current game state reference. Returns default if not initialized.
         /// </summary>
-        public GameState CurrentState => _session.Engine.State;
+        public GameState CurrentState => _session?.Engine.State ?? default;
 
         /// <summary>
         /// Initialize the bridge with default or serialized parameters.
@@ -234,6 +235,9 @@ namespace Match3.Unity.Bridge
             _player = null;
             _choreographer = null;
             _initialized = false;
+
+            // Clear static caches to prevent stale references
+            SpriteFactory.ClearCache();
         }
 
         private void OnDestroy()
