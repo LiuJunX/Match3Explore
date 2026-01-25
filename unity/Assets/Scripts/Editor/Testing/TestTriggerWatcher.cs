@@ -1,3 +1,7 @@
+// Disable this file if Test Runner API is inaccessible (e.g., in Tuanjie Engine)
+// Add DISABLE_TEST_TRIGGER_WATCHER to Scripting Define Symbols to disable
+#if !DISABLE_TEST_TRIGGER_WATCHER
+
 using System;
 using System.IO;
 using UnityEditor;
@@ -187,3 +191,5 @@ namespace Match3.Unity.Editor.Testing
         }
     }
 }
+
+#endif // !DISABLE_TEST_TRIGGER_WATCHER

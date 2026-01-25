@@ -84,4 +84,6 @@ var color = config.TileColors["Red"]; // "#E63333"
 
 ### 发布构建
 
-发布时需要将 `config/` 复制到 `StreamingAssets/config/`。
+构建时会**自动复制** `config/` 到 `StreamingAssets/config/`（由 `BuildPreprocessor` 处理）。
+
+手动同步：菜单 **Match3 > Sync Config to StreamingAssets**

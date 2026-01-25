@@ -17,7 +17,8 @@ public interface IConfigProvider
     AnimationConfig GetAnimationConfig();
 
     /// <summary>
-    /// Get extended game configuration.
+    /// Get extended game configuration (JSON DTO).
+    /// For runtime config, use <see cref="ConfigProviderExtensions.GetMatch3Config"/>.
     /// </summary>
     GameConfigExtended GetGameConfig();
 
@@ -30,4 +31,18 @@ public interface IConfigProvider
     /// List all available level IDs.
     /// </summary>
     string[] GetLevelIds();
+}
+
+/// <summary>
+/// Extension methods for IConfigProvider.
+/// </summary>
+public static class ConfigProviderExtensions
+{
+    /// <summary>
+    /// Get runtime Match3Config from configuration.
+    /// </summary>
+    public static Match3Config GetMatch3Config(this IConfigProvider provider)
+    {
+        return provider.GetGameConfig().ToMatch3Config();
+    }
 }

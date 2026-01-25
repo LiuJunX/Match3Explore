@@ -2,7 +2,9 @@
     "name": "Match3.Unity.Editor",
     "rootNamespace": "Match3.Unity.Editor",
     "references": [
-        "Match3.Unity"
+        "Match3.Unity",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
     ],
     "includePlatforms": [
         "Editor"
