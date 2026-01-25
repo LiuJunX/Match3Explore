@@ -50,38 +50,35 @@ dotnet test --nologo --verbosity minimal
 
 ### 3. 运行 Unity 测试（如果需要）
 
-Unity 测试使用触发器模式，编辑器需要已打开：
+Unity 测试通过 MCP 直接调用，编辑器需要已打开：
 
-```bash
-# 1. 写入触发文件
-echo %date% %time% > unity/.test-trigger
-
-# 2. 等待结果（轮询 test-results.json）
-# 检查 .test-running 文件是否存在来判断测试是否还在运行
-
-# 3. 读取结果
-# unity/test-results.json
+```
+# 使用 MCP 工具运行测试
+mcp__mcp-unity__run_tests({
+  testMode: "EditMode",       # EditMode 或 PlayMode
+  returnOnlyFailures: true,   # 只返回失败的测试
+  returnWithLogs: false       # 是否包含日志
+})
 ```
 
 ### 4. 解析 Unity 测试结果
 
-读取 `unity/test-results.json`：
+MCP 返回的结果格式：
 
 ```json
 {
-  "total": 27,
-  "passed": 25,
-  "failed": 2,
-  "duration": 1.23,
+  "summary": {
+    "total": 30,
+    "passed": 30,
+    "failed": 0,
+    "skipped": 0
+  },
   "tests": [
     {
       "name": "TestName",
       "className": "TestClass",
-      "status": "Failed",
-      "message": "Expected X but was Y",
-      "stackTrace": "...",
-      "sourceFile": "Assets/Tests/Editor/TestFile.cs",
-      "sourceLine": 42
+      "status": "Passed|Failed",
+      "message": "错误信息（如果失败）"
     }
   ]
 }
@@ -123,16 +120,16 @@ echo %date% %time% > unity/.test-trigger
 ## Unity 测试前置条件
 
 - Unity/团结引擎编辑器必须已打开项目
+- MCP Unity Server 必须运行（编辑器打开时自动启动）
 - 编辑器可以在后台运行
-- 首次打开编辑器后需要等待编译完成
 
 ## 错误处理
 
-### Unity 编辑器未打开
-如果 30 秒内没有生成 test-results.json：
+### MCP 连接失败
 ```
-⚠️ Unity 测试超时
+⚠️ Unity MCP 连接失败
 请确保 Unity 编辑器已打开项目 unity/
+MCP Server 状态可在 Window > MCP Unity Server 查看
 ```
 
 ### dotnet test 失败
