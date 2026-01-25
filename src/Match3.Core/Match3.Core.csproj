@@ -10,6 +10,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="ZString" Version="2.6.0" />
+    <PackageReference Include="System.Text.Json" Version="6.0.0" />
   </ItemGroup>
 
   <!-- 自动同步 DLL 到 Unity -->
@@ -30,6 +31,13 @@
     <ItemGroup>
       <DepsToUnity Include="$(NuGetPackageRoot)zstring\2.6.0\lib\netstandard2.1\ZString.dll" />
       <DepsToUnity Include="$(NuGetPackageRoot)system.runtime.compilerservices.unsafe\6.0.0\lib\netstandard2.0\System.Runtime.CompilerServices.Unsafe.dll" />
+      <DepsToUnity Include="$(NuGetPackageRoot)system.text.json\6.0.0\lib\netstandard2.0\System.Text.Json.dll" />
+      <DepsToUnity Include="$(NuGetPackageRoot)system.text.encodings.web\6.0.0\lib\netstandard2.0\System.Text.Encodings.Web.dll" />
+      <DepsToUnity Include="$(NuGetPackageRoot)microsoft.bcl.asyncinterfaces\6.0.0\lib\netstandard2.1\Microsoft.Bcl.AsyncInterfaces.dll" />
+      <DepsToUnity Include="$(NuGetPackageRoot)system.buffers\4.5.1\lib\netstandard2.0\System.Buffers.dll" />
+      <DepsToUnity Include="$(NuGetPackageRoot)system.memory\4.5.4\lib\netstandard2.0\System.Memory.dll" />
+      <DepsToUnity Include="$(NuGetPackageRoot)system.numerics.vectors\4.5.0\lib\netstandard2.0\System.Numerics.Vectors.dll" />
+      <DepsToUnity Include="$(NuGetPackageRoot)system.threading.tasks.extensions\4.5.4\lib\netstandard2.0\System.Threading.Tasks.Extensions.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(DepsToUnity)" DestinationFolder="$(UnityPluginsPath)" SkipUnchangedFiles="true" />
   </Target>

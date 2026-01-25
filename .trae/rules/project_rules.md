@@ -32,6 +32,12 @@ alwaysApply: true
 - 分层职责：Controller 管理逻辑与状态；IGameView 仅渲染与输入意图
 - DDD：使用领域语言（Gravity、Matching）；高内聚
 
+## 3.1 AI 协作设计原则
+本项目刻意最大化 AI 可参与的开发范围：
+- **配置优先于编辑器**：用 `config/*.json` 替代 Unity Inspector / ScriptableObject
+- **代码优先于拖拽**：用代码创建 GameObject / Prefab，减少编辑器手动操作
+- **配置位置**：`config/`（全项目共享），JSON Schema 见 `config/schemas/`
+
 ## 4. Best Practices
 - 先看上下文：修改/新增前检索既有文件与约定
 - 复用现有结构：如 Position、GameBoard

@@ -61,3 +61,27 @@ dotnet build src/Match3.Presentation -c Release
 ```
 
 或者告诉 Claude："同步到 Unity"
+
+## 配置系统
+
+配置文件位于项目根目录 `config/`，Unity 开发时直接从这里读取。
+
+```
+config/
+├── game/match3.json      # 游戏规则配置
+├── visual/colors.json    # 颜色配置
+├── visual/animation.json # 动画时长配置
+├── levels/               # 关卡配置
+└── schemas/              # JSON Schema（IDE 提示）
+```
+
+### 使用方式
+
+```csharp
+var config = UnityConfigProvider.Instance.GetVisualConfig();
+var color = config.TileColors["Red"]; // "#E63333"
+```
+
+### 发布构建
+
+发布时需要将 `config/` 复制到 `StreamingAssets/config/`。

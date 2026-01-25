@@ -1,0 +1,17 @@
+{
+  "$schema": "../schemas/level.schema.json",
+  "id": "level_001",
+  "name": "Tutorial 1",
+  "width": 8,
+  "height": 8,
+  "moveLimit": 20,
+  "targetDifficulty": 0.3,
+  "objectives": [
+    {
+      "type": "Score",
+      "target": 1000
+    }
+  ],
+  "grid": null,
+  "notes": "Initial grid is null = random generation"
+}

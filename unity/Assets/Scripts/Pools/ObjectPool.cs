@@ -73,7 +73,7 @@ namespace Match3.Unity.Pools
 
             if (_maxSize > 0 && _available.Count >= _maxSize)
             {
-                UnityEngine.Object.Destroy(item.gameObject);
+                SafeDestroy(item.gameObject);
                 return;
             }
 
@@ -90,9 +90,26 @@ namespace Match3.Unity.Pools
                 var item = _available.Dequeue();
                 if (item != null && item.gameObject != null)
                 {
-                    UnityEngine.Object.Destroy(item.gameObject);
+                    SafeDestroy(item.gameObject);
                 }
             }
+        }
+
+        /// <summary>
+        /// Destroy object safely in both Play and Edit mode.
+        /// </summary>
+        private static void SafeDestroy(UnityEngine.Object obj)
+        {
+            if (obj == null) return;
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                UnityEngine.Object.DestroyImmediate(obj);
+                return;
+            }
+#endif
+            UnityEngine.Object.Destroy(obj);
         }
 
         private T CreateNew()

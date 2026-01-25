@@ -37,3 +37,8 @@ sysinfo.txt
 
 # Addressables
 [Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
+
+# Test trigger files (Claude integration)
+.test-trigger
+.test-running
+test-results.json

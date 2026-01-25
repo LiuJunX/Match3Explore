@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "match3.schema.json",
+  "title": "Match3 Game Configuration",
+  "type": "object",
+  "properties": {
+    "defaultWidth": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 20,
+      "description": "Default board width"
+    },
+    "defaultHeight": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 20,
+      "description": "Default board height"
+    },
+    "tileTypesCount": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 10,
+      "description": "Number of different tile types"
+    },
+    "physics": {
+      "type": "object",
+      "properties": {
+        "swapSpeed": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Speed of tile swap (units/sec)"
+        },
+        "initialFallSpeed": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Initial fall speed (units/sec)"
+        },
+        "gravityAcceleration": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Gravity acceleration (units/sec^2)"
+        },
+        "maxFallSpeed": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Maximum fall speed cap (units/sec)"
+        }
+      }
+    },
+    "poolSizes": {
+      "type": "object",
+      "description": "Object pool configuration",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "initial": { "type": "integer", "minimum": 0 },
+          "max": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  }
+}

@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using Match3.Core.Config;
 using Match3.Core.Models.Enums;
+using Match3.Unity.Services;
 using UnityEngine;
 
 namespace Match3.Unity.Pools
@@ -7,11 +9,55 @@ namespace Match3.Unity.Pools
     /// <summary>
     /// Runtime sprite generation for tiles.
     /// Creates 1x1 pixel textures - no external asset dependencies.
+    /// Colors are loaded from configuration.
     /// </summary>
     public static class SpriteFactory
     {
         private static readonly Dictionary<Color, Sprite> _colorCache = new();
         private static readonly Dictionary<BombType, Sprite> _bombOverlayCache = new();
+
+        // Cached colors from config
+        private static Dictionary<string, Color> _tileColors;
+        private static Dictionary<string, Color> _bombColors;
+        private static bool _configLoaded;
+
+        /// <summary>
+        /// Ensure configuration is loaded.
+        /// </summary>
+        private static void EnsureConfigLoaded()
+        {
+            if (_configLoaded) return;
+
+            try
+            {
+                var config = UnityConfigProvider.Instance.GetVisualConfig();
+                _tileColors = new Dictionary<string, Color>();
+                _bombColors = new Dictionary<string, Color>();
+
+                foreach (var kvp in config.TileColors)
+                {
+                    _tileColors[kvp.Key] = ConfigColorUtility.ParseHexColor(kvp.Value, Color.gray);
+                }
+
+                if (config.BombIndicatorColors != null)
+                {
+                    foreach (var kvp in config.BombIndicatorColors)
+                    {
+                        _bombColors[kvp.Key] = ConfigColorUtility.ParseHexColor(kvp.Value, Color.white);
+                    }
+                }
+
+                _configLoaded = true;
+                Debug.Log($"[SpriteFactory] Loaded {_tileColors.Count} tile colors, {_bombColors.Count} bomb colors from config");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[SpriteFactory] Failed to load config, using defaults: {ex.Message}");
+                _tileColors = new Dictionary<string, Color>();
+                _bombColors = new Dictionary<string, Color>();
+                _configLoaded = true;
+            }
+        }
 
         /// <summary>
         /// Get or create a sprite for the given color.
@@ -39,18 +85,40 @@ namespace Match3.Unity.Pools
         /// </summary>
         public static Color GetTileColor(TileType type)
         {
-            // Handle flag combinations - extract the color component
+            EnsureConfigLoaded();
+
+            // Try to get from config first
+            string typeName = GetTileTypeName(type);
+            if (typeName != null && _tileColors.TryGetValue(typeName, out var configColor))
+            {
+                return configColor;
+            }
+
+            // Fallback to hardcoded defaults
             if ((type & TileType.Red) != 0) return new Color(0.9f, 0.2f, 0.2f);
             if ((type & TileType.Green) != 0) return new Color(0.2f, 0.8f, 0.3f);
             if ((type & TileType.Blue) != 0) return new Color(0.2f, 0.4f, 0.9f);
             if ((type & TileType.Yellow) != 0) return new Color(0.95f, 0.85f, 0.2f);
             if ((type & TileType.Purple) != 0) return new Color(0.7f, 0.3f, 0.8f);
             if ((type & TileType.Orange) != 0) return new Color(0.95f, 0.5f, 0.1f);
-
-            // Special types
             if ((type & TileType.Rainbow) != 0) return new Color(0.9f, 0.9f, 0.9f);
 
             return Color.gray;
+        }
+
+        /// <summary>
+        /// Get the config key name for a TileType.
+        /// </summary>
+        private static string GetTileTypeName(TileType type)
+        {
+            if ((type & TileType.Red) != 0) return "Red";
+            if ((type & TileType.Green) != 0) return "Green";
+            if ((type & TileType.Blue) != 0) return "Blue";
+            if ((type & TileType.Yellow) != 0) return "Yellow";
+            if ((type & TileType.Purple) != 0) return "Purple";
+            if ((type & TileType.Orange) != 0) return "Orange";
+            if ((type & TileType.Rainbow) != 0) return "Rainbow";
+            return null;
         }
 
         /// <summary>
@@ -97,6 +165,16 @@ namespace Match3.Unity.Pools
 
         private static Color GetBombIndicatorColor(BombType bombType)
         {
+            EnsureConfigLoaded();
+
+            // Try to get from config first
+            string typeName = bombType.ToString();
+            if (_bombColors.TryGetValue(typeName, out var configColor))
+            {
+                return configColor;
+            }
+
+            // Fallback to hardcoded defaults
             return bombType switch
             {
                 BombType.Horizontal => new Color(1f, 1f, 1f, 0.9f),
@@ -173,7 +251,7 @@ namespace Match3.Unity.Pools
         }
 
         /// <summary>
-        /// Clear all cached sprites.
+        /// Clear all cached sprites and reload config.
         /// </summary>
         public static void ClearCache()
         {
@@ -196,6 +274,11 @@ namespace Match3.Unity.Pools
                 }
             }
             _bombOverlayCache.Clear();
+
+            // Reset config cache to reload on next access
+            _configLoaded = false;
+            _tileColors = null;
+            _bombColors = null;
         }
     }
 }

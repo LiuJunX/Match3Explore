@@ -1,0 +1,18 @@
+{
+    "name": "Match3.Unity.Editor",
+    "rootNamespace": "Match3.Unity.Editor",
+    "references": [
+        "Match3.Unity"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
