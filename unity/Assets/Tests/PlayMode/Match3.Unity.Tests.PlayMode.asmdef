@@ -1,0 +1,25 @@
+{
+    "name": "Match3.Unity.Tests.PlayMode",
+    "rootNamespace": "Match3.Unity.Tests.PlayMode",
+    "references": [
+        "Match3.Unity",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Match3.Core.dll",
+        "Match3.Presentation.dll",
+        "Match3.Random.dll",
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
