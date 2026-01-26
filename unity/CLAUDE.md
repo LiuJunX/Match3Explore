@@ -23,12 +23,18 @@ Unity 通过 DLL 引用核心库，**源码位于**：
 - ❌ 在 MonoBehaviour 中直接操作 `Match3Grid`
 - ❌ 绕过 `Player` 直接处理 `GameEvent`
 - ❌ 在 View 层实现游戏逻辑
+- ❌ 重复实现 Core 已有功能
 
 ### 必须
 
 - ✅ 通过 `RenderCommand` 驱动所有视觉变化
 - ✅ 输入事件转换为 Core 的 `InputSystem` 调用
 - ✅ 使用 `VisualState` 进行插值渲染
+
+### 实现新功能前
+
+1. **先搜索 Core** - `Grep "关键词" src/Match3.Core/`
+2. **Unity 只做桥接** - 不重复实现 Core 已有逻辑
 
 ## 命名规范
 
