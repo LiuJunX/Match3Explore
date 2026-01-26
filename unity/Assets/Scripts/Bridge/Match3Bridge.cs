@@ -268,7 +268,7 @@ namespace Match3.Unity.Bridge
             var state = _session.Engine.State;
 
             // Check moves changed (MovesRemaining = MoveLimit - MoveCount)
-            var currentMoves = state.MoveLimit - (int)state.MoveCount;
+            var currentMoves = state.MoveLimit - state.MoveCount;
             if (currentMoves != _lastMovesRemaining)
             {
                 _lastMovesRemaining = currentMoves;
@@ -276,7 +276,7 @@ namespace Match3.Unity.Bridge
             }
 
             // Check score changed
-            var currentScore = (int)state.Score;
+            var currentScore = state.Score;
             if (currentScore != _lastScore)
             {
                 _lastScore = currentScore;

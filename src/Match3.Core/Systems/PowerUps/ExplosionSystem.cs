@@ -106,7 +106,7 @@ public class ExplosionSystem : IExplosionSystem
     public void Update(
         ref GameState state,
         float deltaTime,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector eventCollector,
         List<Position> triggeredBombs)
@@ -141,7 +141,7 @@ public class ExplosionSystem : IExplosionSystem
     private void ProcessWave(
         ref GameState state,
         Explosion explosion,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector eventCollector,
         List<Position> triggeredBombs)

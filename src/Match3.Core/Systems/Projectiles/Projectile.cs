@@ -15,7 +15,7 @@ public abstract class Projectile
     /// <summary>
     /// Unique identifier for this projectile.
     /// </summary>
-    public long Id { get; protected set; }
+    public int Id { get; protected set; }
 
     /// <summary>
     /// Current position in world space.
@@ -45,7 +45,7 @@ public abstract class Projectile
     /// <summary>
     /// Target tile ID (for tracking specific tiles).
     /// </summary>
-    public long? TargetTileId { get; protected set; }
+    public int? TargetTileId { get; protected set; }
 
     /// <summary>
     /// Origin position where projectile was launched.
@@ -64,7 +64,7 @@ public abstract class Projectile
     public abstract bool Update(
         ref GameState state,
         float deltaTime,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events);
 
@@ -85,7 +85,7 @@ public abstract class Projectile
     /// <returns>True if retargeting succeeded, false if projectile should fizzle.</returns>
     public virtual bool TryRetarget(
         ref GameState state,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events)
     {

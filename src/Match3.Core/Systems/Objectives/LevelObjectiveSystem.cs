@@ -45,24 +45,24 @@ public class LevelObjectiveSystem : ILevelObjectiveSystem
     }
 
     /// <inheritdoc />
-    public void OnTileDestroyed(ref GameState state, TileType type, long tick, float simTime, IEventCollector events)
+    public void OnTileDestroyed(ref GameState state, TileType type, int tick, float simTime, IEventCollector events)
     {
         UpdateProgress(ref state, ObjectiveTargetLayer.Tile, (int)type, tick, simTime, events);
     }
 
     /// <inheritdoc />
-    public void OnCoverDestroyed(ref GameState state, CoverType type, long tick, float simTime, IEventCollector events)
+    public void OnCoverDestroyed(ref GameState state, CoverType type, int tick, float simTime, IEventCollector events)
     {
         UpdateProgress(ref state, ObjectiveTargetLayer.Cover, (int)type, tick, simTime, events);
     }
 
     /// <inheritdoc />
-    public void OnGroundDestroyed(ref GameState state, GroundType type, long tick, float simTime, IEventCollector events)
+    public void OnGroundDestroyed(ref GameState state, GroundType type, int tick, float simTime, IEventCollector events)
     {
         UpdateProgress(ref state, ObjectiveTargetLayer.Ground, (int)type, tick, simTime, events);
     }
 
-    private void UpdateProgress(ref GameState state, ObjectiveTargetLayer layer, int elementType, long tick, float simTime, IEventCollector events)
+    private void UpdateProgress(ref GameState state, ObjectiveTargetLayer layer, int elementType, int tick, float simTime, IEventCollector events)
     {
         for (int i = 0; i < 4; i++)
         {
@@ -146,7 +146,7 @@ public class LevelObjectiveSystem : ILevelObjectiveSystem
     }
 
     /// <inheritdoc />
-    public void UpdateLevelStatus(ref GameState state, long tick, float simTime, IEventCollector events)
+    public void UpdateLevelStatus(ref GameState state, int tick, float simTime, IEventCollector events)
     {
         // Already ended
         if (state.LevelStatus != LevelStatus.InProgress)
@@ -164,7 +164,7 @@ public class LevelObjectiveSystem : ILevelObjectiveSystem
                     SimulationTime = simTime,
                     IsVictory = true,
                     FinalScore = state.Score,
-                    MovesUsed = (int)state.MoveCount
+                    MovesUsed = state.MoveCount
                 });
             }
         }
@@ -180,7 +180,7 @@ public class LevelObjectiveSystem : ILevelObjectiveSystem
                     SimulationTime = simTime,
                     IsVictory = false,
                     FinalScore = state.Score,
-                    MovesUsed = (int)state.MoveCount
+                    MovesUsed = state.MoveCount
                 });
             }
         }

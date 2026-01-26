@@ -9,7 +9,7 @@ namespace Match3.Web.Tests.Presentation;
 
 public class VisualStateTests
 {
-    private long _nextTileId = 1;
+    private int _nextTileId = 1;
 
     #region SyncFallingTilesFromGameState Tests
 

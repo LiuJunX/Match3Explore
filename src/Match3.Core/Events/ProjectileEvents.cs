@@ -12,7 +12,7 @@ namespace Match3.Core.Events;
 public sealed record ProjectileLaunchedEvent : GameEvent
 {
     /// <summary>Unique identifier of the projectile.</summary>
-    public long ProjectileId { get; init; }
+    public int ProjectileId { get; init; }
 
     /// <summary>Type of projectile.</summary>
     public ProjectileType Type { get; init; }
@@ -24,7 +24,7 @@ public sealed record ProjectileLaunchedEvent : GameEvent
     public Position? TargetPosition { get; init; }
 
     /// <summary>Target tile ID (if tracking a specific tile).</summary>
-    public long? TargetTileId { get; init; }
+    public int? TargetTileId { get; init; }
 
     /// <inheritdoc />
     public override void Accept(IEventVisitor visitor) => visitor.Visit(this);
@@ -36,7 +36,7 @@ public sealed record ProjectileLaunchedEvent : GameEvent
 public sealed record ProjectileMovedEvent : GameEvent
 {
     /// <summary>Unique identifier of the projectile.</summary>
-    public long ProjectileId { get; init; }
+    public int ProjectileId { get; init; }
 
     /// <summary>Position before movement.</summary>
     public Vector2 FromPosition { get; init; }
@@ -57,7 +57,7 @@ public sealed record ProjectileMovedEvent : GameEvent
 public sealed record ProjectileRetargetedEvent : GameEvent
 {
     /// <summary>Unique identifier of the projectile.</summary>
-    public long ProjectileId { get; init; }
+    public int ProjectileId { get; init; }
 
     /// <summary>Previous target position.</summary>
     public Position OldTarget { get; init; }
@@ -78,13 +78,13 @@ public sealed record ProjectileRetargetedEvent : GameEvent
 public sealed record ProjectileImpactEvent : GameEvent
 {
     /// <summary>Unique identifier of the projectile.</summary>
-    public long ProjectileId { get; init; }
+    public int ProjectileId { get; init; }
 
     /// <summary>Grid position of impact.</summary>
     public Position ImpactPosition { get; init; }
 
     /// <summary>Tile ID that was hit (if any).</summary>
-    public long? HitTileId { get; init; }
+    public int? HitTileId { get; init; }
 
     /// <summary>All positions affected by the impact.</summary>
     public IReadOnlyCollection<Position> AffectedPositions { get; init; } = Array.Empty<Position>();

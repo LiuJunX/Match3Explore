@@ -27,7 +27,7 @@ public interface IMatchProcessor
     int ProcessMatches(
         ref GameState state,
         List<MatchGroup> groups,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events);
 }

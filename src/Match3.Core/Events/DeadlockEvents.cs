@@ -8,7 +8,7 @@ namespace Match3.Core.Events;
 /// <summary>
 /// 表示单个棋子的类型变化
 /// </summary>
-public readonly record struct TileTypeChange(long TileId, Position Position, TileType NewType);
+public readonly record struct TileTypeChange(int TileId, Position Position, TileType NewType);
 
 /// <summary>
 /// 事件：检测到死锁（棋盘无可行移动）
@@ -16,10 +16,10 @@ public readonly record struct TileTypeChange(long TileId, Position Position, Til
 public sealed record DeadlockDetectedEvent : GameEvent
 {
     /// <summary>检测到死锁时的分数</summary>
-    public long Score { get; init; }
+    public int Score { get; init; }
 
     /// <summary>检测到死锁时的移动次数</summary>
-    public long MoveCount { get; init; }
+    public int MoveCount { get; init; }
 
     /// <inheritdoc />
     public override void Accept(IEventVisitor visitor) => visitor.Visit(this);
@@ -34,7 +34,7 @@ public sealed record BoardShuffledEvent : GameEvent
     public int AttemptCount { get; init; } = 1;
 
     /// <summary>洗牌前的分数</summary>
-    public long ScoreBefore { get; init; }
+    public int ScoreBefore { get; init; }
 
     /// <summary>所有改变类型的棋子列表</summary>
     public IReadOnlyList<TileTypeChange> Changes { get; init; } = Array.Empty<TileTypeChange>();

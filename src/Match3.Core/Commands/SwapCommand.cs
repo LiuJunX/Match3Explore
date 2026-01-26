@@ -14,7 +14,7 @@ public sealed record SwapCommand : IGameCommand
     public Guid Id { get; init; } = Guid.NewGuid();
 
     /// <inheritdoc />
-    public long IssuedAtTick { get; init; }
+    public int IssuedAtTick { get; init; }
 
     /// <summary>Source position of the swap.</summary>
     public Position From { get; init; }

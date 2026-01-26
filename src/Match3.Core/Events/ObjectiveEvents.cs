@@ -33,7 +33,7 @@ public sealed record LevelCompletedEvent : GameEvent
     public bool IsVictory { get; init; }
 
     /// <summary>Final score at level end.</summary>
-    public long FinalScore { get; init; }
+    public int FinalScore { get; init; }
 
     /// <summary>Total moves used.</summary>
     public int MovesUsed { get; init; }

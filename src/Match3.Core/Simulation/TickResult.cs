@@ -9,7 +9,7 @@ public readonly struct TickResult
     /// <summary>
     /// Current tick number after this tick.
     /// </summary>
-    public long CurrentTick { get; init; }
+    public int CurrentTick { get; init; }
 
     /// <summary>
     /// Total elapsed simulation time in seconds.

@@ -10,7 +10,7 @@ public abstract record GameEvent
     /// <summary>
     /// Simulation tick at which this event occurred.
     /// </summary>
-    public long Tick { get; init; }
+    public int Tick { get; init; }
 
     /// <summary>
     /// Elapsed simulation time in seconds when this event occurred.

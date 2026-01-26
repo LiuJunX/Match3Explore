@@ -11,19 +11,19 @@ namespace Match3.Presentation;
 /// </summary>
 public sealed class VisualState : IVisualState
 {
-    private readonly Dictionary<long, TileVisual> _tiles = new();
-    private readonly Dictionary<long, ProjectileVisual> _projectiles = new();
+    private readonly Dictionary<int, TileVisual> _tiles = new();
+    private readonly Dictionary<int, ProjectileVisual> _projectiles = new();
     private readonly List<VisualEffect> _effects = new();
 
     /// <summary>
     /// All tile visuals indexed by tile ID.
     /// </summary>
-    public IReadOnlyDictionary<long, TileVisual> Tiles => _tiles;
+    public IReadOnlyDictionary<int, TileVisual> Tiles => _tiles;
 
     /// <summary>
     /// All projectile visuals indexed by projectile ID.
     /// </summary>
-    public IReadOnlyDictionary<long, ProjectileVisual> Projectiles => _projectiles;
+    public IReadOnlyDictionary<int, ProjectileVisual> Projectiles => _projectiles;
 
     /// <summary>
     /// All active visual effects.
@@ -119,7 +119,7 @@ public sealed class VisualState : IVisualState
         }
 
         // Remove tiles that no longer exist in game state
-        var tilesToRemove = new List<long>();
+        var tilesToRemove = new List<int>();
         foreach (var kvp in _tiles)
         {
             bool found = false;
@@ -148,7 +148,7 @@ public sealed class VisualState : IVisualState
     /// <summary>
     /// Add a new tile visual (for spawned tiles).
     /// </summary>
-    public void AddTile(long tileId, TileType type, BombType bomb, Position gridPos, Vector2 spawnPos)
+    public void AddTile(int tileId, TileType type, BombType bomb, Position gridPos, Vector2 spawnPos)
     {
         _tiles[tileId] = new TileVisual
         {
@@ -166,7 +166,7 @@ public sealed class VisualState : IVisualState
     /// <summary>
     /// Remove a tile visual.
     /// </summary>
-    public void RemoveTile(long tileId)
+    public void RemoveTile(int tileId)
     {
         _tiles.Remove(tileId);
     }
@@ -174,7 +174,7 @@ public sealed class VisualState : IVisualState
     /// <summary>
     /// Add a new projectile visual.
     /// </summary>
-    public void AddProjectile(long projectileId, Vector2 position)
+    public void AddProjectile(int projectileId, Vector2 position)
     {
         _projectiles[projectileId] = new ProjectileVisual
         {
@@ -187,13 +187,13 @@ public sealed class VisualState : IVisualState
     /// <summary>
     /// Remove a projectile visual.
     /// </summary>
-    public void RemoveProjectile(long projectileId)
+    public void RemoveProjectile(int projectileId)
     {
         _projectiles.Remove(projectileId);
     }
 
     /// <inheritdoc />
-    public void SetTilePosition(long tileId, Vector2 position)
+    public void SetTilePosition(int tileId, Vector2 position)
     {
         if (_tiles.TryGetValue(tileId, out var tile))
         {
@@ -202,7 +202,7 @@ public sealed class VisualState : IVisualState
     }
 
     /// <inheritdoc />
-    public void SetTileScale(long tileId, Vector2 scale)
+    public void SetTileScale(int tileId, Vector2 scale)
     {
         if (_tiles.TryGetValue(tileId, out var tile))
         {
@@ -211,7 +211,7 @@ public sealed class VisualState : IVisualState
     }
 
     /// <inheritdoc />
-    public void SetTileAlpha(long tileId, float alpha)
+    public void SetTileAlpha(int tileId, float alpha)
     {
         if (_tiles.TryGetValue(tileId, out var tile))
         {
@@ -220,7 +220,7 @@ public sealed class VisualState : IVisualState
     }
 
     /// <inheritdoc />
-    public void SetTileVisible(long tileId, bool visible)
+    public void SetTileVisible(int tileId, bool visible)
     {
         if (_tiles.TryGetValue(tileId, out var tile))
         {
@@ -229,7 +229,7 @@ public sealed class VisualState : IVisualState
     }
 
     /// <inheritdoc />
-    public void SetProjectilePosition(long projectileId, Vector2 position)
+    public void SetProjectilePosition(int projectileId, Vector2 position)
     {
         if (_projectiles.TryGetValue(projectileId, out var proj))
         {
@@ -238,7 +238,7 @@ public sealed class VisualState : IVisualState
     }
 
     /// <inheritdoc />
-    public void SetProjectileVisible(long projectileId, bool visible)
+    public void SetProjectileVisible(int projectileId, bool visible)
     {
         if (_projectiles.TryGetValue(projectileId, out var proj))
         {
@@ -284,7 +284,7 @@ public sealed class VisualState : IVisualState
     /// <summary>
     /// Get tile visual by ID.
     /// </summary>
-    public TileVisual? GetTile(long tileId)
+    public TileVisual? GetTile(int tileId)
     {
         return _tiles.TryGetValue(tileId, out var tile) ? tile : null;
     }
@@ -292,7 +292,7 @@ public sealed class VisualState : IVisualState
     /// <summary>
     /// Get projectile visual by ID.
     /// </summary>
-    public ProjectileVisual? GetProjectile(long projectileId)
+    public ProjectileVisual? GetProjectile(int projectileId)
     {
         return _projectiles.TryGetValue(projectileId, out var proj) ? proj : null;
     }
@@ -304,7 +304,7 @@ public sealed class VisualState : IVisualState
 public sealed class TileVisual
 {
     /// <summary>Tile ID.</summary>
-    public long Id { get; init; }
+    public int Id { get; init; }
 
     /// <summary>Current visual position (may differ from grid position during animation).</summary>
     public Vector2 Position { get; set; }
@@ -361,7 +361,7 @@ public sealed class TileVisual
 public sealed class ProjectileVisual
 {
     /// <summary>Projectile ID.</summary>
-    public long Id { get; init; }
+    public int Id { get; init; }
 
     /// <summary>Current visual position.</summary>
     public Vector2 Position { get; set; }

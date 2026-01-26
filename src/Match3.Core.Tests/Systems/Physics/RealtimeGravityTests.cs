@@ -251,7 +251,7 @@ public class RealtimeGravityTests
                 state.SetTile(x, y, new Tile(0, TileType.None, x, y));
 
         // Place tiles at top that need to fall (creates column competition)
-        long id = 1;
+        int id = 1;
         for (int x = 0; x < 8; x++)
         {
             // Place 2 tiles per column at top

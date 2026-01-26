@@ -46,7 +46,7 @@ public class PowerUpHandler : IPowerUpHandler
         ref GameState state,
         Position p1,
         Position p2,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events,
         out int points)
@@ -87,7 +87,7 @@ public class PowerUpHandler : IPowerUpHandler
         ActivateBomb(ref state, p, 0, 0f, NullEventCollector.Instance);
     }
 
-    public void ActivateBomb(ref GameState state, Position p, long tick, float simTime, IEventCollector events)
+    public void ActivateBomb(ref GameState state, Position p, int tick, float simTime, IEventCollector events)
     {
         var t = state.GetTile(p.X, p.Y);
         if (t.Bomb == BombType.None) return;
@@ -155,7 +155,7 @@ public class PowerUpHandler : IPowerUpHandler
     private void ClearAffectedTiles(
         ref GameState state,
         HashSet<Position> affected,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events)
     {

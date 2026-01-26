@@ -10,7 +10,7 @@ public struct Tile
     public Vector2 Position; // Logic position (World Space), e.g. (3, 4.5)
     public Vector2 Velocity; // Physics velocity
     public TileState State;  // Physics/lifecycle state flags
-    public long Id;
+    public int Id;
 
     /// <summary>
     /// Whether tile is suspended (gravity ignored). Backward compatible property.
@@ -30,7 +30,7 @@ public struct Tile
         set => State = value ? State | TileState.Falling : State & ~TileState.Falling;
     }
 
-    public Tile(long id, TileType type, int x, int y, BombType bomb = BombType.None)
+    public Tile(int id, TileType type, int x, int y, BombType bomb = BombType.None)
     {
         Id = id;
         Type = type;
@@ -40,7 +40,7 @@ public struct Tile
         State = TileState.None;
     }
 
-    public Tile(long id, TileType type, Vector2 position, BombType bomb = BombType.None)
+    public Tile(int id, TileType type, Vector2 position, BombType bomb = BombType.None)
     {
         Id = id;
         Type = type;

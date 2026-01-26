@@ -518,7 +518,7 @@ public class CoverSystemTests
         var pos = new Position(3, 3);
         state.SetCover(pos, new Cover(CoverType.Cage, health: 1));
         var events = new BufferedEventCollector();
-        long expectedTick = 42;
+        int expectedTick = 42;
 
         // Act
         _coverSystem.TryDamageCover(ref state, pos, tick: expectedTick, simTime: 0.1f, events);

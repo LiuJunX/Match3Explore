@@ -40,7 +40,7 @@ public interface ISwapOperations
         ref GameState state,
         ref PendingMoveState pending,
         float deltaTime,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events);
 }

@@ -74,7 +74,7 @@ public class ExplosionSystemTests : IDisposable
 
         var triggeredBombs = new List<Position>();
         float deltaTime = 0.1f; // Exactly one wave interval
-        long tick = 1;
+        int tick = 1;
         float simTime = 1.0f;
 
         // Act 1: First Update (Wave 0 - Center)

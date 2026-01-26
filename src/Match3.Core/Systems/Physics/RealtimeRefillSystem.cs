@@ -24,7 +24,7 @@ public class RealtimeRefillSystem : IRefillSystem
         var context = new SpawnContext
         {
             TargetDifficulty = state.TargetDifficulty,
-            RemainingMoves = Math.Max(0, state.MoveLimit - (int)state.MoveCount),
+            RemainingMoves = Math.Max(0, state.MoveLimit - state.MoveCount),
             GoalProgress = 0f,      // TODO: Integrate with goal system
             FailedAttempts = 0,     // TODO: Track from session
             InFlowState = false     // Reserved for Phase 2

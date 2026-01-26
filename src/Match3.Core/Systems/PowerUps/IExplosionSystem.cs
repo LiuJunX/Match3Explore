@@ -10,10 +10,10 @@ public interface IExplosionSystem
     void CreateTargetedExplosion(ref GameState state, Position origin, System.Collections.Generic.IEnumerable<Position> targets);
     
     void Update(
-        ref GameState state, 
-        float deltaTime, 
-        long tick, 
-        float simTime, 
+        ref GameState state,
+        float deltaTime,
+        int tick,
+        float simTime,
         IEventCollector eventCollector,
         System.Collections.Generic.List<Position> triggeredBombs);
         

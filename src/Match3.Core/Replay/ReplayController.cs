@@ -16,7 +16,7 @@ public sealed class ReplayController : IDisposable
     private readonly IGameServiceFactory _factory;
     private SimulationEngine? _engine;
     private int _currentCommandIndex;
-    private long _currentTick;
+    private int _currentTick;
     private float _accumulatedTime;
     private bool _disposed;
 
@@ -32,10 +32,10 @@ public sealed class ReplayController : IDisposable
         : 0f;
 
     /// <summary>Current tick in the replay.</summary>
-    public long CurrentTick => _currentTick;
+    public int CurrentTick => _currentTick;
 
     /// <summary>Total ticks in the recording.</summary>
-    public long TotalTicks => _recording.DurationTicks;
+    public int TotalTicks => _recording.DurationTicks;
 
     /// <summary>Number of commands executed so far.</summary>
     public int CommandsExecuted => _currentCommandIndex;
@@ -117,7 +117,7 @@ public sealed class ReplayController : IDisposable
         if (_disposed) return;
 
         progress = Math.Clamp(progress, 0f, 1f);
-        long targetTick = (long)(progress * _recording.DurationTicks);
+        int targetTick = (int)(progress * _recording.DurationTicks);
 
         // If seeking backwards, need to restart
         if (targetTick < _currentTick)

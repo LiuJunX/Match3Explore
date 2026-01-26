@@ -32,9 +32,9 @@ public struct GameState
     public int Width;
     public int Height;
     public int TileTypesCount;
-    public long Score;
-    public long MoveCount;
-    public long NextTileId;
+    public int Score;
+    public int MoveCount;
+    public int NextTileId;
 
     // Difficulty control fields (for SpawnModel)
     public int MoveLimit;

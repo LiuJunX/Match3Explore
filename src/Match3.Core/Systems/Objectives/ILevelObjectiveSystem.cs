@@ -18,17 +18,17 @@ public interface ILevelObjectiveSystem
     /// <summary>
     /// Called when a tile is destroyed.
     /// </summary>
-    void OnTileDestroyed(ref GameState state, TileType type, long tick, float simTime, IEventCollector events);
+    void OnTileDestroyed(ref GameState state, TileType type, int tick, float simTime, IEventCollector events);
 
     /// <summary>
     /// Called when a cover is destroyed.
     /// </summary>
-    void OnCoverDestroyed(ref GameState state, CoverType type, long tick, float simTime, IEventCollector events);
+    void OnCoverDestroyed(ref GameState state, CoverType type, int tick, float simTime, IEventCollector events);
 
     /// <summary>
     /// Called when a ground is destroyed.
     /// </summary>
-    void OnGroundDestroyed(ref GameState state, GroundType type, long tick, float simTime, IEventCollector events);
+    void OnGroundDestroyed(ref GameState state, GroundType type, int tick, float simTime, IEventCollector events);
 
     /// <summary>
     /// Check if all objectives are completed (victory condition).
@@ -44,5 +44,5 @@ public interface ILevelObjectiveSystem
     /// Update level status based on current state.
     /// Should be called after board stabilizes.
     /// </summary>
-    void UpdateLevelStatus(ref GameState state, long tick, float simTime, IEventCollector events);
+    void UpdateLevelStatus(ref GameState state, int tick, float simTime, IEventCollector events);
 }

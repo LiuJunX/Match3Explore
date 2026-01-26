@@ -147,7 +147,7 @@ internal sealed class SharedSimulationContext : IDisposable
             null,
             objectiveSystem);
 
-        long scoreBefore = _previewState.Score;
+        int scoreBefore = _previewState.Score;
         int tilesBefore = AnalysisUtility.CountTiles(in _previewState);
 
         engine.ApplyMove(from, to);
@@ -169,7 +169,7 @@ internal sealed class SharedSimulationContext : IDisposable
     /// 快速预览 move - 简化版本，只返回基本信息
     /// 用于 MCTS rollout 等不需要完整信息的场景
     /// </summary>
-    public (long scoreGained, int tilesCleared, bool isValid) QuickPreviewMove(
+    public (int scoreGained, int tilesCleared, bool isValid) QuickPreviewMove(
         in GameState currentState, Position from, Position to)
     {
         _previewState = currentState.Clone();
@@ -195,7 +195,7 @@ internal sealed class SharedSimulationContext : IDisposable
             null,
             objectiveSystem);
 
-        long scoreBefore = _previewState.Score;
+        int scoreBefore = _previewState.Score;
         int tilesBefore = AnalysisUtility.CountTiles(in _previewState);
 
         engine.ApplyMove(from, to);

@@ -11,7 +11,7 @@ namespace Match3.Core.Events;
 public sealed record TileMovedEvent : GameEvent
 {
     /// <summary>Unique identifier of the tile.</summary>
-    public long TileId { get; init; }
+    public int TileId { get; init; }
 
     /// <summary>Position before movement.</summary>
     public Vector2 FromPosition { get; init; }
@@ -32,7 +32,7 @@ public sealed record TileMovedEvent : GameEvent
 public sealed record TileDestroyedEvent : GameEvent
 {
     /// <summary>Unique identifier of the destroyed tile.</summary>
-    public long TileId { get; init; }
+    public int TileId { get; init; }
 
     /// <summary>Grid position where tile was destroyed.</summary>
     public Position GridPosition { get; init; }
@@ -56,7 +56,7 @@ public sealed record TileDestroyedEvent : GameEvent
 public sealed record TileSpawnedEvent : GameEvent
 {
     /// <summary>Unique identifier of the new tile.</summary>
-    public long TileId { get; init; }
+    public int TileId { get; init; }
 
     /// <summary>Grid position where tile was spawned.</summary>
     public Position GridPosition { get; init; }
@@ -80,10 +80,10 @@ public sealed record TileSpawnedEvent : GameEvent
 public sealed record TilesSwappedEvent : GameEvent
 {
     /// <summary>First tile identifier.</summary>
-    public long TileAId { get; init; }
+    public int TileAId { get; init; }
 
     /// <summary>Second tile identifier.</summary>
-    public long TileBId { get; init; }
+    public int TileBId { get; init; }
 
     /// <summary>Position of first tile.</summary>
     public Position PositionA { get; init; }

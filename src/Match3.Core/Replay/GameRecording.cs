@@ -26,7 +26,7 @@ public sealed record GameRecording
     public IReadOnlyList<IGameCommand> Commands { get; init; } = Array.Empty<IGameCommand>();
 
     /// <summary>Duration of the recording in ticks.</summary>
-    public long DurationTicks { get; init; }
+    public int DurationTicks { get; init; }
 
     /// <summary>Final score achieved.</summary>
     public int FinalScore { get; init; }
@@ -47,7 +47,7 @@ public sealed record GameRecording
         GameStateSnapshot initialState,
         int seed,
         IReadOnlyList<IGameCommand> commands,
-        long durationTicks,
+        int durationTicks,
         int finalScore,
         int totalMoves)
     {

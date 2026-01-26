@@ -18,7 +18,7 @@ public class CoverSystem : ICoverSystem
         _objectiveSystem = objectiveSystem;
     }
     /// <inheritdoc />
-    public bool TryDamageCover(ref GameState state, Position position, long tick, float simTime, IEventCollector events)
+    public bool TryDamageCover(ref GameState state, Position position, int tick, float simTime, IEventCollector events)
     {
         if (!state.IsValid(position))
             return false;

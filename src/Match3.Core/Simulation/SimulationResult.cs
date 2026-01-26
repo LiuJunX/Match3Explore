@@ -33,7 +33,7 @@ public readonly struct SimulationResult
     /// <summary>
     /// Score gained during simulation.
     /// </summary>
-    public long ScoreGained { get; init; }
+    public int ScoreGained { get; init; }
 
     /// <summary>
     /// Number of tiles cleared during simulation.

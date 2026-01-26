@@ -12,7 +12,7 @@ public sealed record ScoreAddedEvent : GameEvent
     public int Points { get; init; }
 
     /// <summary>Total score after addition.</summary>
-    public long TotalScore { get; init; }
+    public int TotalScore { get; init; }
 
     /// <summary>Reason for the score.</summary>
     public ScoreReason Reason { get; init; }

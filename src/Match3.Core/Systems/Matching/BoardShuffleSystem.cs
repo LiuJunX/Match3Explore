@@ -37,7 +37,7 @@ public sealed class BoardShuffleSystem : IBoardShuffleSystem
     private List<TileTypeChange> ShuffleAndGetChanges(ref GameState state)
     {
         var types = Pools.ObtainList<TileType>();
-        var oldTypes = Pools.ObtainList<(Position Pos, TileType OldType, long TileId)>();
+        var oldTypes = Pools.ObtainList<(Position Pos, TileType OldType, int TileId)>();
         var changes = Pools.ObtainList<TileTypeChange>();
 
         try

@@ -31,7 +31,7 @@ public sealed class SimulationEngine : IDisposable
     private readonly ILevelObjectiveSystem? _objectiveSystem;
 
     private IEventCollector _eventCollector;
-    private long _currentTick;
+    private int _currentTick;
     private float _elapsedTime;
     private int _cascadeDepth;
     private int _tilesCleared;
@@ -67,7 +67,7 @@ public sealed class SimulationEngine : IDisposable
     /// <summary>
     /// Current tick number.
     /// </summary>
-    public long CurrentTick => _currentTick;
+    public int CurrentTick => _currentTick;
 
     /// <summary>
     /// Total elapsed simulation time in seconds.

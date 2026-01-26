@@ -180,7 +180,7 @@ public class GroundSystemTests
         var pos = new Position(3, 3);
         state.SetGround(pos, new Ground(GroundType.Ice, health: 1));
         var events = new BufferedEventCollector();
-        long expectedTick = 42;
+        int expectedTick = 42;
 
         // Act
         _groundSystem.OnTileDestroyed(ref state, pos, tick: expectedTick, simTime: 0.1f, events);

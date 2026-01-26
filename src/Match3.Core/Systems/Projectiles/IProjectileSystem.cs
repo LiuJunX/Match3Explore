@@ -26,7 +26,7 @@ public interface IProjectileSystem
     /// <param name="tick">Current simulation tick.</param>
     /// <param name="simTime">Current simulation time.</param>
     /// <param name="events">Event collector.</param>
-    void Launch(Projectile projectile, long tick, float simTime, IEventCollector events);
+    void Launch(Projectile projectile, int tick, float simTime, IEventCollector events);
 
     /// <summary>
     /// Update all active projectiles.
@@ -40,7 +40,7 @@ public interface IProjectileSystem
     HashSet<Position> Update(
         ref GameState state,
         float deltaTime,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events);
 
@@ -52,5 +52,5 @@ public interface IProjectileSystem
     /// <summary>
     /// Generate a unique projectile ID.
     /// </summary>
-    long GenerateProjectileId();
+    int GenerateProjectileId();
 }

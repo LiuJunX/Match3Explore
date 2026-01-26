@@ -33,7 +33,7 @@ public abstract record RenderCommand
 public sealed record SpawnTileCommand : RenderCommand
 {
     /// <summary>Unique identifier of the tile.</summary>
-    public long TileId { get; init; }
+    public int TileId { get; init; }
 
     /// <summary>Type of the tile.</summary>
     public TileType Type { get; init; }
@@ -54,7 +54,7 @@ public sealed record SpawnTileCommand : RenderCommand
 public sealed record MoveTileCommand : RenderCommand
 {
     /// <summary>Unique identifier of the tile.</summary>
-    public long TileId { get; init; }
+    public int TileId { get; init; }
 
     /// <summary>Starting position.</summary>
     public Vector2 From { get; init; }
@@ -72,7 +72,7 @@ public sealed record MoveTileCommand : RenderCommand
 public sealed record DestroyTileCommand : RenderCommand
 {
     /// <summary>Unique identifier of the tile.</summary>
-    public long TileId { get; init; }
+    public int TileId { get; init; }
 
     /// <summary>Position where destruction occurs.</summary>
     public Vector2 Position { get; init; }
@@ -87,10 +87,10 @@ public sealed record DestroyTileCommand : RenderCommand
 public sealed record SwapTilesCommand : RenderCommand
 {
     /// <summary>First tile identifier.</summary>
-    public long TileAId { get; init; }
+    public int TileAId { get; init; }
 
     /// <summary>Second tile identifier.</summary>
-    public long TileBId { get; init; }
+    public int TileBId { get; init; }
 
     /// <summary>Position of first tile.</summary>
     public Vector2 PosA { get; init; }
@@ -111,7 +111,7 @@ public sealed record SwapTilesCommand : RenderCommand
 public sealed record RemoveTileCommand : RenderCommand
 {
     /// <summary>Unique identifier of the tile to remove.</summary>
-    public long TileId { get; init; }
+    public int TileId { get; init; }
 }
 
 /// <summary>
@@ -120,7 +120,7 @@ public sealed record RemoveTileCommand : RenderCommand
 public sealed record UpdateTileBombCommand : RenderCommand
 {
     /// <summary>Unique identifier of the tile.</summary>
-    public long TileId { get; init; }
+    public int TileId { get; init; }
 
     /// <summary>Position of the tile.</summary>
     public Position Position { get; init; }
@@ -135,7 +135,7 @@ public sealed record UpdateTileBombCommand : RenderCommand
 public sealed record UpdateTileTypeCommand : RenderCommand
 {
     /// <summary>Unique identifier of the tile.</summary>
-    public long TileId { get; init; }
+    public int TileId { get; init; }
 
     /// <summary>Position of the tile.</summary>
     public Position Position { get; init; }
@@ -179,7 +179,7 @@ public sealed record ShowMatchHighlightCommand : RenderCommand
 public sealed record SpawnProjectileCommand : RenderCommand
 {
     /// <summary>Unique identifier of the projectile.</summary>
-    public long ProjectileId { get; init; }
+    public int ProjectileId { get; init; }
 
     /// <summary>Launch origin position.</summary>
     public Vector2 Origin { get; init; }
@@ -197,7 +197,7 @@ public sealed record SpawnProjectileCommand : RenderCommand
 public sealed record MoveProjectileCommand : RenderCommand
 {
     /// <summary>Unique identifier of the projectile.</summary>
-    public long ProjectileId { get; init; }
+    public int ProjectileId { get; init; }
 
     /// <summary>Starting position.</summary>
     public Vector2 From { get; init; }
@@ -212,7 +212,7 @@ public sealed record MoveProjectileCommand : RenderCommand
 public sealed record ImpactProjectileCommand : RenderCommand
 {
     /// <summary>Unique identifier of the projectile.</summary>
-    public long ProjectileId { get; init; }
+    public int ProjectileId { get; init; }
 
     /// <summary>Impact position.</summary>
     public Vector2 Position { get; init; }
@@ -227,7 +227,7 @@ public sealed record ImpactProjectileCommand : RenderCommand
 public sealed record RemoveProjectileCommand : RenderCommand
 {
     /// <summary>Unique identifier of the projectile to remove.</summary>
-    public long ProjectileId { get; init; }
+    public int ProjectileId { get; init; }
 }
 
 #endregion

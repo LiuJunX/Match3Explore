@@ -18,5 +18,5 @@ public interface IGroundSystem
     /// <param name="tick">Current simulation tick for event.</param>
     /// <param name="simTime">Current simulation time for event.</param>
     /// <param name="events">Event collector for emitting events.</param>
-    void OnTileDestroyed(ref GameState state, Position position, long tick, float simTime, IEventCollector events);
+    void OnTileDestroyed(ref GameState state, Position position, int tick, float simTime, IEventCollector events);
 }

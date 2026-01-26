@@ -20,7 +20,7 @@ public interface ICoverSystem
     /// <param name="simTime">Current simulation time for event.</param>
     /// <param name="events">Event collector for emitting events.</param>
     /// <returns>True if cover was destroyed, false otherwise.</returns>
-    bool TryDamageCover(ref GameState state, Position position, long tick, float simTime, IEventCollector events);
+    bool TryDamageCover(ref GameState state, Position position, int tick, float simTime, IEventCollector events);
 
     /// <summary>
     /// Checks if a cover at the position blocks the tile from being destroyed.

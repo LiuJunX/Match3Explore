@@ -244,7 +244,7 @@ public class ProjectileSystemTests
 
     #region Helper Methods
 
-    private UfoProjectile CreateTestProjectile(long id)
+    private UfoProjectile CreateTestProjectile(int id)
     {
         return new UfoProjectile(id, new Position(0, 0), new Position(5, 5));
     }

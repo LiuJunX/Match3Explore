@@ -20,12 +20,12 @@ public struct PendingMoveState
     /// <summary>
     /// ID of the first tile.
     /// </summary>
-    public long TileAId;
+    public int TileAId;
 
     /// <summary>
     /// ID of the second tile.
     /// </summary>
-    public long TileBId;
+    public int TileBId;
 
     /// <summary>
     /// Whether the swap created a match (captured at swap time).

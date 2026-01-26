@@ -14,7 +14,7 @@ public interface IGameCommand
     Guid Id { get; }
 
     /// <summary>Simulation tick when this command was issued.</summary>
-    long IssuedAtTick { get; }
+    int IssuedAtTick { get; }
 
     /// <summary>
     /// Executes the command on the simulation engine.

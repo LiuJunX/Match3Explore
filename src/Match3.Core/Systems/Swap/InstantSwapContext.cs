@@ -40,7 +40,7 @@ public sealed class InstantSwapContext : ISwapContext
         in GameState state,
         Position from,
         Position to,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events)
     {

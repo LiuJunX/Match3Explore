@@ -13,7 +13,7 @@ public sealed class ProjectileSystem : IProjectileSystem
 {
     private readonly List<Projectile> _activeProjectiles = new();
     private readonly List<Projectile> _projectilesToRemove = new();
-    private long _nextProjectileId = 1;
+    private int _nextProjectileId = 1;
 
     /// <inheritdoc />
     public IReadOnlyList<Projectile> ActiveProjectiles => _activeProjectiles;
@@ -22,7 +22,7 @@ public sealed class ProjectileSystem : IProjectileSystem
     public bool HasActiveProjectiles => _activeProjectiles.Count > 0;
 
     /// <inheritdoc />
-    public void Launch(Projectile projectile, long tick, float simTime, IEventCollector events)
+    public void Launch(Projectile projectile, int tick, float simTime, IEventCollector events)
     {
         _activeProjectiles.Add(projectile);
 
@@ -44,7 +44,7 @@ public sealed class ProjectileSystem : IProjectileSystem
     public HashSet<Position> Update(
         ref GameState state,
         float deltaTime,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events)
     {
@@ -122,7 +122,7 @@ public sealed class ProjectileSystem : IProjectileSystem
     }
 
     /// <inheritdoc />
-    public long GenerateProjectileId()
+    public int GenerateProjectileId()
     {
         return _nextProjectileId++;
     }

@@ -45,7 +45,7 @@ internal sealed class SimulationMatchHandler
     /// <returns>Number of match groups processed.</returns>
     public int ProcessStableMatches(
         ref GameState state,
-        long currentTick,
+        int currentTick,
         float elapsedTime,
         IEventCollector eventCollector,
         IEnumerable<Position>? foci = null)
@@ -88,7 +88,7 @@ internal sealed class SimulationMatchHandler
     public void ProcessProjectileImpacts(
         ref GameState state,
         HashSet<Position> affectedPositions,
-        long currentTick,
+        int currentTick,
         float elapsedTime,
         IEventCollector eventCollector)
     {
@@ -132,7 +132,7 @@ internal sealed class SimulationMatchHandler
 
     private void EmitMatchDetectedEvent(
         MatchGroup group,
-        long currentTick,
+        int currentTick,
         float elapsedTime,
         IEventCollector eventCollector)
     {
@@ -153,7 +153,7 @@ internal sealed class SimulationMatchHandler
     private void EmitTileDestroyedEvents(
         ref GameState state,
         List<MatchGroup> stableGroups,
-        long currentTick,
+        int currentTick,
         float elapsedTime,
         IEventCollector eventCollector)
     {

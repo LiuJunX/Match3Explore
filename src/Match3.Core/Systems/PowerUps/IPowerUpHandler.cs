@@ -12,12 +12,12 @@ public interface IPowerUpHandler
         ref GameState state,
         Position p1,
         Position p2,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events,
         out int points);
 
     void ActivateBomb(ref GameState state, Position p);
 
-    void ActivateBomb(ref GameState state, Position p, long tick, float simTime, IEventCollector events);
+    void ActivateBomb(ref GameState state, Position p, int tick, float simTime, IEventCollector events);
 }

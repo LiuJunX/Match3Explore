@@ -34,7 +34,7 @@ public sealed record MatchDetectedEvent : GameEvent
 public sealed record BombCreatedEvent : GameEvent
 {
     /// <summary>Tile ID that became a bomb.</summary>
-    public long TileId { get; init; }
+    public int TileId { get; init; }
 
     /// <summary>Position of the bomb.</summary>
     public Position Position { get; init; }
@@ -55,7 +55,7 @@ public sealed record BombCreatedEvent : GameEvent
 public sealed record BombActivatedEvent : GameEvent
 {
     /// <summary>Tile ID of the activated bomb.</summary>
-    public long TileId { get; init; }
+    public int TileId { get; init; }
 
     /// <summary>Position of the bomb.</summary>
     public Position Position { get; init; }

@@ -23,13 +23,13 @@ public interface ISimulationOrchestrator
     /// Update projectile simulation.
     /// </summary>
     /// <returns>Number of tiles affected by projectile impacts.</returns>
-    int UpdateProjectiles(ref GameState state, float deltaTime, long tick, float simTime, IEventCollector events);
+    int UpdateProjectiles(ref GameState state, float deltaTime, int tick, float simTime, IEventCollector events);
 
     /// <summary>
     /// Update explosion effects.
     /// </summary>
     /// <returns>Number of bombs triggered.</returns>
-    int UpdateExplosions(ref GameState state, float deltaTime, long tick, float simTime, IEventCollector events);
+    int UpdateExplosions(ref GameState state, float deltaTime, int tick, float simTime, IEventCollector events);
 
     /// <summary>
     /// Process stable matches on the board.
@@ -40,7 +40,7 @@ public interface ISimulationOrchestrator
     /// <param name="events">Event collector.</param>
     /// <param name="foci">Optional priority positions for bomb generation.</param>
     /// <returns>Number of matches processed.</returns>
-    int ProcessMatches(ref GameState state, long tick, float simTime, IEventCollector events, Position[]? foci = null);
+    int ProcessMatches(ref GameState state, int tick, float simTime, IEventCollector events, Position[]? foci = null);
 
     /// <summary>
     /// Check if physics simulation is stable.

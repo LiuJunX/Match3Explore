@@ -40,7 +40,7 @@ public class SwapOperationsTests
             return animationTime >= AnimationDuration;
         }
 
-        public void EmitRevertEvent(in GameState state, Position from, Position to, long tick, float simTime, IEventCollector events)
+        public void EmitRevertEvent(in GameState state, Position from, Position to, int tick, float simTime, IEventCollector events)
         {
             RevertEventCount++;
         }

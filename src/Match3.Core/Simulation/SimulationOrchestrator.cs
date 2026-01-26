@@ -55,7 +55,7 @@ public sealed class SimulationOrchestrator : ISimulationOrchestrator
     }
 
     /// <inheritdoc />
-    public int UpdateProjectiles(ref GameState state, float deltaTime, long tick, float simTime, IEventCollector events)
+    public int UpdateProjectiles(ref GameState state, float deltaTime, int tick, float simTime, IEventCollector events)
     {
         var affectedPositions = _projectileSystem.Update(
             ref state,
@@ -76,7 +76,7 @@ public sealed class SimulationOrchestrator : ISimulationOrchestrator
     }
 
     /// <inheritdoc />
-    public int UpdateExplosions(ref GameState state, float deltaTime, long tick, float simTime, IEventCollector events)
+    public int UpdateExplosions(ref GameState state, float deltaTime, int tick, float simTime, IEventCollector events)
     {
         var triggeredBombs = Pools.ObtainList<Position>();
         int bombCount = 0;
@@ -107,7 +107,7 @@ public sealed class SimulationOrchestrator : ISimulationOrchestrator
     }
 
     /// <inheritdoc />
-    public int ProcessMatches(ref GameState state, long tick, float simTime, IEventCollector events, Position[]? foci = null)
+    public int ProcessMatches(ref GameState state, int tick, float simTime, IEventCollector events, Position[]? foci = null)
     {
         return _matchHandler.ProcessStableMatches(ref state, tick, simTime, events, foci);
     }

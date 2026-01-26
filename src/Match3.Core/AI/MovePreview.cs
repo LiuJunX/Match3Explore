@@ -20,7 +20,7 @@ public sealed class MovePreview
     /// <summary>
     /// Score gained from this move.
     /// </summary>
-    public long ScoreGained { get; init; }
+    public int ScoreGained { get; init; }
 
     /// <summary>
     /// Number of tiles cleared.

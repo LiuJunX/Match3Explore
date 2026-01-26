@@ -51,7 +51,7 @@ public class AsyncGameLoopTests
             return 0;
         }
 
-        public int ProcessMatches(ref GameState state, List<MatchGroup> groups, long tick, float simTime, IEventCollector events)
+        public int ProcessMatches(ref GameState state, List<MatchGroup> groups, int tick, float simTime, IEventCollector events)
         {
             ProcessMatchesCalled = true;
             return 0;
@@ -61,11 +61,11 @@ public class AsyncGameLoopTests
     private class StubPowerUp : IPowerUpHandler
     {
         public void ActivateBomb(ref GameState state, Position p) { }
-        public void ActivateBomb(ref GameState state, Position p, long tick, float simTime, IEventCollector events) { }
+        public void ActivateBomb(ref GameState state, Position p, int tick, float simTime, IEventCollector events) { }
         public void HandlePowerUp(ref GameState state, Position p, BombType bomb) { }
         public bool TryActivate(ref GameState state, Position p) => false;
         public void ProcessSpecialMove(ref GameState state, Position a, Position b, out int score) { score = 0; }
-        public void ProcessSpecialMove(ref GameState state, Position a, Position b, long tick, float simTime, IEventCollector events, out int score) { score = 0; }
+        public void ProcessSpecialMove(ref GameState state, Position a, Position b, int tick, float simTime, IEventCollector events, out int score) { score = 0; }
     }
 
     private class StubRandom : IRandom
@@ -225,7 +225,7 @@ public class AsyncGameLoopTests
             return groups.Count;
         }
 
-        public int ProcessMatches(ref GameState state, List<MatchGroup> groups, long tick, float simTime, IEventCollector events)
+        public int ProcessMatches(ref GameState state, List<MatchGroup> groups, int tick, float simTime, IEventCollector events)
         {
             ProcessMatchesCalled = true;
             GroupsProcessed = groups.Count;
@@ -314,7 +314,7 @@ public class AsyncGameLoopTests
             LastActivatedPosition = p;
         }
 
-        public void ActivateBomb(ref GameState state, Position p, long tick, float simTime, IEventCollector events)
+        public void ActivateBomb(ref GameState state, Position p, int tick, float simTime, IEventCollector events)
         {
             ActivateBombCalled = true;
             LastActivatedPosition = p;
@@ -323,7 +323,7 @@ public class AsyncGameLoopTests
         public void HandlePowerUp(ref GameState state, Position p, BombType bomb) { }
         public bool TryActivate(ref GameState state, Position p) => false;
         public void ProcessSpecialMove(ref GameState state, Position a, Position b, out int score) { score = 0; }
-        public void ProcessSpecialMove(ref GameState state, Position a, Position b, long tick, float simTime, IEventCollector events, out int score) { score = 0; }
+        public void ProcessSpecialMove(ref GameState state, Position a, Position b, int tick, float simTime, IEventCollector events, out int score) { score = 0; }
     }
 
     #endregion
@@ -370,7 +370,7 @@ public class AsyncGameLoopTests
             return groups.Count;
         }
 
-        public int ProcessMatches(ref GameState state, List<MatchGroup> groups, long tick, float simTime, IEventCollector events)
+        public int ProcessMatches(ref GameState state, List<MatchGroup> groups, int tick, float simTime, IEventCollector events)
         {
             FrameCount++;
             return groups.Count;
@@ -485,7 +485,7 @@ public class AsyncGameLoopTests
     private static void FillBoard(ref GameState state)
     {
         var types = new[] { TileType.Red, TileType.Blue, TileType.Green, TileType.Yellow };
-        long id = 1;
+        int id = 1;
         for (int y = 0; y < state.Height; y++)
         {
             for (int x = 0; x < state.Width; x++)

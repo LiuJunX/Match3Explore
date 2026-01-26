@@ -43,7 +43,7 @@ public class StandardMatchProcessor : IMatchProcessor
     public int ProcessMatches(
         ref GameState state,
         List<MatchGroup> groups,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events)
     {

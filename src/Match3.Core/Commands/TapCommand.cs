@@ -14,7 +14,7 @@ public sealed record TapCommand : IGameCommand
     public Guid Id { get; init; } = Guid.NewGuid();
 
     /// <inheritdoc />
-    public long IssuedAtTick { get; init; }
+    public int IssuedAtTick { get; init; }
 
     /// <summary>Position of the tap.</summary>
     public Position Position { get; init; }

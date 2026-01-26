@@ -53,7 +53,7 @@ public sealed class UfoProjectile : Projectile
     /// Creates a new UFO projectile.
     /// </summary>
     public UfoProjectile(
-        long id,
+        int id,
         Position origin,
         Position target,
         UfoTargetingMode targetingMode = UfoTargetingMode.FixedCell)
@@ -72,7 +72,7 @@ public sealed class UfoProjectile : Projectile
     public override bool Update(
         ref GameState state,
         float deltaTime,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events)
     {
@@ -88,7 +88,7 @@ public sealed class UfoProjectile : Projectile
         };
     }
 
-    private bool UpdateTakeoff(float deltaTime, long tick, float simTime, IEventCollector events)
+    private bool UpdateTakeoff(float deltaTime, int tick, float simTime, IEventCollector events)
     {
         // Vertical rise during takeoff
         float t = Math.Min(_phaseTime / TakeoffDuration, 1f);
@@ -128,7 +128,7 @@ public sealed class UfoProjectile : Projectile
     private bool UpdateFlight(
         ref GameState state,
         float deltaTime,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events)
     {
@@ -240,7 +240,7 @@ public sealed class UfoProjectile : Projectile
     /// <inheritdoc />
     public override bool TryRetarget(
         ref GameState state,
-        long tick,
+        int tick,
         float simTime,
         IEventCollector events)
     {

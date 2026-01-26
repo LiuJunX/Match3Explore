@@ -32,13 +32,13 @@ public sealed record GameStateSnapshot
     public Ground[] GroundLayers { get; init; } = System.Array.Empty<Ground>();
 
     /// <summary>Next tile ID to assign.</summary>
-    public long NextTileId { get; init; }
+    public int NextTileId { get; init; }
 
     /// <summary>Current score.</summary>
-    public long Score { get; init; }
+    public int Score { get; init; }
 
     /// <summary>Total moves made.</summary>
-    public long MoveCount { get; init; }
+    public int MoveCount { get; init; }
 
     /// <summary>
     /// Creates a snapshot from a GameState.
