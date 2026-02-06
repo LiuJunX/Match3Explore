@@ -233,8 +233,8 @@ namespace Match3.Unity.Controllers
         /// </summary>
         public void Reset()
         {
-            _boardView.Clear();
-            _effectManager.Clear();
+            _boardView?.Clear();
+            _effectManager?.Clear();
             _uiManager?.HideResult();
             _initialized = false;
         }

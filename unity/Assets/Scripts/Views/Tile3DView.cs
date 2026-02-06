@@ -75,7 +75,10 @@ namespace Match3.Unity.Views
             if (visual.Alpha < 1f)
             {
                 _meshRenderer.GetPropertyBlock(_propBlock);
-                var color = _meshRenderer.sharedMaterial.color;
+                var mat = _meshRenderer.sharedMaterial;
+                var color = mat.HasProperty(ColorProp)
+                    ? mat.GetColor(ColorProp)
+                    : mat.GetColor(ColorPropFallback);
                 color.a = visual.Alpha;
                 _propBlock.SetColor(ColorProp, color);
                 _propBlock.SetColor(ColorPropFallback, color);

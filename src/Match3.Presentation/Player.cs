@@ -374,6 +374,7 @@ public sealed class Player
                 break;
 
             case DestroyTileCommand destroy:
+                _visualState.SetTileScale(destroy.TileId, System.Numerics.Vector2.Zero);
                 _visualState.SetTileAlpha(destroy.TileId, 0);
                 _visualState.SetTileVisible(destroy.TileId, false);
                 break;
