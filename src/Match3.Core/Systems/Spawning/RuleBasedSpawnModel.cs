@@ -45,7 +45,7 @@ public class RuleBasedSpawnModel : ISpawnModel
 
         var strategy = DetermineStrategy(context);
 
-        return strategy switch
+        var result = strategy switch
         {
             SpawnStrategy.Help => SpawnHelpful(ref state, spawnX, colorCount),
             SpawnStrategy.Neutral => SpawnNeutral(ref state, spawnX, colorCount),
@@ -53,6 +53,17 @@ public class RuleBasedSpawnModel : ISpawnModel
             SpawnStrategy.Balance => SpawnBalanced(ref state, spawnX, colorCount),
             _ => SpawnNeutral(ref state, spawnX, colorCount)
         };
+
+        // Anti-streak: avoid repeating the column's top color
+        if (colorCount > 1 && result == GetColumnTopColor(ref state, spawnX))
+        {
+            var rng = _rng ?? state.Random;
+            int idx = BoardAnalyzer.GetColorIndex(result);
+            int offset = rng.Next(1, colorCount);
+            result = Colors[(idx + offset) % colorCount];
+        }
+
+        return result;
     }
 
     private SpawnStrategy DetermineStrategy(in SpawnContext context)
@@ -197,6 +208,20 @@ public class RuleBasedSpawnModel : ISpawnModel
         }
 
         return Colors[0];
+    }
+
+    /// <summary>
+    /// Returns the color of the first non-empty tile in the column (top to bottom).
+    /// </summary>
+    private static TileType GetColumnTopColor(ref GameState state, int x)
+    {
+        for (int y = 0; y < state.Height; y++)
+        {
+            var type = state.GetType(x, y);
+            if (type != TileType.None)
+                return type;
+        }
+        return TileType.None;
     }
 
     private static bool IsDominant(ref GameState state, int colorCount)
