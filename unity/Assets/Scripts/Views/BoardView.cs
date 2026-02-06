@@ -16,18 +16,19 @@ namespace Match3.Unity.Views
     {
         private ObjectPool<TileView> _tilePool;
         private ObjectPool<ProjectileView> _projectilePool;
-        private readonly Dictionary<long, TileView> _activeTiles = new();
-        private readonly Dictionary<long, ProjectileView> _activeProjectiles = new();
+        private readonly Dictionary<int, TileView> _activeTiles = new();
+        private readonly Dictionary<int, ProjectileView> _activeProjectiles = new();
 
         // Pre-allocated collections to avoid GC in hot path
-        private readonly HashSet<long> _activeTileIds = new();
-        private readonly HashSet<long> _activeProjectileIds = new();
-        private readonly List<long> _tilesToRemove = new();
-        private readonly List<long> _projectilesToRemove = new();
+        private readonly HashSet<int> _activeTileIds = new();
+        private readonly HashSet<int> _activeProjectileIds = new();
+        private readonly List<int> _tilesToRemove = new();
+        private readonly List<int> _projectilesToRemove = new();
 
         private Match3Bridge _bridge;
         private Transform _tileContainer;
         private Transform _projectileContainer;
+        private bool _viewInitialized;
 
         /// <summary>
         /// Number of active tile views.
@@ -45,6 +46,8 @@ namespace Match3.Unity.Views
         public void Initialize(Match3Bridge bridge)
         {
             _bridge = bridge;
+
+            if (_viewInitialized) return;
 
             // Create tile container
             _tileContainer = new GameObject("TileContainer").transform;
@@ -73,6 +76,8 @@ namespace Match3.Unity.Views
                 initialSize: projInitial,
                 maxSize: projMax
             );
+
+            _viewInitialized = true;
         }
 
         private static (int initial, int max) GetPoolSize(string poolName, int defaultInitial, int defaultMax)
@@ -202,7 +207,7 @@ namespace Match3.Unity.Views
         /// <summary>
         /// Get tile view by ID.
         /// </summary>
-        public TileView GetTileView(long tileId)
+        public TileView GetTileView(int tileId)
         {
             _activeTiles.TryGetValue(tileId, out var view);
             return view;
@@ -211,7 +216,7 @@ namespace Match3.Unity.Views
         /// <summary>
         /// Get projectile view by ID.
         /// </summary>
-        public ProjectileView GetProjectileView(long projectileId)
+        public ProjectileView GetProjectileView(int projectileId)
         {
             _activeProjectiles.TryGetValue(projectileId, out var view);
             return view;

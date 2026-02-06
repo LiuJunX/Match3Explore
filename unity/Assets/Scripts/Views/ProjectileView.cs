@@ -19,7 +19,7 @@ namespace Match3.Unity.Views
         /// <summary>
         /// Unique projectile ID from the game state.
         /// </summary>
-        public long ProjectileId { get; private set; }
+        public int ProjectileId { get; private set; }
 
         private void Awake()
         {
@@ -56,7 +56,7 @@ namespace Match3.Unity.Views
         /// <summary>
         /// Initialize the projectile with an ID.
         /// </summary>
-        public void Setup(long id)
+        public void Setup(int id)
         {
             ProjectileId = id;
         }

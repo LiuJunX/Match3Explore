@@ -20,7 +20,7 @@ namespace Match3.Unity.Views
         /// <summary>
         /// Unique tile ID from the game state.
         /// </summary>
-        public long TileId { get; private set; }
+        public int TileId { get; private set; }
 
         /// <summary>
         /// Current tile type.
@@ -56,7 +56,7 @@ namespace Match3.Unity.Views
         /// <summary>
         /// Initialize the tile with ID, type, and bomb.
         /// </summary>
-        public void Setup(long id, TileType type, BombType bomb)
+        public void Setup(int id, TileType type, BombType bomb)
         {
             TileId = id;
             TileType = type;

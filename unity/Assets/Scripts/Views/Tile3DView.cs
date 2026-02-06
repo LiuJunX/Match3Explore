@@ -17,7 +17,7 @@ namespace Match3.Unity.Views
         private MeshRenderer _meshRenderer;
         private MaterialPropertyBlock _propBlock;
 
-        public long TileId { get; private set; }
+        public int TileId { get; private set; }
         public TileType TileType { get; private set; }
         public BombType BombType { get; private set; }
 
@@ -37,7 +37,7 @@ namespace Match3.Unity.Views
         /// <summary>
         /// Initialize the tile with ID, type, and bomb.
         /// </summary>
-        public void Setup(long id, TileType type, BombType bomb)
+        public void Setup(int id, TileType type, BombType bomb)
         {
             TileId = id;
             TileType = type;
@@ -62,12 +62,13 @@ namespace Match3.Unity.Views
             var worldPos = CoordinateConverter.GridToWorld(visual.Position, cellSize, origin, height);
             transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
 
-            // Scale (uniform 3D)
+            // Scale (uniform 3D, Z tracks min of X/Y for natural shrink)
             var scaleFactor = cellSize * 0.8f; // 80% of cell to leave gaps
+            var zScale = Mathf.Min(visual.Scale.X, visual.Scale.Y);
             _baseScale = new Vector3(
                 visual.Scale.X * scaleFactor,
                 visual.Scale.Y * scaleFactor,
-                scaleFactor);
+                zScale * scaleFactor);
             transform.localScale = _isHighlighted ? _baseScale * 1.1f : _baseScale;
 
             // Alpha via MaterialPropertyBlock

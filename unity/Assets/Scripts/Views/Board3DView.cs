@@ -15,21 +15,24 @@ namespace Match3.Unity.Views
     public sealed class Board3DView : MonoBehaviour, IBoardView
     {
         private ObjectPool<Tile3DView> _tilePool;
-        private readonly Dictionary<long, Tile3DView> _activeTiles = new();
+        private readonly Dictionary<int, Tile3DView> _activeTiles = new();
 
         // Pre-allocated collections to avoid GC in hot path
-        private readonly HashSet<long> _activeTileIds = new();
-        private readonly List<long> _tilesToRemove = new();
+        private readonly HashSet<int> _activeTileIds = new();
+        private readonly List<int> _tilesToRemove = new();
 
         private Match3Bridge _bridge;
         private Transform _tileContainer;
         private Light _directionalLight;
+        private bool _viewInitialized;
 
         public int ActiveTileCount => _activeTiles.Count;
 
         public void Initialize(Match3Bridge bridge)
         {
             _bridge = bridge;
+
+            if (_viewInitialized) return;
 
             // Setup 3D lighting
             SetupLighting();
@@ -45,6 +48,8 @@ namespace Match3.Unity.Views
                 initialSize: initial,
                 maxSize: max
             );
+
+            _viewInitialized = true;
         }
 
         private void SetupLighting()

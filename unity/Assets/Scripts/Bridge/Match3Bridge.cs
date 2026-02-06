@@ -365,7 +365,7 @@ namespace Match3.Unity.Bridge
         /// Get tile ID at grid position.
         /// Returns -1 if no tile at position.
         /// </summary>
-        public long GetTileIdAt(Position pos)
+        public int GetTileIdAt(Position pos)
         {
             if (!_initialized) return -1;
 
