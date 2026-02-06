@@ -2,7 +2,6 @@ using Match3.Core.Models.Enums;
 using Match3.Core.Models.Grid;
 using Match3.Core.Systems.Input;
 using Match3.Unity.Bridge;
-using Match3.Unity.Views;
 using UnityEngine;
 
 namespace Match3.Unity.Controllers
@@ -14,7 +13,6 @@ namespace Match3.Unity.Controllers
     public sealed class InputController : MonoBehaviour
     {
         private Match3Bridge _bridge;
-        private BoardView _boardView;
         private Camera _mainCamera;
 
         private StandardInputSystem _inputSystem;
@@ -22,10 +20,9 @@ namespace Match3.Unity.Controllers
         /// <summary>
         /// Initialize the input controller.
         /// </summary>
-        public void Initialize(Match3Bridge bridge, BoardView boardView)
+        public void Initialize(Match3Bridge bridge)
         {
             _bridge = bridge;
-            _boardView = boardView;
             _mainCamera = Camera.main;
 
             // Create Core's input system

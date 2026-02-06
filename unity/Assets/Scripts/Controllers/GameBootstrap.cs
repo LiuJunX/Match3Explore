@@ -1,4 +1,4 @@
-    using Match3.Unity.Bridge;
+using Match3.Unity.Bridge;
 using Match3.Unity.Views;
 using UnityEngine;
 
@@ -30,10 +30,7 @@ namespace Match3.Unity.Controllers
             // Set bridge configuration via serialized fields reflection
             // (Alternative: expose public setters or use Initialize overload)
 
-            // Create board view
-            var boardGo = new GameObject("BoardView");
-            boardGo.transform.SetParent(gameRoot.transform, false);
-            var boardView = boardGo.AddComponent<BoardView>();
+            // Board view is created by GameController based on RenderMode
 
             // Create effect manager
             var effectGo = new GameObject("EffectManager");

@@ -12,7 +12,7 @@ namespace Match3.Unity.Views
     /// Manages the visual representation of the game board.
     /// Handles tile and projectile view lifecycle and rendering.
     /// </summary>
-    public sealed class BoardView : MonoBehaviour
+    public sealed class BoardView : MonoBehaviour, IBoardView
     {
         private ObjectPool<TileView> _tilePool;
         private ObjectPool<ProjectileView> _projectilePool;

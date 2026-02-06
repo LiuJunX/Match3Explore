@@ -6,6 +6,8 @@ using UnityEngine;
 
 namespace Match3.Unity.Controllers
 {
+    public enum RenderMode { View2D, View3D }
+
     /// <summary>
     /// Main game controller.
     /// Manages game loop: tick simulation, render board.
@@ -14,9 +16,12 @@ namespace Match3.Unity.Controllers
     {
         [Header("Components")]
         [SerializeField] private Match3Bridge _bridge;
-        [SerializeField] private BoardView _boardView;
         [SerializeField] private InputController _inputController;
         [SerializeField] private EffectManager _effectManager;
+
+        [Header("Rendering")]
+        [SerializeField] private RenderMode _renderMode = RenderMode.View2D;
+        private IBoardView _boardView;
 
         [Header("UI")]
         [SerializeField] private bool _enableUI = true;
@@ -41,7 +46,7 @@ namespace Match3.Unity.Controllers
         /// <summary>
         /// Board view instance.
         /// </summary>
-        public BoardView BoardView => _boardView;
+        public IBoardView BoardView => _boardView;
 
         private void Awake()
         {
@@ -59,13 +64,7 @@ namespace Match3.Unity.Controllers
 
             if (_boardView == null)
             {
-                _boardView = GetComponentInChildren<BoardView>();
-                if (_boardView == null)
-                {
-                    var boardGo = new GameObject("BoardView");
-                    boardGo.transform.SetParent(transform, false);
-                    _boardView = boardGo.AddComponent<BoardView>();
-                }
+                _boardView = CreateBoardView();
             }
 
             if (_inputController == null)
@@ -114,7 +113,7 @@ namespace Match3.Unity.Controllers
             _effectManager.Initialize(_bridge);
 
             // Initialize input
-            _inputController.Initialize(_bridge, _boardView);
+            _inputController.Initialize(_bridge);
 
             // Initialize UI
             if (_enableUI)
@@ -174,7 +173,7 @@ namespace Match3.Unity.Controllers
             _effectManager.Initialize(_bridge);
 
             // Initialize input
-            _inputController.Initialize(_bridge, _boardView);
+            _inputController.Initialize(_bridge);
 
             // Initialize UI
             if (_enableUI && _uiManager == null)
@@ -228,6 +227,21 @@ namespace Match3.Unity.Controllers
             _effectManager.Clear();
             _uiManager?.HideResult();
             _initialized = false;
+        }
+
+        private IBoardView CreateBoardView()
+        {
+            switch (_renderMode)
+            {
+                case RenderMode.View3D:
+                    var go3D = new GameObject("Board3DView");
+                    go3D.transform.SetParent(transform, false);
+                    return go3D.AddComponent<Board3DView>();
+                default:
+                    var go2D = new GameObject("BoardView");
+                    go2D.transform.SetParent(transform, false);
+                    return go2D.AddComponent<BoardView>();
+            }
         }
 
         private void OnDestroy()
