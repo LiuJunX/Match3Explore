@@ -21,6 +21,7 @@ allowed-tools: Read, Bash(dotnet test:*), Bash(echo:*), Write
 | 关键词 | 范围 | 项目 |
 |--------|------|------|
 | 核心/core | Core | Match3.Core.Tests, Match3.Random.Tests, Match3.Core.PoolTests |
+| 表现层/presentation | Presentation | Match3.Presentation.Tests |
 | web | Web | Match3.Web.Tests |
 | editor/编辑器 | Editor | Match3.Editor.Tests |
 | unity | Unity | Unity Editor Tests (触发器模式) |
@@ -37,6 +38,9 @@ allowed-tools: Read, Bash(dotnet test:*), Bash(echo:*), Write
 ```bash
 # Core 测试
 dotnet test src/Match3.Core.Tests src/Match3.Random.Tests src/Match3.Core.PoolTests --nologo --verbosity minimal
+
+# Presentation 测试
+dotnet test src/Match3.Presentation.Tests --nologo --verbosity minimal
 
 # Web 测试
 dotnet test src/Match3.Web.Tests --nologo --verbosity minimal

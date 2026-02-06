@@ -13,6 +13,7 @@ namespace Match3.Unity.Views
     {
         private Match3Bridge _bridge;
         private Transform _effectContainer;
+        private bool _initialized;
 
         private readonly Dictionary<string, Queue<ParticleSystem>> _effectPools = new();
         private readonly Dictionary<int, ActiveEffect> _activeEffects = new();
@@ -34,6 +35,8 @@ namespace Match3.Unity.Views
         {
             _bridge = bridge;
 
+            if (_initialized) return;
+
             // Create effect container
             _effectContainer = new GameObject("EffectContainer").transform;
             _effectContainer.SetParent(transform, false);
@@ -42,6 +45,8 @@ namespace Match3.Unity.Views
             PrewarmPool("match_pop", 10);
             PrewarmPool("explosion", 5);
             PrewarmPool("pop", 10);
+
+            _initialized = true;
         }
 
         /// <summary>
