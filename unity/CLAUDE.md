@@ -44,18 +44,34 @@ Unity 通过 DLL 引用核心库，**源码位于**：
 | 控制器 | `XxxController` | `InputController`, `GameController` |
 | ScriptableObject | `XxxConfig` | `TileConfig`, `AnimationConfig` |
 
+## 渲染架构
+
+视图层通过 `IBoardView` 接口抽象，支持 2D/3D 切换：
+
+| 模式 | View | Tile | 工厂 |
+|------|------|------|------|
+| View2D | `BoardView` | `TileView` (SpriteRenderer) | `SpriteFactory` |
+| View3D | `Board3DView` | `Tile3DView` (MeshFilter+MeshRenderer) | `MeshFactory` |
+
+- `GameController.RenderMode` 枚举控制切换
+- `ResourceService` 统一资源加载接口（可替换 Resources.Load 为 Addressables 等）
+- BoardView 创建推迟到 `Initialize()`（非 `Awake()`）
+
 ## 目录结构
 
 ```
 Assets/
 ├── Plugins/Match3/        # Core DLLs（构建脚本同步）
 ├── Scripts/               # Unity 特定代码
-│   ├── Views/             # MonoBehaviour 视图组件
+│   ├── Views/             # MonoBehaviour 视图组件 (BoardView, Board3DView, TileView, Tile3DView)
 │   ├── Controllers/       # 输入和游戏流程控制
-│   └── Bridge/            # Core 与 Unity 的桥接层
+│   ├── Bridge/            # Core 与 Unity 的桥接层
+│   ├── Pools/             # 对象池、工厂 (SpriteFactory, MeshFactory, ViewFactory)
+│   └── Services/          # 服务抽象 (ResourceService, IResourceLoader)
 ├── Prefabs/
 ├── Scenes/
 └── Resources/
+    └── Art/Gems/Models/   # 3D 模型 (FBX，从 Match3Art 导出)
 ```
 
 ## DLL 同步
