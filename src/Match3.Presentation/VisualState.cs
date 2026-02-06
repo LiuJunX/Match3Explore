@@ -14,6 +14,8 @@ public sealed class VisualState : IVisualState
     private readonly Dictionary<int, TileVisual> _tiles = new();
     private readonly Dictionary<int, ProjectileVisual> _projectiles = new();
     private readonly List<VisualEffect> _effects = new();
+    private readonly HashSet<int> _aliveTileIds = new();
+    private readonly List<int> _tilesToRemove = new();
 
     /// <summary>
     /// All tile visuals indexed by tile ID.
@@ -81,12 +83,16 @@ public sealed class VisualState : IVisualState
     /// </summary>
     public void SyncFallingTilesFromGameState(in GameState state)
     {
+        _aliveTileIds.Clear();
+
         for (int y = 0; y < state.Height; y++)
         {
             for (int x = 0; x < state.Width; x++)
             {
                 var tile = state.GetTile(x, y);
                 if (tile.Type == TileType.None) continue;
+
+                _aliveTileIds.Add(tile.Id);
 
                 if (_tiles.TryGetValue(tile.Id, out var visual))
                 {
@@ -118,28 +124,14 @@ public sealed class VisualState : IVisualState
             }
         }
 
-        // Remove tiles that no longer exist in game state
-        var tilesToRemove = new List<int>();
+        // Remove tiles that no longer exist in game state (O(N) via HashSet lookup)
+        _tilesToRemove.Clear();
         foreach (var kvp in _tiles)
         {
-            bool found = false;
-            for (int y = 0; y < state.Height && !found; y++)
-            {
-                for (int x = 0; x < state.Width && !found; x++)
-                {
-                    var tile = state.GetTile(x, y);
-                    if (tile.Id == kvp.Key && tile.Type != TileType.None)
-                    {
-                        found = true;
-                    }
-                }
-            }
-            if (!found)
-            {
-                tilesToRemove.Add(kvp.Key);
-            }
+            if (!_aliveTileIds.Contains(kvp.Key))
+                _tilesToRemove.Add(kvp.Key);
         }
-        foreach (var id in tilesToRemove)
+        foreach (var id in _tilesToRemove)
         {
             _tiles.Remove(id);
         }
