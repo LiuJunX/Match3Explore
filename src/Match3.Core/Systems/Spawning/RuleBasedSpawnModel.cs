@@ -28,10 +28,20 @@ public class RuleBasedSpawnModel : ISpawnModel
         _rng = rng;
     }
 
+    /// <summary>
+    /// Threshold: a color is "dominant" when it exceeds double its fair share.
+    /// For 6 colors fair=16.7%, threshold=33.3%.
+    /// </summary>
+    private const int DominanceMultiplier = 2;
+
     public TileType Predict(ref GameState state, int spawnX, in SpawnContext context)
     {
         int colorCount = Math.Min(state.TileTypesCount, Colors.Length);
         if (colorCount <= 0) return TileType.None;
+
+        // Diversity guard: when any color dominates, fall back to balanced weighted random
+        if (colorCount > 1 && IsDominant(ref state, colorCount))
+            return SpawnBalanced(ref state, spawnX, colorCount);
 
         var strategy = DetermineStrategy(context);
 
@@ -121,13 +131,12 @@ public class RuleBasedSpawnModel : ISpawnModel
         Span<bool> wouldNotMatch = stackalloc bool[6];
         BoardAnalyzer.FindNonMatchingColors(ref state, spawnX, wouldNotMatch);
 
-        // Find colors that don't create matches and are already common
-        var commonColor = BoardAnalyzer.FindMostCommonColor(ref state, colorCount);
-        int commonIndex = BoardAnalyzer.GetColorIndex(commonColor);
+        // Prefer spawning rarer colors that don't match (adds challenge without feedback loop)
+        var rareColor = BoardAnalyzer.FindRarestColor(ref state, colorCount);
+        int rareIndex = BoardAnalyzer.GetColorIndex(rareColor);
 
-        // Prefer spawning common colors that don't match (creates clutter)
-        if (commonIndex >= 0 && commonIndex < colorCount && wouldNotMatch[commonIndex])
-            return commonColor;
+        if (rareIndex >= 0 && rareIndex < colorCount && wouldNotMatch[rareIndex])
+            return rareColor;
 
         // Collect all non-matching colors
         Span<int> nonMatchingIndices = stackalloc int[6];
@@ -188,6 +197,27 @@ public class RuleBasedSpawnModel : ISpawnModel
         }
 
         return Colors[0];
+    }
+
+    private static bool IsDominant(ref GameState state, int colorCount)
+    {
+        Span<int> counts = stackalloc int[6];
+        BoardAnalyzer.GetColorDistribution(ref state, counts);
+
+        int total = 0;
+        int maxCount = 0;
+        for (int i = 0; i < colorCount; i++)
+        {
+            total += counts[i];
+            if (counts[i] > maxCount)
+                maxCount = counts[i];
+        }
+
+        // Too few tiles on board to judge diversity
+        if (total < colorCount) return false;
+
+        // maxCount / total > DominanceMultiplier / colorCount
+        return maxCount * colorCount > total * DominanceMultiplier;
     }
 
     private TileType SpawnRandom(ref GameState state, int colorCount)

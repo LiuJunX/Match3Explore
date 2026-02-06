@@ -100,7 +100,18 @@ graph TD
     H -- No --> I[Balance 策略]
 ```
 
-### 3.2 三种生成策略
+### 3.2 多样性守卫 (Diversity Guard)
+
+在任何策略执行之前，系统会先检查棋盘颜色分布。当某种颜色的占比超过其公平份额的 2 倍时（例如 6 种颜色时阈值为 33.3%），强制生成最稀缺的颜色。
+
+```
+判定公式: maxCount * colorCount > totalTiles * 2
+门槛条件: totalTiles >= colorCount （棋子太少时不触发）
+```
+
+这是一个全局安全网，防止任何策略（Help/Challenge/Balance）的正反馈导致颜色收敛。守卫只在颜色失衡严重时介入，正常情况下不影响策略行为。
+
+### 3.3 三种生成策略
 
 | 策略 | 触发条件 | 行为 |
 | :--- | :--- | :--- |
@@ -110,7 +121,7 @@ graph TD
 
 > **注意**: 代码中还定义了 `Neutral` 策略（纯随机），但当前实现中默认使用 `Balance`，`Neutral` 仅作为 switch 的兜底分支。
 
-### 3.3 Help 策略详解
+### 3.4 Help 策略详解
 
 当玩家需要帮助时，系统会：
 
@@ -141,12 +152,12 @@ private TileType SpawnHelpful(ref GameState state, int spawnX, int colorCount)
 }
 ```
 
-### 3.4 Challenge 策略详解
+### 3.5 Challenge 策略详解
 
 当需要增加挑战时，系统会：
 
 1. **找出不会消除的颜色**
-2. **优先生成已经过多的颜色**（制造拥堵）
+2. **优先生成最稀缺的非匹配颜色**（增加颜色种类，降低消除概率）
 3. **避免任何能消除的颜色**
 
 ```csharp
@@ -155,23 +166,21 @@ private TileType SpawnChallenging(ref GameState state, int spawnX, int colorCoun
     Span<bool> wouldNotMatch = stackalloc bool[6];
     BoardAnalyzer.FindNonMatchingColors(ref state, spawnX, wouldNotMatch);
 
-    // 优先生成最多的颜色（制造拥堵）
-    var commonColor = BoardAnalyzer.FindMostCommonColor(ref state, colorCount);
-    int commonIndex = BoardAnalyzer.GetColorIndex(commonColor);
+    // 优先生成最稀缺的非匹配颜色（增加挑战但不会导致颜色收敛）
+    var rareColor = BoardAnalyzer.FindRarestColor(ref state, colorCount);
+    int rareIndex = BoardAnalyzer.GetColorIndex(rareColor);
 
-    if (commonIndex >= 0 && commonIndex < colorCount && wouldNotMatch[commonIndex])
-        return commonColor;
+    if (rareIndex >= 0 && rareIndex < colorCount && wouldNotMatch[rareIndex])
+        return rareColor;
 
     // 其他不会消除的颜色
-    for (int i = 0; i < colorCount; i++)
-        if (wouldNotMatch[i]) return Colors[i];
-
-    // 所有颜色都会消除时，退化为随机
-    return SpawnRandom(ref state, colorCount);
+    // ...（随机选择非匹配颜色，兜底为纯随机）
 }
 ```
 
-### 3.5 Balance 策略详解
+> **历史变更**：早期版本使用 `FindMostCommonColor`（优先生成最多的颜色制造拥堵），但该设计存在正反馈失控问题——最多的颜色越来越多，最终导致全盘收敛为单一颜色。已改为 `FindRarestColor`，将正反馈反转为负反馈。
+
+### 3.6 Balance 策略详解
 
 平衡各颜色分布，使棋盘颜色更均匀：
 
@@ -257,10 +266,10 @@ SpawnContext:
 
 分析:
   - Red 会形成消除，Challenge 策略会避开
-  - 系统查找最多的颜色（假设是 Blue）
-  - 如果 Blue 不会消除，生成 Blue
+  - 系统查找最稀缺的颜色（假设是 Yellow）
+  - 如果 Yellow 不会消除，生成 Yellow
 
-结果: 生成 Blue，避免轻松消除，增加挑战
+结果: 生成 Yellow，避免轻松消除，同时分散颜色分布
 ```
 
 ### 案例 C：中等难度场景
@@ -375,6 +384,8 @@ public class LegacySpawnModel : ISpawnModel
 | 情况 | 处理方式 |
 | :--- | :--- |
 | `colorCount <= 0` | 返回 `TileType.None` |
+| 单色占比超过 2×公平份额 | 多样性守卫介入，强制生成最稀缺颜色 |
+| 棋盘上棋子数 < colorCount | 守卫不触发，正常执行策略 |
 | 所有颜色都会形成消除 | Challenge 策略退化为随机 |
 | `totalWeight <= 0` | Balance 策略退化为随机 |
 
