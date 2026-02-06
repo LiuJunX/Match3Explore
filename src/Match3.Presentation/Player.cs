@@ -334,7 +334,7 @@ public sealed class Player
             case DestroyTileCommand destroy:
                 // Fade out and scale down
                 float alpha = 1f - t;
-                float scale = 1f - t * 0.3f;
+                float scale = 1f - t;
                 _visualState.SetTileAlpha(destroy.TileId, alpha);
                 _visualState.SetTileScale(destroy.TileId, new Vector2(scale, scale));
                 break;
