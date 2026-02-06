@@ -14,7 +14,7 @@ namespace Match3.Unity.Pools
         private static Mesh _tileMesh;
         private static bool _meshLoaded;
         private static readonly Dictionary<TileType, Material> _materialCache = new();
-        private static Shader _unlitShader;
+        private static Shader _litShader;
 
         /// <summary>
         /// Get the shared tile mesh.
@@ -48,7 +48,7 @@ namespace Match3.Unity.Pools
         }
 
         /// <summary>
-        /// Get a cached Unlit material for the given tile type.
+        /// Get a cached Lit material for the given tile type.
         /// </summary>
         public static Material GetTileMaterial(TileType type)
         {
@@ -56,7 +56,7 @@ namespace Match3.Unity.Pools
                 return cached;
 
             var color = SpriteFactory.GetTileColor(type);
-            var mat = CreateUnlitMaterial(color);
+            var mat = CreateLitMaterial(color);
             mat.name = $"Tile3D_{GetTileTypeName(type)}";
             _materialCache[type] = mat;
             return mat;
@@ -90,31 +90,37 @@ namespace Match3.Unity.Pools
 
             _tileMesh = null;
             _meshLoaded = false;
-            _unlitShader = null;
+            _litShader = null;
         }
 
-        private static Shader GetUnlitShader()
+        private static Shader GetLitShader()
         {
-            if (_unlitShader != null) return _unlitShader;
+            if (_litShader != null) return _litShader;
 
-            // Try URP Unlit first, then built-in
-            _unlitShader = Shader.Find("Universal Render Pipeline/Unlit");
-            if (_unlitShader == null)
-                _unlitShader = Shader.Find("Unlit/Color");
+            // Try URP Lit first, then built-in Standard
+            _litShader = Shader.Find("Universal Render Pipeline/Lit");
+            if (_litShader == null)
+                _litShader = Shader.Find("Standard");
 
-            return _unlitShader;
+            return _litShader;
         }
 
-        private static Material CreateUnlitMaterial(Color color)
+        private static Material CreateLitMaterial(Color color)
         {
-            var shader = GetUnlitShader();
+            var shader = GetLitShader();
             var mat = new Material(shader);
 
-            // URP Unlit uses _BaseColor, built-in Unlit/Color uses _Color
+            // Set base color
             if (mat.HasProperty("_BaseColor"))
                 mat.SetColor("_BaseColor", color);
             else
                 mat.SetColor("_Color", color);
+
+            // Gem-like surface: moderate smoothness, low metallic
+            if (mat.HasProperty("_Smoothness"))
+                mat.SetFloat("_Smoothness", 0.7f);
+            if (mat.HasProperty("_Metallic"))
+                mat.SetFloat("_Metallic", 0.1f);
 
             return mat;
         }
@@ -125,7 +131,7 @@ namespace Match3.Unity.Pools
         {
             if (_fallbackMaterial != null) return _fallbackMaterial;
 
-            _fallbackMaterial = CreateUnlitMaterial(Color.gray);
+            _fallbackMaterial = CreateLitMaterial(Color.gray);
             _fallbackMaterial.name = "Tile3D_Fallback";
             return _fallbackMaterial;
         }

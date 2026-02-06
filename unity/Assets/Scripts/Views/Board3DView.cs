@@ -4,6 +4,7 @@ using Match3.Unity.Bridge;
 using Match3.Unity.Pools;
 using Match3.Unity.Services;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Match3.Unity.Views
 {
@@ -22,12 +23,16 @@ namespace Match3.Unity.Views
 
         private Match3Bridge _bridge;
         private Transform _tileContainer;
+        private Light _directionalLight;
 
         public int ActiveTileCount => _activeTiles.Count;
 
         public void Initialize(Match3Bridge bridge)
         {
             _bridge = bridge;
+
+            // Setup 3D lighting
+            SetupLighting();
 
             _tileContainer = new GameObject("TileContainer3D").transform;
             _tileContainer.SetParent(transform, false);
@@ -40,6 +45,23 @@ namespace Match3.Unity.Views
                 initialSize: initial,
                 maxSize: max
             );
+        }
+
+        private void SetupLighting()
+        {
+            // Directional Light: warm white, angled for depth
+            var lightGo = new GameObject("BoardLight");
+            lightGo.transform.SetParent(transform, false);
+            lightGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            _directionalLight = lightGo.AddComponent<Light>();
+            _directionalLight.type = LightType.Directional;
+            _directionalLight.color = new Color(1f, 0.98f, 0.94f); // warm white
+            _directionalLight.intensity = 1.0f;
+            _directionalLight.shadows = LightShadows.None;
+
+            // Ambient Light: cool gray
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.31f, 0.33f, 0.39f); // cool gray
         }
 
         public void Render(VisualState state)
@@ -132,6 +154,12 @@ namespace Match3.Unity.Views
         {
             Clear();
             _tilePool?.Clear();
+
+            if (_directionalLight != null)
+            {
+                Destroy(_directionalLight.gameObject);
+                _directionalLight = null;
+            }
         }
     }
 }

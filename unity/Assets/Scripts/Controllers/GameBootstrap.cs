@@ -15,6 +15,9 @@ namespace Match3.Unity.Controllers
         [SerializeField] private int _boardHeight = 8;
         [SerializeField] private int _seed = 0;
 
+        [Header("Rendering")]
+        [SerializeField] private RenderMode _renderMode = RenderMode.View2D;
+
         private GameController _gameController;
 
         private void Awake()
@@ -46,6 +49,7 @@ namespace Match3.Unity.Controllers
             var controllerGo = new GameObject("GameController");
             controllerGo.transform.SetParent(gameRoot.transform, false);
             _gameController = controllerGo.AddComponent<GameController>();
+            _gameController.RenderMode = _renderMode;
 
             // Setup camera
             SetupCamera(bridge);

@@ -23,6 +23,15 @@ namespace Match3.Unity.Controllers
         [SerializeField] private RenderMode _renderMode = RenderMode.View2D;
         private IBoardView _boardView;
 
+        /// <summary>
+        /// Set render mode before Initialize. Used by GameBootstrap.
+        /// </summary>
+        public RenderMode RenderMode
+        {
+            get => _renderMode;
+            set => _renderMode = value;
+        }
+
         [Header("UI")]
         [SerializeField] private bool _enableUI = true;
         private UIManager _uiManager;
@@ -62,11 +71,6 @@ namespace Match3.Unity.Controllers
                 }
             }
 
-            if (_boardView == null)
-            {
-                _boardView = CreateBoardView();
-            }
-
             if (_inputController == null)
             {
                 _inputController = GetComponentInChildren<InputController>();
@@ -104,6 +108,9 @@ namespace Match3.Unity.Controllers
         public void Initialize()
         {
             if (_initialized) return;
+
+            // Create board view if not yet created
+            _boardView ??= CreateBoardView();
 
             // Initialize bridge
             _bridge.Initialize();
@@ -164,6 +171,9 @@ namespace Match3.Unity.Controllers
             {
                 Reset();
             }
+
+            // Create board view if not yet created
+            _boardView ??= CreateBoardView();
 
             // Initialize bridge with parameters
             _bridge.Initialize(width, height, seed);

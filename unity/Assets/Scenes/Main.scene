@@ -252,6 +252,7 @@ MonoBehaviour:
   _boardWidth: 8
   _boardHeight: 8
   _seed: 0
+  _renderMode: 1
 --- !u!4 &1064596469
 Transform:
   m_ObjectHideFlags: 0
