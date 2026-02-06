@@ -401,6 +401,7 @@ namespace Match3.Unity.Bridge
 
             // Clear static caches to prevent stale references
             SpriteFactory.ClearCache();
+            MeshFactory.ClearCache();
         }
 
         private void OnDestroy()
