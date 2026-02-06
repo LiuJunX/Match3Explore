@@ -224,6 +224,9 @@ namespace Match3.Unity.Bridge
             // Tick the animation player
             _player.Tick(scaledDelta);
 
+            // Tick visual effects (advance elapsed time, remove expired)
+            _player.VisualState.UpdateEffects(scaledDelta);
+
             // Sync falling tiles from game state (physics-driven positions)
             if (!HasActiveAnimations)
             {
