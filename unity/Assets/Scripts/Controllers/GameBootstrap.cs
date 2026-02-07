@@ -1,5 +1,3 @@
-using Match3.Unity.Bridge;
-using Match3.Unity.Views;
 using UnityEngine;
 
 namespace Match3.Unity.Controllers
@@ -22,37 +20,17 @@ namespace Match3.Unity.Controllers
 
         private void Awake()
         {
-            // Create game root
+            // Ensure game runs when editor loses focus (needed for MCP automation)
+            Application.runInBackground = true;
+
+            // Create game root with GameController
+            // GameController.Awake auto-creates Bridge, EffectManager, InputController as children
             var gameRoot = new GameObject("Match3Game");
-
-            // Create and configure bridge
-            var bridgeGo = new GameObject("Match3Bridge");
-            bridgeGo.transform.SetParent(gameRoot.transform, false);
-            var bridge = bridgeGo.AddComponent<Match3Bridge>();
-
-            // Set bridge configuration via serialized fields reflection
-            // (Alternative: expose public setters or use Initialize overload)
-
-            // Board view is created by GameController based on RenderMode
-
-            // Create effect manager
-            var effectGo = new GameObject("EffectManager");
-            effectGo.transform.SetParent(gameRoot.transform, false);
-            var effectManager = effectGo.AddComponent<EffectManager>();
-
-            // Create input controller
-            var inputGo = new GameObject("InputController");
-            inputGo.transform.SetParent(gameRoot.transform, false);
-            var inputController = inputGo.AddComponent<InputController>();
-
-            // Create game controller
-            var controllerGo = new GameObject("GameController");
-            controllerGo.transform.SetParent(gameRoot.transform, false);
-            _gameController = controllerGo.AddComponent<GameController>();
+            _gameController = gameRoot.AddComponent<GameController>();
             _gameController.RenderMode = _renderMode;
 
             // Setup camera
-            SetupCamera(bridge);
+            SetupCamera();
         }
 
         private void Start()
@@ -72,7 +50,7 @@ namespace Match3.Unity.Controllers
             Debug.Log($"Match3 Game Started: {_boardWidth}x{_boardHeight}, seed={seed}");
         }
 
-        private void SetupCamera(Match3Bridge bridge)
+        private void SetupCamera()
         {
             var mainCamera = Camera.main;
             if (mainCamera == null)

@@ -1,4 +1,5 @@
 using System;
+using Match3.Presentation;
 using Match3.Unity.Bridge;
 using Match3.Unity.UI;
 using Match3.Unity.Views;
@@ -43,9 +44,18 @@ namespace Match3.Unity.Controllers
         private Action _onRestartClickedHandler;
 
         [Header("Auto Initialize")]
-        [SerializeField] private bool _autoInitialize = true;
+        [SerializeField] private bool _autoInitialize;
 
         private bool _initialized;
+
+        // Screen shake state
+        private Camera _cachedCamera;
+        private float _shakeTimer;
+        private float _shakeDuration;
+        private float _shakeIntensity;
+        private Vector3 _cameraOriginalPos;
+        private bool _shakeApplied;
+        private int _lastShakeEffectCount;
 
         /// <summary>
         /// Bridge instance for external access.
@@ -218,14 +228,111 @@ namespace Match3.Unity.Controllers
         {
             if (!_initialized || !_bridge.IsInitialized) return;
 
+            // Restore camera before input processing (InputController.Update runs in same frame)
+            RestoreShake();
+
             // Tick simulation
             _bridge.Tick(Time.deltaTime);
 
+            var state = _bridge.VisualState;
+            if (state == null) return;
+
             // Render board
-            _boardView.Render(_bridge.VisualState);
+            _boardView.Render(state);
 
             // Update effects
-            _effectManager.UpdateEffects(_bridge.VisualState);
+            _effectManager.UpdateEffects(state);
+
+            // Screen shake: only trigger on rising edge of effect count
+            int effectCount = CountDestructionEffects(state);
+            if (effectCount > _lastShakeEffectCount)
+            {
+                if (effectCount >= 10)
+                    TriggerShake(0.2f, 0.15f);
+                else if (effectCount >= 5)
+                    TriggerShake(0.1f, 0.08f);
+            }
+            _lastShakeEffectCount = effectCount;
+        }
+
+        private void LateUpdate()
+        {
+            // Apply shake in LateUpdate so it doesn't affect input raycasts in Update
+            ApplyShake();
+        }
+
+        private static int CountDestructionEffects(VisualState state)
+        {
+            int count = 0;
+            foreach (var effect in state.Effects)
+            {
+                if (effect.EffectType == "match_pop" || effect.EffectType == "pop" ||
+                    effect.EffectType == "explosion" || effect.EffectType == "bomb_explosion")
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        private Camera GetCamera()
+        {
+            if (_cachedCamera == null)
+                _cachedCamera = Camera.main;
+            return _cachedCamera;
+        }
+
+        private void TriggerShake(float duration, float intensity)
+        {
+            // Only upgrade to a stronger shake
+            if (_shakeTimer > 0f && intensity <= _shakeIntensity) return;
+
+            _shakeDuration = duration;
+            _shakeIntensity = intensity;
+            _shakeTimer = duration;
+
+            // Capture original position only if not already shaking
+            // (if shaking, _cameraOriginalPos already holds the true position)
+            if (!_shakeApplied)
+            {
+                var cam = GetCamera();
+                if (cam != null)
+                    _cameraOriginalPos = cam.transform.position;
+            }
+        }
+
+        private void RestoreShake()
+        {
+            if (!_shakeApplied) return;
+
+            var cam = GetCamera();
+            if (cam != null)
+                cam.transform.position = _cameraOriginalPos;
+            _shakeApplied = false;
+        }
+
+        private void ApplyShake()
+        {
+            if (_shakeTimer <= 0f) return;
+
+            var cam = GetCamera();
+            if (cam == null) return;
+
+            _shakeTimer -= Time.deltaTime;
+
+            if (_shakeTimer <= 0f)
+            {
+                _shakeTimer = 0f;
+                // Don't apply offset, camera is already restored from RestoreShake
+                return;
+            }
+
+            // Damped random offset
+            var decay = _shakeTimer / _shakeDuration;
+            var offsetX = UnityEngine.Random.Range(-1f, 1f) * _shakeIntensity * decay;
+            var offsetY = UnityEngine.Random.Range(-1f, 1f) * _shakeIntensity * decay;
+            cam.transform.position = _cameraOriginalPos + new Vector3(offsetX, offsetY, 0f);
+            _shakeApplied = true;
         }
 
         /// <summary>
@@ -233,6 +340,10 @@ namespace Match3.Unity.Controllers
         /// </summary>
         public void Reset()
         {
+            RestoreShake();
+            _shakeTimer = 0f;
+            _lastShakeEffectCount = 0;
+
             _boardView?.Clear();
             _effectManager?.Clear();
             _uiManager?.HideResult();
@@ -256,6 +367,8 @@ namespace Match3.Unity.Controllers
 
         private void OnDestroy()
         {
+            RestoreShake();
+
             // Unsubscribe from UI events to prevent memory leaks
             if (_uiManager != null)
             {
