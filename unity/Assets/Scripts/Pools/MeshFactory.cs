@@ -14,6 +14,7 @@ namespace Match3.Unity.Pools
         private static Mesh _tileMesh;
         private static bool _meshLoaded;
         private static readonly Dictionary<TileType, Material> _materialCache = new();
+        private static readonly Dictionary<BombType, Mesh> _bombMeshCache = new();
         private static Shader _litShader;
 
         /// <summary>
@@ -45,6 +46,36 @@ namespace Match3.Unity.Pools
             _meshLoaded = true;
             Debug.Log("[MeshFactory] Using built-in sphere mesh (fallback)");
             return _tileMesh;
+        }
+
+        /// <summary>
+        /// Get the mesh for a bomb type.
+        /// Loads from Resources, falls back to tile mesh.
+        /// </summary>
+        public static Mesh GetBombMesh(BombType type)
+        {
+            if (type == BombType.None) return GetTileMesh();
+
+            if (_bombMeshCache.TryGetValue(type, out var cached))
+                return cached;
+
+            var typeName = type.ToString();
+            var model = ResourceService.Loader.Load<GameObject>($"Art/Gems/Models/Bomb_{typeName}");
+            if (model != null)
+            {
+                var meshFilter = model.GetComponentInChildren<MeshFilter>();
+                if (meshFilter != null)
+                {
+                    _bombMeshCache[type] = meshFilter.sharedMesh;
+                    Debug.Log($"[MeshFactory] Loaded Bomb_{typeName} mesh from Resources");
+                    return meshFilter.sharedMesh;
+                }
+            }
+
+            Debug.LogWarning($"[MeshFactory] Bomb_{typeName} mesh not found, using tile mesh");
+            var fallback = GetTileMesh();
+            _bombMeshCache[type] = fallback;
+            return fallback;
         }
 
         /// <summary>
@@ -88,6 +119,7 @@ namespace Match3.Unity.Pools
                 _fallbackMaterial = null;
             }
 
+            _bombMeshCache.Clear();
             _tileMesh = null;
             _meshLoaded = false;
             _litShader = null;
