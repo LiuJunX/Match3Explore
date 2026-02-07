@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Match3.Core.Models.Grid;
 using Match3.Presentation;
 using Match3.Unity.Bridge;
 using Match3.Unity.Pools;
@@ -32,6 +33,7 @@ namespace Match3.Unity.Views
         private Light _fillLight;
         private Light _rimLight;
         private bool _viewInitialized;
+        private int _highlightedTileId = -1;
 
         public int ActiveTileCount => _activeTiles.Count;
 
@@ -156,8 +158,29 @@ namespace Match3.Unity.Views
                 }
             }
 
+            // Update selection highlight
+            UpdateSelectionHighlight();
+
             // Render projectiles
             RenderProjectiles(state, cellSize, origin, height);
+        }
+
+        private void UpdateSelectionHighlight()
+        {
+            var selectedPos = _bridge.CurrentState.SelectedPosition;
+            int selectedTileId = selectedPos != Position.Invalid
+                ? _bridge.GetTileIdAt(selectedPos)
+                : -1;
+
+            if (selectedTileId == _highlightedTileId) return;
+
+            if (_highlightedTileId >= 0 && _activeTiles.TryGetValue(_highlightedTileId, out var prev))
+                prev.SetHighlighted(false);
+
+            if (selectedTileId >= 0 && _activeTiles.TryGetValue(selectedTileId, out var next))
+                next.SetHighlighted(true);
+
+            _highlightedTileId = selectedTileId;
         }
 
         private void RenderProjectiles(VisualState state, float cellSize, Vector2 origin, int height)
@@ -204,6 +227,8 @@ namespace Match3.Unity.Views
 
         public void Clear()
         {
+            _highlightedTileId = -1;
+
             foreach (var kvp in _activeTiles)
             {
                 _tilePool.Return(kvp.Value);

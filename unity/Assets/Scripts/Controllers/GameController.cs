@@ -266,8 +266,7 @@ namespace Match3.Unity.Controllers
             int count = 0;
             foreach (var effect in state.Effects)
             {
-                if (effect.EffectType == "match_pop" || effect.EffectType == "pop" ||
-                    effect.EffectType == "explosion" || effect.EffectType == "bomb_explosion")
+                if (effect.EffectType == "explosion" || effect.EffectType == "bomb_explosion")
                 {
                     count++;
                 }

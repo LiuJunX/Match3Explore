@@ -23,7 +23,6 @@ namespace Match3.Unity.Views
 
         private Vector3 _baseScale = Vector3.one;
         private bool _isHighlighted;
-        private float _idleTime;
         private bool _wasAnimated;
         private float _bounceTime = -1f;
         private float _highlightTime;
@@ -78,20 +77,7 @@ namespace Match3.Unity.Views
 
             // Position (with Y-flip)
             var worldPos = CoordinateConverter.GridToWorld(visual.Position, cellSize, origin, height);
-            var pos = new Vector3(worldPos.x, worldPos.y, 0f);
-
-            // Idle breathing: Y float when not animated
-            if (!isAnimated)
-            {
-                _idleTime += Time.deltaTime;
-                pos.y += Mathf.Sin(_idleTime * 2f + TileId * 0.5f) * 0.02f * cellSize;
-            }
-            else
-            {
-                _idleTime = 0f;
-            }
-
-            transform.position = pos;
+            transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
 
             // Scale (uniform 3D, Z tracks min of X/Y for natural shrink)
             var scaleFactor = cellSize * 0.8f;
@@ -101,15 +87,7 @@ namespace Match3.Unity.Views
                 visual.Scale.Y * scaleFactor,
                 zScale * scaleFactor);
 
-            // Apply scale modifiers
             var finalScale = _baseScale;
-
-            // Idle breathing scale pulse (only when not animated)
-            if (!isAnimated)
-            {
-                var breathe = 1f + Mathf.Sin(_idleTime * 1.5f + TileId) * 0.015f;
-                finalScale *= breathe;
-            }
 
             // Landing bounce
             if (_bounceTime >= 0f && _bounceTime < BounceEndTime)
@@ -197,7 +175,6 @@ namespace Match3.Unity.Views
             BombType = BombType.None;
             _baseScale = Vector3.one;
             _isHighlighted = false;
-            _idleTime = 0f;
             _wasAnimated = false;
             _bounceTime = -1f;
             _highlightTime = 0f;
