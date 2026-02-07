@@ -32,6 +32,7 @@ namespace Match3.Unity.Views
         private Light _keyLight;
         private Light _fillLight;
         private Light _rimLight;
+        private GameObject _boardFloor;
         private bool _viewInitialized;
         private int _highlightedTileId = -1;
 
@@ -69,25 +70,47 @@ namespace Match3.Unity.Views
                 maxSize: projMax
             );
 
+            // Build board floor mesh
+            BuildBoardFloor();
+
             _viewInitialized = true;
+        }
+
+        private void BuildBoardFloor()
+        {
+            var width = _bridge.Width;
+            var height = _bridge.Height;
+            var cellSize = _bridge.CellSize;
+            var origin = _bridge.BoardOrigin;
+
+            var mesh = BoardMeshBuilder.BuildRectangular(width, height, cellSize, origin);
+
+            _boardFloor = new GameObject("BoardFloor");
+            _boardFloor.transform.SetParent(transform, false);
+            // Push behind tiles so it doesn't z-fight
+            _boardFloor.transform.localPosition = new Vector3(0f, 0f, 0.1f);
+
+            _boardFloor.AddComponent<MeshFilter>().mesh = mesh;
+            _boardFloor.AddComponent<MeshRenderer>().material = BoardMeshBuilder.CreateBoardMaterial();
         }
 
         private void SetupLighting()
         {
-            // Key Light: warm white, main illumination
+            // Key Light: neutral white, main illumination
             var keyGo = new GameObject("BoardLight_Key");
             keyGo.transform.SetParent(transform, false);
-            keyGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            keyGo.transform.localPosition = new Vector3(-0.03f, 1.02f, 0.41f);
+            keyGo.transform.rotation = Quaternion.Euler(42.73f, 18.97f, 33.92f);
             _keyLight = keyGo.AddComponent<Light>();
             _keyLight.type = LightType.Directional;
-            _keyLight.color = new Color(1f, 0.98f, 0.94f);
+            _keyLight.color = Color.white;
             _keyLight.intensity = 1.2f;
             _keyLight.shadows = LightShadows.None;
 
             // Fill Light: softer, opposite side
             var fillGo = new GameObject("BoardLight_Fill");
             fillGo.transform.SetParent(transform, false);
-            fillGo.transform.rotation = Quaternion.Euler(30f, 150f, 0f);
+            fillGo.transform.rotation = Quaternion.Euler(322.86f, 336.94f, 350.83f);
             _fillLight = fillGo.AddComponent<Light>();
             _fillLight.type = LightType.Directional;
             _fillLight.color = new Color(0.95f, 0.93f, 0.90f);
@@ -97,7 +120,7 @@ namespace Match3.Unity.Views
             // Rim Light: from behind, subtle edge highlight
             var rimGo = new GameObject("BoardLight_Rim");
             rimGo.transform.SetParent(transform, false);
-            rimGo.transform.rotation = Quaternion.Euler(-20f, 180f, 0f);
+            rimGo.transform.rotation = Quaternion.Euler(340.89f, 209.44f, 4.03f);
             _rimLight = rimGo.AddComponent<Light>();
             _rimLight.type = LightType.Directional;
             _rimLight.color = new Color(1.0f, 0.95f, 0.88f);
@@ -299,6 +322,11 @@ namespace Match3.Unity.Views
             {
                 Destroy(_rimLight.gameObject);
                 _rimLight = null;
+            }
+            if (_boardFloor != null)
+            {
+                Destroy(_boardFloor);
+                _boardFloor = null;
             }
         }
     }
