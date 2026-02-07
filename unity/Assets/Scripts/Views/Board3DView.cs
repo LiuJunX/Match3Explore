@@ -15,14 +15,19 @@ namespace Match3.Unity.Views
     public sealed class Board3DView : MonoBehaviour, IBoardView
     {
         private ObjectPool<Tile3DView> _tilePool;
+        private ObjectPool<Projectile3DView> _projectilePool;
         private readonly Dictionary<int, Tile3DView> _activeTiles = new();
+        private readonly Dictionary<int, Projectile3DView> _activeProjectiles = new();
 
         // Pre-allocated collections to avoid GC in hot path
         private readonly HashSet<int> _activeTileIds = new();
+        private readonly HashSet<int> _activeProjectileIds = new();
         private readonly List<int> _tilesToRemove = new();
+        private readonly List<int> _projectilesToRemove = new();
 
         private Match3Bridge _bridge;
         private Transform _tileContainer;
+        private Transform _projectileContainer;
         private Light _directionalLight;
         private bool _viewInitialized;
 
@@ -40,13 +45,24 @@ namespace Match3.Unity.Views
             _tileContainer = new GameObject("TileContainer3D").transform;
             _tileContainer.SetParent(transform, false);
 
-            var (initial, max) = GetPoolSize("tiles", 64, 128);
+            _projectileContainer = new GameObject("ProjectileContainer3D").transform;
+            _projectileContainer.SetParent(transform, false);
+
+            var (tileInitial, tileMax) = GetPoolSize("tiles", 64, 128);
+            var (projInitial, projMax) = GetPoolSize("projectiles", 5, 20);
 
             _tilePool = new ObjectPool<Tile3DView>(
                 factory: () => CreateTile3DView(_tileContainer),
                 parent: _tileContainer,
-                initialSize: initial,
-                maxSize: max
+                initialSize: tileInitial,
+                maxSize: tileMax
+            );
+
+            _projectilePool = new ObjectPool<Projectile3DView>(
+                factory: () => CreateProjectile3DView(_projectileContainer),
+                parent: _projectileContainer,
+                initialSize: projInitial,
+                maxSize: projMax
             );
 
             _viewInitialized = true;
@@ -117,6 +133,51 @@ namespace Match3.Unity.Views
                     _activeTiles.Remove(tileId);
                 }
             }
+
+            // Render projectiles
+            RenderProjectiles(state, cellSize, origin, height);
+        }
+
+        private void RenderProjectiles(VisualState state, float cellSize, Vector2 origin, int height)
+        {
+            _activeProjectileIds.Clear();
+            _projectilesToRemove.Clear();
+
+            foreach (var kvp in state.Projectiles)
+            {
+                var projectileId = kvp.Key;
+                var visual = kvp.Value;
+
+                if (!visual.IsVisible) continue;
+
+                _activeProjectileIds.Add(projectileId);
+
+                if (!_activeProjectiles.TryGetValue(projectileId, out var projView))
+                {
+                    projView = _projectilePool.Rent();
+                    projView.Setup(projectileId);
+                    _activeProjectiles[projectileId] = projView;
+                }
+
+                projView.UpdateFromVisual(visual, cellSize, origin, height);
+            }
+
+            foreach (var kvp in _activeProjectiles)
+            {
+                if (!_activeProjectileIds.Contains(kvp.Key))
+                {
+                    _projectilesToRemove.Add(kvp.Key);
+                }
+            }
+
+            foreach (var projectileId in _projectilesToRemove)
+            {
+                if (_activeProjectiles.TryGetValue(projectileId, out var projView))
+                {
+                    _projectilePool.Return(projView);
+                    _activeProjectiles.Remove(projectileId);
+                }
+            }
         }
 
         public void Clear()
@@ -126,6 +187,12 @@ namespace Match3.Unity.Views
                 _tilePool.Return(kvp.Value);
             }
             _activeTiles.Clear();
+
+            foreach (var kvp in _activeProjectiles)
+            {
+                _projectilePool.Return(kvp.Value);
+            }
+            _activeProjectiles.Clear();
         }
 
         private static Tile3DView CreateTile3DView(Transform parent)
@@ -155,10 +222,21 @@ namespace Match3.Unity.Views
             return (defaultInitial, defaultMax);
         }
 
+        private static Projectile3DView CreateProjectile3DView(Transform parent)
+        {
+            var go = new GameObject("Projectile3D");
+            go.transform.SetParent(parent, false);
+            go.AddComponent<MeshFilter>();
+            go.AddComponent<MeshRenderer>();
+            var projView = go.AddComponent<Projectile3DView>();
+            return projView;
+        }
+
         private void OnDestroy()
         {
             Clear();
             _tilePool?.Clear();
+            _projectilePool?.Clear();
 
             if (_directionalLight != null)
             {
