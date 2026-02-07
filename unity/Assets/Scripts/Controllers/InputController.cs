@@ -45,7 +45,7 @@ namespace Match3.Unity.Controllers
 
         private void Update()
         {
-            if (_bridge == null || !_bridge.IsInitialized) return;
+            if (_bridge == null || !_bridge.IsInitialized || _inputSystem == null) return;
             if (_mainCamera == null) _mainCamera = Camera.main;
 
             HandleInput();
