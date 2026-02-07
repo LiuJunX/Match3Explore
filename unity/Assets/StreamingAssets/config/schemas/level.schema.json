@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "level.schema.json",
+  "title": "Level Configuration",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique level identifier"
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 20
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 20
+    },
+    "moveLimit": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Maximum moves allowed"
+    },
+    "targetDifficulty": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Target difficulty (0=easy, 1=hard)"
+    },
+    "objectives": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["Score", "CollectTile", "ClearCover", "ClearGround"]
+          },
+          "target": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tileType": {
+            "type": "string",
+            "description": "For CollectTile objective"
+          }
+        },
+        "required": ["type", "target"]
+      }
+    },
+    "grid": {
+      "type": ["array", "null"],
+      "description": "Initial tile layout (null = random)"
+    }
+  },
+  "required": ["id", "width", "height", "moveLimit", "objectives"]
+}

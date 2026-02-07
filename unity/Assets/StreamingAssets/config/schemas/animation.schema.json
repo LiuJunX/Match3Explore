@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "animation.schema.json",
+  "title": "Animation Configuration",
+  "type": "object",
+  "properties": {
+    "swapDuration": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Duration of swap animation in seconds"
+    },
+    "fallDuration": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Base duration of fall animation in seconds"
+    },
+    "matchFlashDuration": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Duration of match highlight flash"
+    },
+    "destroyDuration": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Duration of tile destruction animation"
+    },
+    "spawnDelay": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Delay between spawning new tiles"
+    },
+    "cascadeDelay": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Delay between cascade matches"
+    }
+  }
+}

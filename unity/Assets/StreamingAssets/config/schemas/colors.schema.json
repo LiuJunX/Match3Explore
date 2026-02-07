@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "colors.schema.json",
+  "title": "Visual Colors Configuration",
+  "type": "object",
+  "properties": {
+    "tileColors": {
+      "type": "object",
+      "description": "TileType to hex color mapping",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^#[0-9A-Fa-f]{6}$"
+      }
+    },
+    "bombIndicatorColors": {
+      "type": "object",
+      "description": "BombType to hex color (with alpha) mapping",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^#[0-9A-Fa-f]{8}$"
+      }
+    },
+    "backgroundColor": {
+      "type": "string",
+      "pattern": "^#[0-9A-Fa-f]{6}$",
+      "description": "Camera background color"
+    }
+  },
+  "required": ["tileColors", "backgroundColor"]
+}

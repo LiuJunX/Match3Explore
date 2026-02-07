@@ -238,9 +238,17 @@ namespace Match3.Unity.Bridge
             CheckStateChanges();
 
             // Handle auto-play (same logic as Web version)
-            if (_isAutoPlaying && _session.Engine.IsStable() && !HasActiveAnimations)
+            if (_isAutoPlaying)
             {
-                TryMakeAutoMove();
+                if (_session.Engine.IsStable() && !HasActiveAnimations)
+                {
+                    TryMakeAutoMove();
+                }
+                else if (Time.frameCount % 120 == 0)
+                {
+                    var st = _session.Engine.State;
+                    Debug.Log($"[AutoPlay] waiting: stable={_session.Engine.IsStable()} anim={HasActiveAnimations} moves={st.MoveCount}/{st.MoveLimit}");
+                }
             }
         }
 
@@ -248,13 +256,21 @@ namespace Match3.Unity.Bridge
         {
             if (_autoPlaySelector == null) return;
 
+            var state = _session.Engine.State;
+            if (state.MoveCount >= state.MoveLimit)
+            {
+                Debug.Log($"[AutoPlay] game over: {state.MoveCount}/{state.MoveLimit}");
+                _isAutoPlaying = false;
+                return;
+            }
+
             // Invalidate cache after board changes
             _autoPlaySelector.InvalidateCache();
 
             // Use Core's weighted move selector (same as Web)
-            var state = _session.Engine.State;
             if (_autoPlaySelector.TryGetMove(in state, out var action))
             {
+                Debug.Log($"[AutoPlay] move #{state.MoveCount+1}: {action.ActionType} ({action.From.X},{action.From.Y})->({action.To.X},{action.To.Y})");
                 if (action.ActionType == MoveActionType.Tap)
                 {
                     _session.Engine.HandleTap(action.From);
@@ -263,6 +279,10 @@ namespace Match3.Unity.Bridge
                 {
                     _session.Engine.ApplyMove(action.From, action.To);
                 }
+            }
+            else
+            {
+                Debug.Log($"[AutoPlay] no valid move found, moves={state.MoveCount}/{state.MoveLimit}");
             }
         }
 

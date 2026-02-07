@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Match3.Core.Models.Enums;
 using Match3.Presentation;
 using Match3.Unity.Bridge;
 using Match3.Unity.Pools;
@@ -21,6 +22,9 @@ namespace Match3.Unity.Views
         // Pre-allocated collections to avoid GC in hot path
         private readonly HashSet<int> _currentHashes = new();
         private readonly List<int> _effectsToRemove = new();
+
+        // Grid position → tile color cache for color-matched effects
+        private readonly Dictionary<long, Color> _tileColorCache = new();
 
         private struct ActiveEffect
         {
@@ -62,6 +66,9 @@ namespace Match3.Unity.Views
             var origin = _bridge.BoardOrigin;
             var height = _bridge.Height;
 
+            // Cache tile colors from current visible tiles (before they get removed)
+            CacheTileColors(state);
+
             // Clear pre-allocated collections (no allocation)
             _currentHashes.Clear();
             _effectsToRemove.Clear();
@@ -78,7 +85,14 @@ namespace Match3.Unity.Views
 
                 // Calculate world position (with Y-flip for Unity coordinate system)
                 var worldPos = CoordinateConverter.GridToWorld(effect.Position, cellSize, origin, height);
-                PlayEffect(effect.EffectType, worldPos, hash);
+
+                // Look up cached tile color for this position
+                var gridKey = PackGridKey(
+                    Mathf.RoundToInt(effect.Position.X),
+                    Mathf.RoundToInt(effect.Position.Y));
+                _tileColorCache.TryGetValue(gridKey, out var tileColor);
+
+                PlayEffect(effect.EffectType, worldPos, hash, tileColor);
             }
 
             // Remove effects that are no longer in state
@@ -101,12 +115,19 @@ namespace Match3.Unity.Views
         }
 
         /// <summary>
-        /// Play an effect at a position.
+        /// Play an effect at a position with optional tile color.
         /// </summary>
-        public void PlayEffect(string effectType, Vector3 position, int hash)
+        public void PlayEffect(string effectType, Vector3 position, int hash, Color tileColor = default)
         {
             var ps = GetFromPool(effectType);
             ps.transform.position = position;
+
+            // Apply tile color to particle start color if available
+            if (tileColor != default)
+            {
+                ApplyEffectColor(ps, effectType, tileColor);
+            }
+
             ps.gameObject.SetActive(true);
             ps.Play();
 
@@ -187,6 +208,47 @@ namespace Match3.Unity.Views
             {
                 Destroy(ps.gameObject);
             }
+        }
+
+        private void CacheTileColors(VisualState state)
+        {
+            foreach (var kvp in state.Tiles)
+            {
+                var visual = kvp.Value;
+                if (!visual.IsVisible) continue;
+
+                var gridKey = PackGridKey(
+                    Mathf.RoundToInt(visual.Position.X),
+                    Mathf.RoundToInt(visual.Position.Y));
+                _tileColorCache[gridKey] = SpriteFactory.GetTileColor(visual.TileType);
+            }
+        }
+
+        private static void ApplyEffectColor(ParticleSystem ps, string effectType, Color tileColor)
+        {
+            var main = ps.main;
+
+            switch (effectType)
+            {
+                case "match_pop":
+                case "pop":
+                    // Tint particles with tile color: bright version and slightly dimmer
+                    var brightColor = Color.Lerp(tileColor, Color.white, 0.3f);
+                    main.startColor = new ParticleSystem.MinMaxGradient(brightColor, tileColor);
+                    break;
+
+                case "explosion":
+                case "bomb_explosion":
+                    // Explosion uses tile color mixed with warm orange
+                    var warmColor = Color.Lerp(tileColor, new Color(1f, 0.6f, 0.2f), 0.4f);
+                    main.startColor = new ParticleSystem.MinMaxGradient(warmColor, tileColor);
+                    break;
+            }
+        }
+
+        private static long PackGridKey(int x, int y)
+        {
+            return ((long)x << 32) | (uint)y;
         }
 
         private static int ComputeEffectHash(VisualEffect effect)

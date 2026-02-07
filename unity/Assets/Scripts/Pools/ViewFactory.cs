@@ -96,15 +96,34 @@ namespace Match3.Unity.Pools
             {
                 case "match_pop":
                 case "pop":
-                    main.startColor = new Color(1f, 0.9f, 0.3f);
-                    main.startSize = 0.15f;
+                    // Colorful outward burst: 8-12 small particles, short lifetime
+                    main.startLifetime = 0.3f;
+                    main.startSpeed = new ParticleSystem.MinMaxCurve(2f, 4f);
+                    main.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.15f);
+                    main.startColor = new ParticleSystem.MinMaxGradient(
+                        new Color(1f, 0.9f, 0.3f),
+                        new Color(1f, 0.6f, 0.2f));
+                    emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 8, 12) });
+                    shape.radius = 0.1f;
+                    main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
                     break;
 
                 case "explosion":
                 case "bomb_explosion":
-                    main.startColor = new Color(1f, 0.5f, 0.1f);
-                    main.startSpeed = 4f;
-                    emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 20) });
+                    // Large radial explosion: 16-24 particles with size decay
+                    main.startLifetime = 0.5f;
+                    main.startSpeed = new ParticleSystem.MinMaxCurve(3f, 6f);
+                    main.startSize = new ParticleSystem.MinMaxCurve(0.15f, 0.3f);
+                    main.startColor = new ParticleSystem.MinMaxGradient(
+                        new Color(1f, 0.5f, 0.1f),
+                        new Color(1f, 0.8f, 0.2f));
+                    emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 16, 24) });
+                    shape.radius = 0.15f;
+                    // Add velocity damping
+                    var velocityOverLifetime = ps.velocityOverLifetime;
+                    velocityOverLifetime.enabled = true;
+                    velocityOverLifetime.speedModifier = new ParticleSystem.MinMaxCurve(1f,
+                        AnimationCurve.EaseInOut(0f, 1f, 1f, 0.1f));
                     break;
 
                 case "bomb_created":
