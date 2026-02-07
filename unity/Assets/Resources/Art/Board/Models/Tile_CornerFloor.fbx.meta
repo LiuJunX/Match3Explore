@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: WnxKtXv4BynwG5wS983PVkfv5ILoWlROXLQbHjtnsjksZ48yUAcsQgI=
+guid: CSkXty6uVS2tdjryK/emmoTtjXivdcCt3n2+NHF3b4tKSEHQMZS842Y=
 ModelImporter:
   serializedVersion: 22361
   internalIDToNameTable: []
@@ -45,8 +45,8 @@ ModelImporter:
     lODScreenPercentages: []
     globalScale: 1
     meshCompression: 0
-    totalVerticesCount: 16
-    totalTrianglesCount: 8
+    totalVerticesCount: 84
+    totalTrianglesCount: 52
     addColliders: 0
     useSRGBMaterialColor: 1
     sortHierarchyByName: 1
@@ -95,11 +95,11 @@ ModelImporter:
     virtualGeometryPlatformSettings: []
     selectedVGMeshes:
     - index: 0
-      meshName: Tile_CornerInner
+      meshName: Tile_CornerFloor
       meshGeometryBuffer: 0
     supportVGMeshes:
     - index: 0
-      meshName: Tile_CornerInner
+      meshName: Tile_CornerFloor
       meshGeometryBuffer: 0
   tangentSpace:
     normalSmoothAngle: 60

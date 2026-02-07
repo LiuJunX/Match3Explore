@@ -83,7 +83,7 @@ namespace Match3.Unity.Views
             var cellSize = _bridge.CellSize;
             var origin = _bridge.BoardOrigin;
 
-            var mesh = BoardMeshBuilder.BuildRectangular(width, height, cellSize, origin);
+            var mesh = BuildBoardMesh(width, height, cellSize, origin);
 
             _boardFloor = new GameObject("BoardFloor");
             _boardFloor.transform.SetParent(transform, false);
@@ -91,7 +91,25 @@ namespace Match3.Unity.Views
             _boardFloor.transform.localPosition = new Vector3(0f, 0f, 0.1f);
 
             _boardFloor.AddComponent<MeshFilter>().mesh = mesh;
-            _boardFloor.AddComponent<MeshRenderer>().material = BoardMeshBuilder.CreateBoardMaterial();
+            _boardFloor.AddComponent<MeshRenderer>().materials = BoardMeshBuilder.GetBoardMaterials();
+        }
+
+        private static Mesh BuildBoardMesh(int width, int height, float cellSize, Vector2 origin)
+        {
+#if UNITY_EDITOR
+            // Editor: change testShape to debug irregular layouts
+            // 0=rect, 1=L, 2=cross, 3=diamond, 4=U, 5=donut
+            // 6=hole1, 7=hole2x2, 8=single_row, 9=single_col
+#pragma warning disable 0162
+            const int testShape = 0;
+            if (testShape != 0)
+            {
+                var layout = BoardTestLayouts.Get(testShape, height, width);
+                return BoardMeshBuilder.Build(layout, cellSize, origin, height);
+            }
+#pragma warning restore 0162
+#endif
+            return BoardMeshBuilder.BuildRectangular(width, height, cellSize, origin);
         }
 
         private void SetupLighting()
@@ -130,6 +148,14 @@ namespace Match3.Unity.Views
             // Ambient Light: warm neutral (not cool gray)
             RenderSettings.ambientMode = AmbientMode.Flat;
             RenderSettings.ambientLight = new Color(0.45f, 0.43f, 0.40f);
+
+            // Background: garden green (confirmed from mockup)
+            var cam = Camera.main;
+            if (cam != null)
+            {
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = new Color(120f / 255f, 160f / 255f, 90f / 255f);
+            }
         }
 
         public void Render(VisualState state)

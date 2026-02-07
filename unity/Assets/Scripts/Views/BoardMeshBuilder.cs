@@ -7,7 +7,9 @@ namespace Match3.Unity.Views
     /// <summary>
     /// Builds a single combined board mesh from modular tile pieces.
     /// Supports irregular board shapes via a bool layout mask.
-    /// Modules: Floor, Edge, CornerOuter, CornerInner — loaded from FBX.
+    /// Modules (5 FBX from Board_Tile.blend):
+    ///   Floor, Edge, CornerOuter (ring), CornerFloor (cap), CornerInner.
+    /// Uses 2 submeshes: submesh 0 = floor, submesh 1 = walls (edges + corners).
     /// </summary>
     public static class BoardMeshBuilder
     {
@@ -16,8 +18,16 @@ namespace Match3.Unity.Views
         // Cached module meshes
         private static Mesh _floorMesh;
         private static Mesh _edgeMesh;
-        private static Mesh _cornerOuterMesh;
+        private static Mesh _cornerOuterMesh;  // Quarter-ring (wall part)
+        private static Mesh _cornerOuterFloorMesh;  // Floor cap at outer corner
         private static Mesh _cornerInnerMesh;
+
+        // Cached materials
+        private static Material[] _boardMaterials;
+
+        // Must match Blender module geometry (Board_Tile.blend)
+        private const float WallThickness = 0.12f;
+        private const float CornerRadius = 0.3f;
 
         /// <summary>
         /// Build a board mesh from a layout mask.
@@ -33,10 +43,22 @@ namespace Match3.Unity.Views
             int rows = layout.GetLength(0);
             int cols = layout.GetLength(1);
 
-            var vertices = new List<Vector3>();
-            var triangles = new List<int>();
-            var normals = new List<Vector3>();
-            var uvs = new List<Vector2>();
+            int cellCount = 0;
+            for (int r = 0; r < rows; r++)
+                for (int c = 0; c < cols; c++)
+                    if (layout[r, c]) cellCount++;
+
+            int estimatedVerts = cellCount * 30;
+            var vertices = new List<Vector3>(estimatedVerts);
+            var floorTris = new List<int>(estimatedVerts);
+            var wallTris = new List<int>(estimatedVerts);
+            var normals = new List<Vector3>(estimatedVerts);
+            var uvs = new List<Vector2>(estimatedVerts);
+
+            // Edge center: at cell boundary + half wall thickness (so inner face aligns with floor edge)
+            float edgeOff = (0.5f + WallThickness * 0.5f) * cellSize;
+            // Corner center: at cell boundary intersection (arcs extend outward by CornerRadius)
+            float cornerOff = 0.5f * cellSize;
 
             for (int r = 0; r < rows; r++)
             {
@@ -49,47 +71,52 @@ namespace Match3.Unity.Views
                     float worldY = origin.y + (height - 1 - r) * cellSize + cellSize * 0.5f;
                     var center = new Vector3(worldX, worldY, 0f);
 
-                    // Floor
-                    AppendMesh(vertices, triangles, normals, uvs,
+                    // Floor → submesh 0
+                    AppendMesh(vertices, floorTris, normals, uvs,
                         _floorMesh, center, 0f, cellSize);
 
-                    // Check 4 cardinal neighbors for edges
+                    // Edges → submesh 1
                     // North (+Y in Unity = row-1 in grid)
                     if (!CellExists(layout, r - 1, c, rows, cols))
-                        AppendMesh(vertices, triangles, normals, uvs,
-                            _edgeMesh, center, 0f, cellSize);
+                        AppendMesh(vertices, wallTris, normals, uvs,
+                            _edgeMesh, center + new Vector3(0, edgeOff, 0), 0f, cellSize);
 
                     // East (+X = col+1)
                     if (!CellExists(layout, r, c + 1, rows, cols))
-                        AppendMesh(vertices, triangles, normals, uvs,
-                            _edgeMesh, center, -90f, cellSize);
+                        AppendMesh(vertices, wallTris, normals, uvs,
+                            _edgeMesh, center + new Vector3(edgeOff, 0, 0), -90f, cellSize);
 
                     // South (-Y = row+1)
                     if (!CellExists(layout, r + 1, c, rows, cols))
-                        AppendMesh(vertices, triangles, normals, uvs,
-                            _edgeMesh, center, 180f, cellSize);
+                        AppendMesh(vertices, wallTris, normals, uvs,
+                            _edgeMesh, center + new Vector3(0, -edgeOff, 0), 180f, cellSize);
 
                     // West (-X = col-1)
                     if (!CellExists(layout, r, c - 1, rows, cols))
-                        AppendMesh(vertices, triangles, normals, uvs,
-                            _edgeMesh, center, 90f, cellSize);
+                        AppendMesh(vertices, wallTris, normals, uvs,
+                            _edgeMesh, center + new Vector3(-edgeOff, 0, 0), 90f, cellSize);
 
-                    // Check 4 diagonal corners for outer/inner corners
-                    // NE corner (row-1, col+1)
+                    // Corners → wall ring to submesh 1, floor cap to submesh 0
+                    // Module arc goes +X to +Y in Unity (after FBX bake_space_transform)
+                    // NE: 0° (arc in +X/+Y quadrant)
                     CheckCorner(layout, r, c, -1, 1, rows, cols,
-                        vertices, triangles, normals, uvs, center, -90f, cellSize);
+                        vertices, floorTris, wallTris, normals, uvs,
+                        center + new Vector3(cornerOff, cornerOff, 0), 0f, cellSize);
 
-                    // NW corner (row-1, col-1)
+                    // NW: 90° (arc in -X/+Y quadrant)
                     CheckCorner(layout, r, c, -1, -1, rows, cols,
-                        vertices, triangles, normals, uvs, center, 0f, cellSize);
+                        vertices, floorTris, wallTris, normals, uvs,
+                        center + new Vector3(-cornerOff, cornerOff, 0), 90f, cellSize);
 
-                    // SE corner (row+1, col+1)
+                    // SE: -90° (arc in +X/-Y quadrant)
                     CheckCorner(layout, r, c, 1, 1, rows, cols,
-                        vertices, triangles, normals, uvs, center, 180f, cellSize);
+                        vertices, floorTris, wallTris, normals, uvs,
+                        center + new Vector3(cornerOff, -cornerOff, 0), -90f, cellSize);
 
-                    // SW corner (row+1, col-1)
+                    // SW: 180° (arc in -X/-Y quadrant)
                     CheckCorner(layout, r, c, 1, -1, rows, cols,
-                        vertices, triangles, normals, uvs, center, 90f, cellSize);
+                        vertices, floorTris, wallTris, normals, uvs,
+                        center + new Vector3(-cornerOff, -cornerOff, 0), 180f, cellSize);
                 }
             }
 
@@ -98,9 +125,11 @@ namespace Match3.Unity.Views
             if (vertices.Count > 65535)
                 mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
             mesh.SetVertices(vertices);
-            mesh.SetTriangles(triangles, 0);
             mesh.SetNormals(normals);
             mesh.SetUVs(0, uvs);
+            mesh.subMeshCount = 2;
+            mesh.SetTriangles(floorTris, 0);
+            mesh.SetTriangles(wallTris, 1);
             mesh.RecalculateBounds();
 
             return mesh;
@@ -120,7 +149,7 @@ namespace Match3.Unity.Views
         }
 
         private static void CheckCorner(bool[,] layout, int r, int c, int dr, int dc,
-            int rows, int cols, List<Vector3> vertices, List<int> triangles,
+            int rows, int cols, List<Vector3> vertices, List<int> floorTris, List<int> wallTris,
             List<Vector3> normals, List<Vector2> uvs, Vector3 center, float angle, float cellSize)
         {
             bool adjRow = CellExists(layout, r + dr, c, rows, cols);
@@ -130,13 +159,17 @@ namespace Match3.Unity.Views
             if (!adjRow && !adjCol)
             {
                 // Both adjacent edges exposed → outer corner
-                AppendMesh(vertices, triangles, normals, uvs,
+                // Ring (wall thickness band) → wall submesh
+                AppendMesh(vertices, wallTris, normals, uvs,
                     _cornerOuterMesh, center, angle, cellSize);
+                // Floor cap (fills gap between floor edge and ring inner face) → floor submesh
+                AppendMesh(vertices, floorTris, normals, uvs,
+                    _cornerOuterFloorMesh, center, angle, cellSize);
             }
             else if (adjRow && adjCol && !diag)
             {
                 // Both adjacent cells exist but diagonal missing → inner corner
-                AppendMesh(vertices, triangles, normals, uvs,
+                AppendMesh(vertices, wallTris, normals, uvs,
                     _cornerInnerMesh, center, angle, cellSize);
             }
         }
@@ -182,6 +215,7 @@ namespace Match3.Unity.Views
             _floorMesh = LoadTileMesh("Tile_Floor");
             _edgeMesh = LoadTileMesh("Tile_Edge");
             _cornerOuterMesh = LoadTileMesh("Tile_CornerOuter");
+            _cornerOuterFloorMesh = LoadTileMesh("Tile_CornerFloor");
             _cornerInnerMesh = LoadTileMesh("Tile_CornerInner");
         }
 
@@ -201,7 +235,6 @@ namespace Match3.Unity.Views
                 return null;
             }
 
-            Debug.Log($"[BoardMeshBuilder] Loaded {name}: {mf.sharedMesh.vertexCount} verts");
             return mf.sharedMesh;
         }
 
@@ -210,29 +243,45 @@ namespace Match3.Unity.Views
             _floorMesh = null;
             _edgeMesh = null;
             _cornerOuterMesh = null;
+            _cornerOuterFloorMesh = null;
             _cornerInnerMesh = null;
+            _boardMaterials = null;
         }
 
         /// <summary>
-        /// Create a board material matching the ceramic style.
+        /// Get board materials: [0] = floor, [1] = wall. Cached after first call.
         /// </summary>
-        public static Material CreateBoardMaterial()
+        public static Material[] GetBoardMaterials()
         {
+            if (_boardMaterials != null) return _boardMaterials;
+
             var shader = Shader.Find("Universal Render Pipeline/Lit")
                          ?? Shader.Find("Standard");
 
-            var mat = new Material(shader);
-            mat.name = "BoardFloor";
+            // Floor: bright warm cream
+            var floorMat = new Material(shader);
+            floorMat.name = "BoardFloor";
+            SetBaseColor(floorMat, new Color(0.92f, 0.88f, 0.82f));
+            if (floorMat.HasProperty("_Smoothness"))
+                floorMat.SetFloat("_Smoothness", 0.35f);
 
+            // Wall: slightly deeper warm tone
+            var wallMat = new Material(shader);
+            wallMat.name = "BoardWall";
+            SetBaseColor(wallMat, new Color(0.82f, 0.76f, 0.68f));
+            if (wallMat.HasProperty("_Smoothness"))
+                wallMat.SetFloat("_Smoothness", 0.30f);
+
+            _boardMaterials = new[] { floorMat, wallMat };
+            return _boardMaterials;
+        }
+
+        private static void SetBaseColor(Material mat, Color color)
+        {
             if (mat.HasProperty("_BaseColor"))
-                mat.SetColor("_BaseColor", new Color(0.92f, 0.88f, 0.82f));
+                mat.SetColor("_BaseColor", color);
             else
-                mat.SetColor("_Color", new Color(0.92f, 0.88f, 0.82f));
-
-            if (mat.HasProperty("_Smoothness"))
-                mat.SetFloat("_Smoothness", 0.35f);
-
-            return mat;
+                mat.SetColor("_Color", color);
         }
     }
 }
