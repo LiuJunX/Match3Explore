@@ -49,10 +49,10 @@ namespace Match3.Unity.Views
             TileType = type;
             BombType = bomb;
 
-            // Use bomb mesh when applicable, otherwise tile mesh
+            // Use bomb mesh when applicable, otherwise per-type tile mesh
             _meshFilter.sharedMesh = bomb != BombType.None
                 ? MeshFactory.GetBombMesh(bomb)
-                : MeshFactory.GetTileMesh();
+                : MeshFactory.GetTileMesh(type);
 
             // 6 color types get their own material; others get fallback
             var isColorType = (type & (TileType.Red | TileType.Green | TileType.Blue |
@@ -168,7 +168,7 @@ namespace Match3.Unity.Views
                 BombType = visual.BombType;
                 _meshFilter.sharedMesh = BombType != BombType.None
                     ? MeshFactory.GetBombMesh(BombType)
-                    : MeshFactory.GetTileMesh();
+                    : MeshFactory.GetTileMesh(TileType);
             }
         }
 

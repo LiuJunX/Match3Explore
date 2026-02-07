@@ -28,7 +28,9 @@ namespace Match3.Unity.Views
         private Match3Bridge _bridge;
         private Transform _tileContainer;
         private Transform _projectileContainer;
-        private Light _directionalLight;
+        private Light _keyLight;
+        private Light _fillLight;
+        private Light _rimLight;
         private bool _viewInitialized;
 
         public int ActiveTileCount => _activeTiles.Count;
@@ -70,19 +72,39 @@ namespace Match3.Unity.Views
 
         private void SetupLighting()
         {
-            // Directional Light: warm white, angled for depth
-            var lightGo = new GameObject("BoardLight");
-            lightGo.transform.SetParent(transform, false);
-            lightGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
-            _directionalLight = lightGo.AddComponent<Light>();
-            _directionalLight.type = LightType.Directional;
-            _directionalLight.color = new Color(1f, 0.98f, 0.94f); // warm white
-            _directionalLight.intensity = 1.0f;
-            _directionalLight.shadows = LightShadows.None;
+            // Key Light: warm white, main illumination
+            var keyGo = new GameObject("BoardLight_Key");
+            keyGo.transform.SetParent(transform, false);
+            keyGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            _keyLight = keyGo.AddComponent<Light>();
+            _keyLight.type = LightType.Directional;
+            _keyLight.color = new Color(1f, 0.98f, 0.94f);
+            _keyLight.intensity = 1.2f;
+            _keyLight.shadows = LightShadows.None;
 
-            // Ambient Light: cool gray
+            // Fill Light: softer, opposite side
+            var fillGo = new GameObject("BoardLight_Fill");
+            fillGo.transform.SetParent(transform, false);
+            fillGo.transform.rotation = Quaternion.Euler(30f, 150f, 0f);
+            _fillLight = fillGo.AddComponent<Light>();
+            _fillLight.type = LightType.Directional;
+            _fillLight.color = new Color(0.95f, 0.93f, 0.90f);
+            _fillLight.intensity = 0.6f;
+            _fillLight.shadows = LightShadows.None;
+
+            // Rim Light: from behind, subtle edge highlight
+            var rimGo = new GameObject("BoardLight_Rim");
+            rimGo.transform.SetParent(transform, false);
+            rimGo.transform.rotation = Quaternion.Euler(-20f, 180f, 0f);
+            _rimLight = rimGo.AddComponent<Light>();
+            _rimLight.type = LightType.Directional;
+            _rimLight.color = new Color(1.0f, 0.95f, 0.88f);
+            _rimLight.intensity = 0.35f;
+            _rimLight.shadows = LightShadows.None;
+
+            // Ambient Light: warm neutral (not cool gray)
             RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.31f, 0.33f, 0.39f); // cool gray
+            RenderSettings.ambientLight = new Color(0.45f, 0.43f, 0.40f);
         }
 
         public void Render(VisualState state)
@@ -238,10 +260,20 @@ namespace Match3.Unity.Views
             _tilePool?.Clear();
             _projectilePool?.Clear();
 
-            if (_directionalLight != null)
+            if (_keyLight != null)
             {
-                Destroy(_directionalLight.gameObject);
-                _directionalLight = null;
+                Destroy(_keyLight.gameObject);
+                _keyLight = null;
+            }
+            if (_fillLight != null)
+            {
+                Destroy(_fillLight.gameObject);
+                _fillLight = null;
+            }
+            if (_rimLight != null)
+            {
+                Destroy(_rimLight.gameObject);
+                _rimLight = null;
             }
         }
     }

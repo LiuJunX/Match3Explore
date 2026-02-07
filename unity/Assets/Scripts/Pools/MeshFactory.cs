@@ -11,41 +11,50 @@ namespace Match3.Unity.Pools
     /// </summary>
     public static class MeshFactory
     {
-        private static Mesh _tileMesh;
-        private static bool _meshLoaded;
+        private static readonly Dictionary<TileType, Mesh> _tileMeshCache = new();
+        private static Mesh _fallbackMesh;
         private static readonly Dictionary<TileType, Material> _materialCache = new();
         private static readonly Dictionary<BombType, Mesh> _bombMeshCache = new();
         private static Shader _litShader;
 
         /// <summary>
-        /// Get the shared tile mesh.
-        /// Tries to load from Resources, falls back to built-in sphere.
+        /// Get the mesh for a specific tile type.
+        /// Each color type has its own distinct shape.
         /// </summary>
-        public static Mesh GetTileMesh()
+        public static Mesh GetTileMesh(TileType type)
         {
-            if (_meshLoaded) return _tileMesh;
+            if (_tileMeshCache.TryGetValue(type, out var cached))
+                return cached;
 
-            // Try loading from Resources via ResourceService
-            var model = ResourceService.Loader.Load<GameObject>("Art/Gems/Models/Gem");
+            var typeName = GetTileTypeName(type);
+            var model = ResourceService.Loader.Load<GameObject>($"Art/Gems/Models/Gem_{typeName}");
             if (model != null)
             {
                 var meshFilter = model.GetComponentInChildren<MeshFilter>();
                 if (meshFilter != null)
                 {
-                    _tileMesh = meshFilter.sharedMesh;
-                    _meshLoaded = true;
-                    Debug.Log("[MeshFactory] Loaded Gem mesh from Resources");
-                    return _tileMesh;
+                    _tileMeshCache[type] = meshFilter.sharedMesh;
+                    Debug.Log($"[MeshFactory] Loaded Gem_{typeName} mesh from Resources");
+                    return meshFilter.sharedMesh;
                 }
             }
 
             // Fallback: built-in sphere mesh
+            Debug.LogWarning($"[MeshFactory] Gem_{typeName} not found, using fallback sphere");
+            return GetFallbackMesh();
+        }
+
+        /// <summary>
+        /// Get the shared fallback mesh (built-in sphere).
+        /// </summary>
+        public static Mesh GetFallbackMesh()
+        {
+            if (_fallbackMesh != null) return _fallbackMesh;
+
             var tempSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            _tileMesh = tempSphere.GetComponent<MeshFilter>().sharedMesh;
+            _fallbackMesh = tempSphere.GetComponent<MeshFilter>().sharedMesh;
             Object.Destroy(tempSphere);
-            _meshLoaded = true;
-            Debug.Log("[MeshFactory] Using built-in sphere mesh (fallback)");
-            return _tileMesh;
+            return _fallbackMesh;
         }
 
         /// <summary>
@@ -54,7 +63,7 @@ namespace Match3.Unity.Pools
         /// </summary>
         public static Mesh GetBombMesh(BombType type)
         {
-            if (type == BombType.None) return GetTileMesh();
+            if (type == BombType.None) return GetFallbackMesh();
 
             if (_bombMeshCache.TryGetValue(type, out var cached))
                 return cached;
@@ -72,25 +81,43 @@ namespace Match3.Unity.Pools
                 }
             }
 
-            Debug.LogWarning($"[MeshFactory] Bomb_{typeName} mesh not found, using tile mesh");
-            var fallback = GetTileMesh();
+            Debug.LogWarning($"[MeshFactory] Bomb_{typeName} mesh not found, using fallback sphere");
+            var fallback = GetFallbackMesh();
             _bombMeshCache[type] = fallback;
             return fallback;
         }
 
         /// <summary>
-        /// Get a cached Lit material for the given tile type.
+        /// Get a cached ceramic material for the given tile type.
+        /// Uses confirmed color palette with colored specular highlights.
         /// </summary>
         public static Material GetTileMaterial(TileType type)
         {
             if (_materialCache.TryGetValue(type, out var cached))
                 return cached;
 
-            var color = SpriteFactory.GetTileColor(type);
-            var mat = CreateLitMaterial(color);
+            var color = GetCeramicColor(type);
+            var mat = CreateCeramicMaterial(color);
             mat.name = $"Tile3D_{GetTileTypeName(type)}";
             _materialCache[type] = mat;
             return mat;
+        }
+
+        /// <summary>
+        /// Confirmed ceramic color palette (HSV-derived, boosted for 3D).
+        /// Intentionally decoupled from SpriteFactory/VisualConfig — these are
+        /// art-directed values with higher saturation to compensate for 3D lighting.
+        /// Source of truth: Match3Art/docs/art-direction.md
+        /// </summary>
+        private static Color GetCeramicColor(TileType type)
+        {
+            if ((type & TileType.Red) != 0) return new Color(0.900f, 0.092f, 0.018f);
+            if ((type & TileType.Blue) != 0) return new Color(0.070f, 0.367f, 0.880f);
+            if ((type & TileType.Green) != 0) return new Color(0.041f, 0.820f, 0.301f);
+            if ((type & TileType.Yellow) != 0) return new Color(0.950f, 0.724f, 0.048f);
+            if ((type & TileType.Purple) != 0) return new Color(0.482f, 0.140f, 0.780f);
+            if ((type & TileType.Orange) != 0) return new Color(0.950f, 0.464f, 0.038f);
+            return Color.gray;
         }
 
         /// <summary>
@@ -120,8 +147,8 @@ namespace Match3.Unity.Pools
             }
 
             _bombMeshCache.Clear();
-            _tileMesh = null;
-            _meshLoaded = false;
+            _tileMeshCache.Clear();
+            _fallbackMesh = null;
             _litShader = null;
         }
 
@@ -137,22 +164,51 @@ namespace Match3.Unity.Pools
             return _litShader;
         }
 
-        private static Material CreateLitMaterial(Color color)
+        /// <summary>
+        /// Create ceramic material with colored specular (no white highlights).
+        /// Matches Blender ceramic recipe: Specular Tint = Base Color, Coat Tint = Base Color.
+        /// </summary>
+        private static Material CreateCeramicMaterial(Color color)
         {
             var shader = GetLitShader();
             var mat = new Material(shader);
 
-            // Set base color
+            // Base color
             if (mat.HasProperty("_BaseColor"))
                 mat.SetColor("_BaseColor", color);
             else
                 mat.SetColor("_Color", color);
 
-            // Gem-like surface: moderate smoothness, low metallic
+            // Switch to Specular workflow for colored highlights
+            if (mat.HasProperty("_WorkflowMode"))
+            {
+                mat.SetFloat("_WorkflowMode", 0f); // 0 = Specular
+                mat.EnableKeyword("_SPECULAR_SETUP");
+
+                // Specular color = base color -> colored highlights, not white!
+                if (mat.HasProperty("_SpecColor"))
+                    mat.SetColor("_SpecColor", color);
+            }
+            else
+            {
+                // Standard shader fallback: slight metallic to tint specular
+                if (mat.HasProperty("_Metallic"))
+                    mat.SetFloat("_Metallic", 0.15f);
+            }
+
+            // Ceramic glaze: smooth but not mirror-like
+            // Blender Roughness 0.35 ≈ Unity Smoothness 0.65
             if (mat.HasProperty("_Smoothness"))
-                mat.SetFloat("_Smoothness", 0.7f);
-            if (mat.HasProperty("_Metallic"))
-                mat.SetFloat("_Metallic", 0.1f);
+                mat.SetFloat("_Smoothness", 0.65f);
+
+            // Clear coat for glaze layer (URP 14+)
+            if (mat.HasProperty("_ClearCoatMask"))
+            {
+                mat.SetFloat("_ClearCoatMask", 0.5f);
+                mat.EnableKeyword("_CLEARCOAT");
+            }
+            if (mat.HasProperty("_ClearCoatSmoothness"))
+                mat.SetFloat("_ClearCoatSmoothness", 0.88f);
 
             return mat;
         }
@@ -163,7 +219,7 @@ namespace Match3.Unity.Pools
         {
             if (_fallbackMaterial != null) return _fallbackMaterial;
 
-            _fallbackMaterial = CreateLitMaterial(Color.gray);
+            _fallbackMaterial = CreateCeramicMaterial(Color.gray);
             _fallbackMaterial.name = "Tile3D_Fallback";
             return _fallbackMaterial;
         }
