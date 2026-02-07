@@ -34,6 +34,12 @@ namespace Match3.Unity.Views
 
         private Vector3 _baseScale = Vector3.one;
         private bool _isHighlighted;
+        private float _idleTime;
+        private bool _wasAnimated;
+        private float _bounceTime = -1f;
+        private float _highlightTime;
+
+        private const float BounceEndTime = 0.15f;
 
         private void Awake()
         {
@@ -70,14 +76,68 @@ namespace Match3.Unity.Views
         /// </summary>
         public void UpdateFromVisual(TileVisual visual, float cellSize, Vector2 origin, int height)
         {
+            var isAnimated = visual.IsBeingAnimated;
+
+            // Detect landing: was animated, now idle
+            if (_wasAnimated && !isAnimated)
+            {
+                _bounceTime = 0f;
+            }
+            _wasAnimated = isAnimated;
+
             // Update position (with Y-flip for Unity coordinate system)
             var worldPos = CoordinateConverter.GridToWorld(visual.Position, cellSize, origin, height);
-            transform.position = worldPos;
+            var pos = (Vector3)worldPos;
+
+            // Idle breathing: Y float when not animated
+            if (!isAnimated)
+            {
+                _idleTime += Time.deltaTime;
+                pos.y += Mathf.Sin(_idleTime * 2f + TileId * 0.5f) * 0.02f * cellSize;
+            }
+            else
+            {
+                _idleTime = 0f;
+            }
+
+            transform.position = pos;
 
             // Update scale (store base scale for highlight effect)
             var scale = visual.Scale;
             _baseScale = new Vector3(scale.X * cellSize, scale.Y * cellSize, 1f);
-            transform.localScale = _isHighlighted ? _baseScale * 1.1f : _baseScale;
+
+            var finalScale = _baseScale;
+
+            // Idle breathing scale pulse
+            if (!isAnimated)
+            {
+                var breathe = 1f + Mathf.Sin(_idleTime * 1.5f + TileId) * 0.015f;
+                finalScale *= breathe;
+            }
+
+            // Landing bounce
+            if (_bounceTime >= 0f && _bounceTime < BounceEndTime)
+            {
+                _bounceTime += Time.deltaTime;
+                var t = _bounceTime / BounceEndTime;
+                var squash = Mathf.Sin(t * Mathf.PI) * 0.1f;
+                finalScale.x *= 1f + squash;
+                finalScale.y *= 1f - squash;
+            }
+            else if (_bounceTime >= BounceEndTime)
+            {
+                _bounceTime = -1f;
+            }
+
+            // Selection pulse
+            if (_isHighlighted)
+            {
+                _highlightTime += Time.deltaTime;
+                var pulse = 1f + Mathf.Sin(_highlightTime * 8f) * 0.08f;
+                finalScale *= pulse;
+            }
+
+            transform.localScale = finalScale;
 
             // Update alpha
             var color = _renderer.color;
@@ -125,7 +185,11 @@ namespace Match3.Unity.Views
             if (_isHighlighted == highlighted) return;
             _isHighlighted = highlighted;
 
-            transform.localScale = highlighted ? _baseScale * 1.1f : _baseScale;
+            if (!highlighted)
+            {
+                _highlightTime = 0f;
+                transform.localScale = _baseScale;
+            }
         }
 
         /// <summary>
@@ -149,6 +213,10 @@ namespace Match3.Unity.Views
             BombType = BombType.None;
             _baseScale = Vector3.one;
             _isHighlighted = false;
+            _idleTime = 0f;
+            _wasAnimated = false;
+            _bounceTime = -1f;
+            _highlightTime = 0f;
             transform.localScale = Vector3.one;
             _renderer.color = Color.white;
             _bombOverlayGo.SetActive(false);
