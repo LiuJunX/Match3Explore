@@ -125,10 +125,12 @@ public sealed class VisualState : IVisualState
         }
 
         // Remove tiles that no longer exist in game state (O(N) via HashSet lookup)
+        // Skip tiles being animated (e.g. destroy animation) - they'll be removed
+        // by the Player's RemoveTileCommand when the animation completes.
         _tilesToRemove.Clear();
         foreach (var kvp in _tiles)
         {
-            if (!_aliveTileIds.Contains(kvp.Key))
+            if (!_aliveTileIds.Contains(kvp.Key) && !kvp.Value.IsBeingAnimated)
                 _tilesToRemove.Add(kvp.Key);
         }
         foreach (var id in _tilesToRemove)

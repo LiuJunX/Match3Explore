@@ -264,6 +264,51 @@ public class VisualStateTests
         Assert.Empty(visualState.Tiles);
     }
 
+    [Fact]
+    public void SyncFallingTiles_PreservesAnimatedTile_WhenNotInGameState()
+    {
+        // Scenario: tile is destroyed in GameState but still playing destroy animation.
+        // SyncFallingTilesFromGameState should NOT remove it prematurely.
+        var visualState = new VisualState();
+        var state = CreateGameState(8, 8);
+        // Game state is empty (tile already removed by engine)
+
+        // Visual state has the tile with an active animation (e.g. destroy fade-out)
+        visualState.AddTile(1, TileType.Red, BombType.None, new Position(3, 4), new Vector2(3, 4));
+        var visual = visualState.GetTile(1);
+        visual!.AddAnimationRef(); // Simulates DestroyTileCommand marking it as animated
+
+        // Sync with game state that no longer has tile 1
+        visualState.SyncFallingTilesFromGameState(in state);
+
+        // Tile should still exist because it's being animated
+        Assert.NotNull(visualState.GetTile(1));
+    }
+
+    [Fact]
+    public void SyncFallingTiles_RemovesTile_AfterAnimationCompletes()
+    {
+        var visualState = new VisualState();
+        var state = CreateGameState(8, 8);
+
+        // Tile with active animation
+        visualState.AddTile(1, TileType.Red, BombType.None, new Position(3, 4), new Vector2(3, 4));
+        var visual = visualState.GetTile(1);
+        visual!.AddAnimationRef();
+
+        // First sync: tile preserved (animated)
+        visualState.SyncFallingTilesFromGameState(in state);
+        Assert.NotNull(visualState.GetTile(1));
+
+        // Animation completes
+        visual.ReleaseAnimationRef();
+        Assert.False(visual.IsBeingAnimated);
+
+        // Second sync: tile removed (no longer animated, not in game state)
+        visualState.SyncFallingTilesFromGameState(in state);
+        Assert.Null(visualState.GetTile(1));
+    }
+
     #endregion
 
     private static GameState CreateGameState(int width, int height)

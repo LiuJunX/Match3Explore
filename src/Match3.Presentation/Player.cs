@@ -94,24 +94,41 @@ public sealed class Player
         int insertStart = _commands.Count;
         _commands.AddRange(commands);
 
-        // Sort only the new portion then merge
-        _commands.Sort(insertStart, commands.Count, RenderCommandComparers.ComparerByStartTimeThenPriority);
+        if (commands.Count == 0) return;
 
-        // If new commands have start times before current time, we need to re-sort
-        if (commands.Count > 0)
+        // Check if new commands interleave with existing ones
+        bool needsFullSort = false;
+        if (insertStart > 0)
         {
-            // Full sort to handle interleaving
-            _commands.Sort(RenderCommandComparers.ByStartTimeThenPriority);
-
-            // Recalculate next command index - find first command not yet started
-            _nextCommandIndex = _commands.Count;
-            for (int i = 0; i < _commands.Count; i++)
+            float lastExistingStart = _commands[insertStart - 1].StartTime;
+            for (int i = 0; i < commands.Count; i++)
             {
-                if (_commands[i].StartTime >= _currentTime)
+                if (commands[i].StartTime < lastExistingStart)
                 {
-                    _nextCommandIndex = i;
+                    needsFullSort = true;
                     break;
                 }
+            }
+        }
+
+        if (needsFullSort)
+        {
+            _commands.Sort(RenderCommandComparers.ByStartTimeThenPriority);
+        }
+        else
+        {
+            // New commands are all after existing ones - only sort the new portion
+            _commands.Sort(insertStart, commands.Count, RenderCommandComparers.ComparerByStartTimeThenPriority);
+        }
+
+        // Recalculate next command index - find first command not yet started
+        _nextCommandIndex = _commands.Count;
+        for (int i = 0; i < _commands.Count; i++)
+        {
+            if (_commands[i].StartTime >= _currentTime)
+            {
+                _nextCommandIndex = i;
+                break;
             }
         }
     }
@@ -408,6 +425,17 @@ public sealed class Player
                         moveTile.AddAnimationRef();
                     else
                         moveTile.ReleaseAnimationRef();
+                }
+                break;
+
+            case DestroyTileCommand destroy:
+                var destroyTile = _visualState.GetTile(destroy.TileId);
+                if (destroyTile != null)
+                {
+                    if (isStarting)
+                        destroyTile.AddAnimationRef();
+                    else
+                        destroyTile.ReleaseAnimationRef();
                 }
                 break;
 

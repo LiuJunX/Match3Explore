@@ -77,6 +77,61 @@ public class ChoreographerPlayerIntegrationTests
     }
 
     [Fact]
+    public void TileDestroy_DuringAnimation_IsBeingAnimated()
+    {
+        // Arrange
+        _player.VisualState.AddTile(1, TileType.Red, BombType.None, new Position(3, 4), new Vector2(3, 4));
+
+        // Act: Start destroy animation, tick to midpoint
+        var events = new GameEvent[]
+        {
+            new TileDestroyedEvent
+            {
+                TileId = 1,
+                GridPosition = new Position(3, 4),
+                Type = TileType.Red,
+                Reason = DestroyReason.Match,
+                SimulationTime = 0f
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events);
+        _player.Load(commands);
+        _player.Tick(_choreographer.DestroyDuration * 0.5f); // Midway through animation
+
+        // Assert: Tile should still exist and be marked as animated
+        var tile = _player.VisualState.GetTile(1);
+        Assert.NotNull(tile);
+        Assert.True(tile.IsBeingAnimated);
+    }
+
+    [Fact]
+    public void TileDestroy_AfterAnimation_NotBeingAnimated()
+    {
+        // Arrange
+        _player.VisualState.AddTile(1, TileType.Red, BombType.None, new Position(3, 4), new Vector2(3, 4));
+
+        var events = new GameEvent[]
+        {
+            new TileDestroyedEvent
+            {
+                TileId = 1,
+                GridPosition = new Position(3, 4),
+                Type = TileType.Red,
+                Reason = DestroyReason.Match,
+                SimulationTime = 0f
+            }
+        };
+
+        var commands = _choreographer.Choreograph(events);
+        _player.Load(commands);
+        _player.SkipToEnd();
+
+        // Assert: After full animation, tile is removed (RemoveTileCommand fires)
+        Assert.Null(_player.VisualState.GetTile(1));
+    }
+
+    [Fact]
     public void TileSpawn_FullFlow_AddsTileToVisualState()
     {
         // Act

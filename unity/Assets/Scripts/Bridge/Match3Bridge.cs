@@ -228,7 +228,10 @@ namespace Match3.Unity.Bridge
             _player.VisualState.UpdateEffects(scaledDelta);
 
             // Sync falling tiles from game state (physics-driven positions)
-            if (!HasActiveAnimations)
+            // Always sync - SyncFallingTilesFromGameState already skips tiles
+            // controlled by choreographed animations (IsBeingAnimated check).
+            // Without this, gravity-driven drops are invisible during destroy
+            // animations and appear as instant teleports when animations end.
             {
                 var state = _session.Engine.State;
                 _player.VisualState.SyncFallingTilesFromGameState(in state);
