@@ -29,6 +29,7 @@ namespace Match3.Unity.Views
 
         private static readonly int ColorProp = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorPropFallback = Shader.PropertyToID("_Color");
+        private static readonly int EmissionColorProp = Shader.PropertyToID("_EmissionColor");
 
         private const float BounceEndTime = 0.15f;
 
@@ -158,12 +159,24 @@ namespace Match3.Unity.Views
             if (_isHighlighted == highlighted) return;
             _isHighlighted = highlighted;
 
-            if (!highlighted)
+            // Emission glow: on when selected, off when deselected
+            _meshRenderer.GetPropertyBlock(_propBlock);
+            if (highlighted)
             {
+                var mat = _meshRenderer.sharedMaterial;
+                var baseColor = mat.HasProperty(ColorProp)
+                    ? mat.GetColor(ColorProp)
+                    : mat.GetColor(ColorPropFallback);
+                _propBlock.SetColor(EmissionColorProp, baseColor * 0.3f);
+            }
+            else
+            {
+                _propBlock.SetColor(EmissionColorProp, Color.black);
                 _highlightTime = 0f;
                 transform.localEulerAngles = Vector3.zero;
                 transform.localScale = _baseScale;
             }
+            _meshRenderer.SetPropertyBlock(_propBlock);
         }
 
         #region IPoolable

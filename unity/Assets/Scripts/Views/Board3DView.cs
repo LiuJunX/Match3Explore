@@ -33,6 +33,7 @@ namespace Match3.Unity.Views
         private Light _fillLight;
         private Light _rimLight;
         private GameObject _boardFloor;
+        private Light _selectionLight;
         private bool _viewInitialized;
         private int _highlightedTileId = -1;
 
@@ -72,6 +73,17 @@ namespace Match3.Unity.Views
 
             // Build board floor mesh
             BuildBoardFloor();
+
+            // Selection point light (single shared instance)
+            var selLightGo = new GameObject("SelectionLight");
+            selLightGo.transform.SetParent(transform, false);
+            _selectionLight = selLightGo.AddComponent<Light>();
+            _selectionLight.type = LightType.Point;
+            _selectionLight.range = 1.5f;
+            _selectionLight.intensity = 4f;
+            _selectionLight.shadows = LightShadows.None;
+            _selectionLight.renderMode = LightRenderMode.ForcePixel;
+            _selectionLight.enabled = false;
 
             _viewInitialized = true;
         }
@@ -214,6 +226,9 @@ namespace Match3.Unity.Views
             RenderProjectiles(state, cellSize, origin, height);
         }
 
+        private static readonly int LightColorProp = Shader.PropertyToID("_BaseColor");
+        private static readonly int LightColorPropFallback = Shader.PropertyToID("_Color");
+
         private void UpdateSelectionHighlight()
         {
             var selectedPos = _bridge.CurrentState.SelectedPosition;
@@ -227,7 +242,26 @@ namespace Match3.Unity.Views
                 prev.SetHighlighted(false);
 
             if (selectedTileId >= 0 && _activeTiles.TryGetValue(selectedTileId, out var next))
+            {
                 next.SetHighlighted(true);
+
+                // Move selection light to tile and match its color
+                if (_selectionLight != null)
+                {
+                    var tilePos = next.transform.position;
+                    _selectionLight.transform.position = new Vector3(tilePos.x, tilePos.y, -1f);
+
+                    var mat = next.GetComponent<MeshRenderer>().sharedMaterial;
+                    _selectionLight.color = mat.HasProperty(LightColorProp)
+                        ? mat.GetColor(LightColorProp)
+                        : mat.GetColor(LightColorPropFallback);
+                    _selectionLight.enabled = true;
+                }
+            }
+            else if (_selectionLight != null)
+            {
+                _selectionLight.enabled = false;
+            }
 
             _highlightedTileId = selectedTileId;
         }
@@ -277,6 +311,8 @@ namespace Match3.Unity.Views
         public void Clear()
         {
             _highlightedTileId = -1;
+            if (_selectionLight != null)
+                _selectionLight.enabled = false;
 
             foreach (var kvp in _activeTiles)
             {
@@ -348,6 +384,11 @@ namespace Match3.Unity.Views
             {
                 Destroy(_rimLight.gameObject);
                 _rimLight = null;
+            }
+            if (_selectionLight != null)
+            {
+                Destroy(_selectionLight.gameObject);
+                _selectionLight = null;
             }
             if (_boardFloor != null)
             {

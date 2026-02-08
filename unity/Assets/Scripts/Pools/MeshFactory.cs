@@ -210,6 +210,12 @@ namespace Match3.Unity.Pools
             if (mat.HasProperty("_ClearCoatSmoothness"))
                 mat.SetFloat("_ClearCoatSmoothness", 0.88f);
 
+            // Enable emission keyword (default black = no glow)
+            // Tile3DView sets emission color via PropertyBlock when selected
+            mat.EnableKeyword("_EMISSION");
+            if (mat.HasProperty("_EmissionColor"))
+                mat.SetColor("_EmissionColor", Color.black);
+
             return mat;
         }
 
