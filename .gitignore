@@ -39,6 +39,7 @@ nul
 # AI Tools - Local Settings
 .claude/settings.local.json
 .trae/documents/
+unity/.cursor/
 publish/
 
 # MCP config (local)

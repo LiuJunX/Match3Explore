@@ -62,6 +62,18 @@ namespace Match3.Unity.Pools
             return ps;
         }
 
+        // Cached gradient keys to avoid allocation per particle system
+        private static readonly GradientColorKey[] FadeColorKeys =
+        {
+            new GradientColorKey(Color.white, 0f),
+            new GradientColorKey(Color.white, 1f)
+        };
+        private static readonly GradientAlphaKey[] FadeAlphaKeys =
+        {
+            new GradientAlphaKey(1f, 0f),
+            new GradientAlphaKey(0f, 1f)
+        };
+
         private static void ConfigureParticle(ParticleSystem ps, string effectType)
         {
             var main = ps.main;
@@ -84,10 +96,7 @@ namespace Match3.Unity.Pools
             var colorOverLifetime = ps.colorOverLifetime;
             colorOverLifetime.enabled = true;
             var gradient = new Gradient();
-            gradient.SetKeys(
-                new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
-                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) }
-            );
+            gradient.SetKeys(FadeColorKeys, FadeAlphaKeys);
             colorOverLifetime.color = gradient;
 
             var sizeOverLifetime = ps.sizeOverLifetime;

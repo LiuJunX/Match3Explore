@@ -33,6 +33,7 @@ namespace Match3.Unity.Views
         private Light _fillLight;
         private Light _rimLight;
         private GameObject _boardFloor;
+        private GameObject _boardVignette;
         private Light _selectionLight;
         private bool _viewInitialized;
         private int _highlightedTileId = -1;
@@ -73,6 +74,7 @@ namespace Match3.Unity.Views
 
             // Build board floor mesh
             BuildBoardFloor();
+            BuildBoardVignette();
 
             // Selection point light (single shared instance)
             var selLightGo = new GameObject("SelectionLight");
@@ -138,6 +140,7 @@ namespace Match3.Unity.Views
             _keyLight.color = Color.white;
             _keyLight.intensity = 1.0f;
             _keyLight.shadows = LightShadows.Soft; // 主光源投射阴影，棋子在棋盘上有投影
+            RenderSettings.sun = _keyLight;
 
             // Fill Light: softer, opposite side
             var fillGo = new GameObject("BoardLight_Fill");
@@ -160,8 +163,10 @@ namespace Match3.Unity.Views
             _rimLight.shadows = LightShadows.None;
 
             // Ambient Light: warm neutral (not cool gray)
-            RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.45f, 0.43f, 0.40f);
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.60f, 0.58f, 0.55f);
+            RenderSettings.ambientEquatorColor = new Color(0.42f, 0.40f, 0.38f);
+            RenderSettings.ambientGroundColor = new Color(0.22f, 0.20f, 0.18f);
 
             // Background: garden green (confirmed from mockup)
             var cam = Camera.main;
@@ -170,6 +175,132 @@ namespace Match3.Unity.Views
                 cam.clearFlags = CameraClearFlags.SolidColor;
                 cam.backgroundColor = new Color(120f / 255f, 160f / 255f, 90f / 255f);
             }
+        }
+
+        // Board vignette (subtle inner shadow) caches
+        private static Mesh _vignetteMesh;
+        private static Material _vignetteMaterial;
+        private static Texture2D _vignetteTexture;
+
+        private void BuildBoardVignette()
+        {
+            if (_boardVignette != null) return;
+
+            var bounds = CoordinateConverter.GetBoardBounds(_bridge.Width, _bridge.Height, _bridge.CellSize, _bridge.BoardOrigin);
+
+            _boardVignette = new GameObject("BoardVignette");
+            _boardVignette.transform.SetParent(transform, false);
+            _boardVignette.transform.localPosition = new Vector3(0f, 0f, 0.095f); // slightly above floor (z=0.1), below tiles (z=0)
+
+            var mf = _boardVignette.AddComponent<MeshFilter>();
+            mf.sharedMesh = GetOrCreateVignetteMesh(bounds);
+
+            var mr = _boardVignette.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = GetOrCreateVignetteMaterial();
+            mr.shadowCastingMode = ShadowCastingMode.Off;
+            mr.receiveShadows = false;
+        }
+
+        private static Mesh GetOrCreateVignetteMesh(Rect bounds)
+        {
+            // Rebuild mesh if board size changed between scenes/configs.
+            // (Bounds are baked into vertices for simplicity.)
+            _vignetteMesh = new Mesh { name = "BoardVignetteQuad" };
+
+            var x0 = bounds.xMin;
+            var x1 = bounds.xMax;
+            var y0 = bounds.yMin;
+            var y1 = bounds.yMax;
+
+            _vignetteMesh.vertices = new[]
+            {
+                new Vector3(x0, y0, 0f),
+                new Vector3(x1, y0, 0f),
+                new Vector3(x1, y1, 0f),
+                new Vector3(x0, y1, 0f)
+            };
+            _vignetteMesh.uv = new[]
+            {
+                new Vector2(0f, 0f),
+                new Vector2(1f, 0f),
+                new Vector2(1f, 1f),
+                new Vector2(0f, 1f)
+            };
+            _vignetteMesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+            _vignetteMesh.RecalculateNormals();
+            _vignetteMesh.RecalculateBounds();
+            return _vignetteMesh;
+        }
+
+        private static Material GetOrCreateVignetteMaterial()
+        {
+            if (_vignetteMaterial != null) return _vignetteMaterial;
+
+            var shader = Shader.Find("Universal Render Pipeline/Unlit")
+                         ?? Shader.Find("Unlit/Transparent");
+
+            _vignetteMaterial = new Material(shader) { name = "BoardVignette" };
+
+            // Transparent surface
+            if (_vignetteMaterial.HasProperty("_Surface"))
+                _vignetteMaterial.SetFloat("_Surface", 1f);
+            if (_vignetteMaterial.HasProperty("_Blend"))
+                _vignetteMaterial.SetFloat("_Blend", 0f);
+            if (_vignetteMaterial.HasProperty("_SrcBlend"))
+                _vignetteMaterial.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            if (_vignetteMaterial.HasProperty("_DstBlend"))
+                _vignetteMaterial.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            if (_vignetteMaterial.HasProperty("_ZWrite"))
+                _vignetteMaterial.SetFloat("_ZWrite", 0f);
+
+            _vignetteMaterial.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            _vignetteMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+
+            // Color: white * black texture => black; alpha controls strength.
+            var c = new Color(1f, 1f, 1f, 0.18f);
+            if (_vignetteMaterial.HasProperty("_BaseColor"))
+                _vignetteMaterial.SetColor("_BaseColor", c);
+            else if (_vignetteMaterial.HasProperty("_Color"))
+                _vignetteMaterial.SetColor("_Color", c);
+
+            _vignetteMaterial.mainTexture = GetOrCreateVignetteTexture();
+            return _vignetteMaterial;
+        }
+
+        private static Texture2D GetOrCreateVignetteTexture()
+        {
+            if (_vignetteTexture != null) return _vignetteTexture;
+
+            const int size = 256;
+            _vignetteTexture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                name = "BoardVignetteTex",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+
+            // Square-ish vignette: stronger near edges, subtle in the center.
+            for (int y = 0; y < size; y++)
+            {
+                float v = (y + 0.5f) / size;
+                float vy = Mathf.Abs(v - 0.5f) * 2f; // 0..1
+
+                for (int x = 0; x < size; x++)
+                {
+                    float u = (x + 0.5f) / size;
+                    float vx = Mathf.Abs(u - 0.5f) * 2f; // 0..1
+
+                    float d = Mathf.Max(vx, vy); // square distance to edge
+                    float a = Mathf.InverseLerp(0.55f, 1.0f, d);
+                    a = Mathf.Clamp01(a);
+                    a *= a; // softer center
+
+                    _vignetteTexture.SetPixel(x, y, new Color(0f, 0f, 0f, a));
+                }
+            }
+
+            _vignetteTexture.Apply();
+            return _vignetteTexture;
         }
 
         public void Render(VisualState state)
@@ -238,7 +369,17 @@ namespace Match3.Unity.Views
                 ? _bridge.GetTileIdAt(selectedPos)
                 : -1;
 
-            if (selectedTileId == _highlightedTileId) return;
+            // Update light position every frame (tile may be falling)
+            if (selectedTileId == _highlightedTileId)
+            {
+                if (selectedTileId >= 0 && _selectionLight != null
+                    && _activeTiles.TryGetValue(selectedTileId, out var current))
+                {
+                    var pos = current.transform.position;
+                    _selectionLight.transform.position = new Vector3(pos.x, pos.y, -1f);
+                }
+                return;
+            }
 
             if (_highlightedTileId >= 0 && _activeTiles.TryGetValue(_highlightedTileId, out var prev))
                 prev.SetHighlighted(false);
@@ -253,10 +394,14 @@ namespace Match3.Unity.Views
                     var tilePos = next.transform.position;
                     _selectionLight.transform.position = new Vector3(tilePos.x, tilePos.y, -1f);
 
-                    var mat = next.GetComponent<MeshRenderer>().sharedMaterial;
-                    _selectionLight.color = mat.HasProperty(LightColorProp)
-                        ? mat.GetColor(LightColorProp)
-                        : mat.GetColor(LightColorPropFallback);
+                    if (selectedTileId != _highlightedTileId)
+                    {
+                        // Only re-read material color on tile change (not every frame)
+                        var mat = next.GetComponent<MeshRenderer>().sharedMaterial;
+                        _selectionLight.color = mat.HasProperty(LightColorProp)
+                            ? mat.GetColor(LightColorProp)
+                            : mat.GetColor(LightColorPropFallback);
+                    }
                     _selectionLight.enabled = true;
                 }
             }
@@ -396,6 +541,11 @@ namespace Match3.Unity.Views
             {
                 Destroy(_boardFloor);
                 _boardFloor = null;
+            }
+            if (_boardVignette != null)
+            {
+                Destroy(_boardVignette);
+                _boardVignette = null;
             }
         }
     }

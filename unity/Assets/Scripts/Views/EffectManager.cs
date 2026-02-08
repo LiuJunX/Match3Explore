@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Match3.Core.Models.Enums;
 using Match3.Presentation;
@@ -256,9 +257,9 @@ namespace Match3.Unity.Views
             unchecked
             {
                 int hash = effect.EffectType.GetHashCode();
-                hash = hash * 31 + effect.Position.X.GetHashCode();
-                hash = hash * 31 + effect.Position.Y.GetHashCode();
-                hash = hash * 31 + effect.Duration.GetHashCode();
+                hash = hash * 397 + BitConverter.SingleToInt32Bits(effect.Position.X);
+                hash = hash * 397 + BitConverter.SingleToInt32Bits(effect.Position.Y);
+                hash = hash * 397 + BitConverter.SingleToInt32Bits(effect.Duration);
                 return hash;
             }
         }

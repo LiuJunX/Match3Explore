@@ -47,17 +47,21 @@ namespace Match3.Unity.Views
 
             int estimatedVerts = cellCount * 40;
             var vertices = new List<Vector3>(estimatedVerts);
-            var floorTris = new List<int>(estimatedVerts);
+            var floorLightTris = new List<int>(estimatedVerts);
+            var floorDarkTris = new List<int>(estimatedVerts);
             var wallTris = new List<int>(estimatedVerts);
             var normals = new List<Vector3>(estimatedVerts);
             var uvs = new List<Vector2>(estimatedVerts);
 
-            // 1. Floor per cell
+            // 1. Floor per cell (alternating light/dark for checkerboard)
             for (int r = 0; r < rows; r++)
                 for (int c = 0; c < cols; c++)
                     if (layout[r, c])
-                        AppendMesh(vertices, floorTris, normals, uvs,
+                    {
+                        var tris = (r + c) % 2 == 0 ? floorLightTris : floorDarkTris;
+                        AppendMesh(vertices, tris, normals, uvs,
                             _floorMesh, CellCenter(r, c, cellSize, origin, height), 0f, cellSize);
+                    }
 
             // 2. Vertex-based corners
             // Grid vertices (vr, vc) where vr in [0..rows], vc in [0..cols].
@@ -104,7 +108,7 @@ namespace Match3.Unity.Views
 
                         AppendMesh(vertices, wallTris, normals, uvs,
                             _cornerInnerMesh, vertPos, angle, cellSize);
-                        AppendMesh(vertices, floorTris, normals, uvs,
+                        AppendMesh(vertices, floorLightTris, normals, uvs,
                             _cornerInnerFloorMesh, vertPos, angle, cellSize);
                     }
                 }
@@ -121,9 +125,10 @@ namespace Match3.Unity.Views
             mesh.SetVertices(vertices);
             mesh.SetNormals(normals);
             mesh.SetUVs(0, uvs);
-            mesh.subMeshCount = 2;
-            mesh.SetTriangles(floorTris, 0);
-            mesh.SetTriangles(wallTris, 1);
+            mesh.subMeshCount = 3;
+            mesh.SetTriangles(floorLightTris, 0);
+            mesh.SetTriangles(floorDarkTris, 1);
+            mesh.SetTriangles(wallTris, 2);
             mesh.RecalculateBounds();
 
             return mesh;
@@ -330,7 +335,7 @@ namespace Match3.Unity.Views
         }
 
         /// <summary>
-        /// Get board materials: [0] = floor, [1] = wall. Cached after first call.
+        /// Get board materials: [0] = light floor, [1] = dark floor, [2] = wall. Cached after first call.
         /// </summary>
         public static Material[] GetBoardMaterials()
         {
@@ -339,13 +344,21 @@ namespace Match3.Unity.Views
             var shader = Shader.Find("Universal Render Pipeline/Lit")
                          ?? Shader.Find("Standard");
 
-            // Floor: bright warm cream
-            var floorMat = new Material(shader);
-            floorMat.name = "BoardFloor";
-            InitUrpSurface(floorMat);
-            SetBaseColor(floorMat, new Color(0.92f, 0.88f, 0.82f));
-            if (floorMat.HasProperty("_Smoothness"))
-                floorMat.SetFloat("_Smoothness", 0.35f);
+            // Light floor: bright warm cream
+            var floorLightMat = new Material(shader);
+            floorLightMat.name = "BoardFloor_Light";
+            InitUrpSurface(floorLightMat);
+            SetBaseColor(floorLightMat, new Color(0.92f, 0.88f, 0.82f));
+            if (floorLightMat.HasProperty("_Smoothness"))
+                floorLightMat.SetFloat("_Smoothness", 0.35f);
+
+            // Dark floor: slightly deeper for checkerboard
+            var floorDarkMat = new Material(shader);
+            floorDarkMat.name = "BoardFloor_Dark";
+            InitUrpSurface(floorDarkMat);
+            SetBaseColor(floorDarkMat, new Color(0.87f, 0.83f, 0.77f));
+            if (floorDarkMat.HasProperty("_Smoothness"))
+                floorDarkMat.SetFloat("_Smoothness", 0.35f);
 
             // Wall: slightly deeper warm tone
             var wallMat = new Material(shader);
@@ -355,7 +368,7 @@ namespace Match3.Unity.Views
             if (wallMat.HasProperty("_Smoothness"))
                 wallMat.SetFloat("_Smoothness", 0.30f);
 
-            _boardMaterials = new[] { floorMat, wallMat };
+            _boardMaterials = new[] { floorLightMat, floorDarkMat, wallMat };
             return _boardMaterials;
         }
 

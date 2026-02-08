@@ -17,6 +17,11 @@ namespace Match3.Unity.Pools
         private static readonly Dictionary<BombType, Mesh> _bombMeshCache = new();
         private static Shader _litShader;
 
+        // Blob shadow resources
+        private static Mesh _blobShadowMesh;
+        private static Material _blobShadowMaterial;
+        private static Texture2D _blobShadowTexture;
+
         /// <summary>
         /// Get the mesh for a specific tile type.
         /// Each color type has its own distinct shape.
@@ -129,6 +134,107 @@ namespace Match3.Unity.Pools
         }
 
         /// <summary>
+        /// Get the shared blob shadow quad mesh.
+        /// </summary>
+        public static Mesh GetBlobShadowMesh()
+        {
+            if (_blobShadowMesh != null) return _blobShadowMesh;
+
+            _blobShadowMesh = new Mesh { name = "BlobShadow" };
+            _blobShadowMesh.vertices = new[]
+            {
+                new Vector3(-0.5f, -0.5f, 0),
+                new Vector3(0.5f, -0.5f, 0),
+                new Vector3(0.5f, 0.5f, 0),
+                new Vector3(-0.5f, 0.5f, 0)
+            };
+            _blobShadowMesh.uv = new[]
+            {
+                new Vector2(0, 0), new Vector2(1, 0),
+                new Vector2(1, 1), new Vector2(0, 1)
+            };
+            _blobShadowMesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+            _blobShadowMesh.RecalculateNormals();
+            return _blobShadowMesh;
+        }
+
+        /// <summary>
+        /// Get the shared blob shadow material (transparent URP Unlit + soft circle texture).
+        /// </summary>
+        public static Material GetBlobShadowMaterial()
+        {
+            if (_blobShadowMaterial != null) return _blobShadowMaterial;
+
+            var shader = Shader.Find("Universal Render Pipeline/Unlit")
+                         ?? Shader.Find("Unlit/Transparent");
+
+            _blobShadowMaterial = new Material(shader) { name = "BlobShadow" };
+
+            // Transparent surface
+            if (_blobShadowMaterial.HasProperty("_Surface"))
+                _blobShadowMaterial.SetFloat("_Surface", 1f);
+            if (_blobShadowMaterial.HasProperty("_Blend"))
+                _blobShadowMaterial.SetFloat("_Blend", 0f);
+            if (_blobShadowMaterial.HasProperty("_SrcBlend"))
+                _blobShadowMaterial.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            if (_blobShadowMaterial.HasProperty("_DstBlend"))
+                _blobShadowMaterial.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            if (_blobShadowMaterial.HasProperty("_ZWrite"))
+                _blobShadowMaterial.SetFloat("_ZWrite", 0f);
+
+            _blobShadowMaterial.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            _blobShadowMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+
+            // White base color (texture alpha drives transparency)
+            if (_blobShadowMaterial.HasProperty("_BaseColor"))
+                _blobShadowMaterial.SetColor("_BaseColor", Color.white);
+            else if (_blobShadowMaterial.HasProperty("_Color"))
+                _blobShadowMaterial.SetColor("_Color", Color.white);
+
+            _blobShadowMaterial.mainTexture = GetOrCreateBlobShadowTexture();
+            return _blobShadowMaterial;
+        }
+
+        /// <summary>
+        /// Generate a soft circular gradient texture for blob shadow.
+        /// Dark center fading to transparent at edges.
+        /// </summary>
+        private static Texture2D GetOrCreateBlobShadowTexture()
+        {
+            if (_blobShadowTexture != null) return _blobShadowTexture;
+
+            // Slightly higher resolution makes edges noticeably softer on screen.
+            const int size = 128;
+            _blobShadowTexture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                name = "BlobShadowTex",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+
+            float center = size * 0.5f;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = x - center + 0.5f;
+                    float dy = y - center + 0.5f;
+                    float dist = Mathf.Sqrt(dx * dx + dy * dy) / center;
+
+                    // Exponential falloff: darker near contact, very soft edge.
+                    // dist=0 => 1, dist=1 => ~0.018
+                    float alpha = Mathf.Exp(-dist * dist * 4.0f);
+                    alpha = Mathf.Clamp01(alpha);
+
+                    _blobShadowTexture.SetPixel(x, y, new Color(0f, 0f, 0f, alpha));
+                }
+            }
+
+            _blobShadowTexture.Apply();
+            return _blobShadowTexture;
+        }
+
+        /// <summary>
         /// Clear all cached materials and mesh reference.
         /// </summary>
         public static void ClearCache()
@@ -145,6 +251,18 @@ namespace Match3.Unity.Pools
                 Object.Destroy(_fallbackMaterial);
                 _fallbackMaterial = null;
             }
+
+            if (_blobShadowMaterial != null)
+            {
+                Object.Destroy(_blobShadowMaterial);
+                _blobShadowMaterial = null;
+            }
+            if (_blobShadowTexture != null)
+            {
+                Object.Destroy(_blobShadowTexture);
+                _blobShadowTexture = null;
+            }
+            _blobShadowMesh = null;
 
             _bombMeshCache.Clear();
             _tileMeshCache.Clear();

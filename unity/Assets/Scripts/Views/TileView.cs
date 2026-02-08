@@ -92,7 +92,7 @@ namespace Match3.Unity.Views
             // Idle breathing: Y float when not animated
             if (!isAnimated)
             {
-                _idleTime += Time.deltaTime;
+                _idleTime = (_idleTime + Time.deltaTime) % 628f; // wrap to avoid float precision loss
                 pos.y += Mathf.Sin(_idleTime * 2f + TileId * 0.5f) * 0.02f * cellSize;
             }
             else

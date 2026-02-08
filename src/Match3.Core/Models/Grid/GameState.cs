@@ -63,6 +63,9 @@ public struct GameState
 
     public GameState(int width, int height, int tileTypesCount, IRandom random)
     {
+        if (width <= 0) throw new ArgumentOutOfRangeException(nameof(width), width, "Width must be positive.");
+        if (height <= 0) throw new ArgumentOutOfRangeException(nameof(height), height, "Height must be positive.");
+
         Width = width;
         Height = height;
         TileTypesCount = tileTypesCount;

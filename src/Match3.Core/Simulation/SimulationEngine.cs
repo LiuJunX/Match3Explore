@@ -106,6 +106,7 @@ public sealed class SimulationEngine : IDisposable
         _powerUpHandler = powerUpHandler ?? throw new ArgumentNullException(nameof(powerUpHandler));
         _eventCollector = eventCollector ?? NullEventCollector.Instance;
         _objectiveSystem = objectiveSystem;
+        _pendingMoveState = PendingMoveState.None;
 
         // Create orchestrator to coordinate subsystems
         _orchestrator = new SimulationOrchestrator(
