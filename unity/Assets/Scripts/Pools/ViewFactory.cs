@@ -9,6 +9,8 @@ namespace Match3.Unity.Pools
     /// </summary>
     public static class ViewFactory
     {
+        private static Material _particleMaterial;
+
         /// <summary>
         /// Create a TileView with SpriteRenderer.
         /// </summary>
@@ -55,6 +57,7 @@ namespace Match3.Unity.Pools
             var renderer = go.GetComponent<ParticleSystemRenderer>();
             renderer.sortingLayerName = "Effects";
             renderer.sortingOrder = 30;
+            renderer.sharedMaterial = GetOrCreateParticleMaterial();
 
             return ps;
         }
@@ -144,6 +147,25 @@ namespace Match3.Unity.Pools
                     main.startLifetime = 0.2f;
                     break;
             }
+        }
+
+        /// <summary>
+        /// Get or create a URP-compatible particle material (Unlit, vertex color).
+        /// Avoids magenta when using URP.
+        /// </summary>
+        private static Material GetOrCreateParticleMaterial()
+        {
+            if (_particleMaterial != null)
+                return _particleMaterial;
+
+            var shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+            if (shader == null)
+                shader = Shader.Find("Particles/Standard Unlit");
+            if (shader == null)
+                shader = Shader.Find("Sprites/Default");
+
+            _particleMaterial = new Material(shader);
+            return _particleMaterial;
         }
     }
 }

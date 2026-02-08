@@ -103,7 +103,9 @@ namespace Match3.Unity.Views
             _boardFloor.transform.localPosition = new Vector3(0f, 0f, 0.1f);
 
             _boardFloor.AddComponent<MeshFilter>().mesh = mesh;
-            _boardFloor.AddComponent<MeshRenderer>().materials = BoardMeshBuilder.GetBoardMaterials();
+            var floorRenderer = _boardFloor.AddComponent<MeshRenderer>();
+            floorRenderer.materials = BoardMeshBuilder.GetBoardMaterials();
+            floorRenderer.receiveShadows = true; // 棋盘接收棋子投影
         }
 
         private static Mesh BuildBoardMesh(int width, int height, float cellSize, Vector2 origin)
@@ -134,8 +136,8 @@ namespace Match3.Unity.Views
             _keyLight = keyGo.AddComponent<Light>();
             _keyLight.type = LightType.Directional;
             _keyLight.color = Color.white;
-            _keyLight.intensity = 1.2f;
-            _keyLight.shadows = LightShadows.None;
+            _keyLight.intensity = 1.0f;
+            _keyLight.shadows = LightShadows.Soft; // 主光源投射阴影，棋子在棋盘上有投影
 
             // Fill Light: softer, opposite side
             var fillGo = new GameObject("BoardLight_Fill");
@@ -154,7 +156,7 @@ namespace Match3.Unity.Views
             _rimLight = rimGo.AddComponent<Light>();
             _rimLight.type = LightType.Directional;
             _rimLight.color = new Color(1.0f, 0.95f, 0.88f);
-            _rimLight.intensity = 0.35f;
+            _rimLight.intensity = 0.26f;
             _rimLight.shadows = LightShadows.None;
 
             // Ambient Light: warm neutral (not cool gray)

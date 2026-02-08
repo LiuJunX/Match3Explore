@@ -14,7 +14,8 @@ namespace Match3.Unity.Controllers
         [SerializeField] private Match3Bridge _bridge;
 
         [Header("Configuration")]
-        [SerializeField] private float _padding = 1f;
+        [Tooltip("留白（世界单位），越小棋盘在画面中越大")]
+        [SerializeField] private float _padding = 0.4f;
         [SerializeField] private Color _backgroundColor = new Color(0.15f, 0.15f, 0.2f);
 
         private Camera _camera;

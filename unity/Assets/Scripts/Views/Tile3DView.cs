@@ -3,6 +3,7 @@ using Match3.Presentation;
 using Match3.Unity.Bridge;
 using Match3.Unity.Pools;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Match3.Unity.Views
 {
@@ -60,6 +61,10 @@ namespace Match3.Unity.Views
             _meshRenderer.sharedMaterial = isColorType
                 ? MeshFactory.GetTileMaterial(type)
                 : MeshFactory.GetFallbackMaterial();
+
+            // 棋子在棋盘上投射并接收阴影
+            _meshRenderer.shadowCastingMode = ShadowCastingMode.On;
+            _meshRenderer.receiveShadows = true;
         }
 
         /// <summary>
@@ -78,7 +83,15 @@ namespace Match3.Unity.Views
 
             // Position (with Y-flip)
             var worldPos = CoordinateConverter.GridToWorld(visual.Position, cellSize, origin, height);
-            transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
+            var pos = new Vector3(worldPos.x, worldPos.y, 0f);
+            if (_isHighlighted)
+            {
+                _highlightTime += Time.deltaTime;
+                // 选中呼吸：相对棋盘的上下（沿棋盘法线 Z 轴轻微浮动）
+                var floatZ = Mathf.Sin(_highlightTime * 5f) * 0.04f * cellSize;
+                pos.z += floatZ;
+            }
+            transform.position = pos;
 
             // Scale (uniform 3D, Z tracks min of X/Y for natural shrink)
             var scaleFactor = cellSize;
@@ -105,10 +118,9 @@ namespace Match3.Unity.Views
                 _bounceTime = -1f;
             }
 
-            // Selection pulse
+            // Selection pulse (scale + rotation; _highlightTime already updated above)
             if (_isHighlighted)
             {
-                _highlightTime += Time.deltaTime;
                 var pulse = 1f + Mathf.Sin(_highlightTime * 8f) * 0.08f;
                 finalScale *= pulse;
 
