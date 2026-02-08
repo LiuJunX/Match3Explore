@@ -12,26 +12,31 @@ public static class ScreenshotCapture
 
         string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(dir, "capture.png"));
 
-        // Get Game view window and capture it
-        var gameViewType = System.Type.GetType("UnityEditor.GameView,UnityEditor");
-        var gameView = EditorWindow.GetWindow(gameViewType);
-        if (gameView != null)
+        if (Application.isPlaying)
         {
-            gameView.Focus();
-            int w = (int)gameView.position.width;
-            int h = (int)gameView.position.height;
-            var colors = UnityEditorInternal.InternalEditorUtility.ReadScreenPixel(
-                gameView.position.position, w, h);
-            var tex = new Texture2D(w, h, TextureFormat.RGB24, false);
-            tex.SetPixels(colors);
-            tex.Apply();
-            System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
-            Object.DestroyImmediate(tex);
-            Debug.Log($"[Screenshot] Game view saved to: {path}");
+            // Runtime: use ScreenCapture which grabs the actual rendered frame
+            ScreenCapture.CaptureScreenshot(path);
+            Debug.Log($"[Screenshot] Runtime capture saved to: {path}");
         }
         else
         {
-            Debug.LogError("[Screenshot] Could not find Game view window");
+            // Editor: read Game view pixels
+            var gameViewType = System.Type.GetType("UnityEditor.GameView,UnityEditor");
+            var gameView = EditorWindow.GetWindow(gameViewType);
+            if (gameView != null)
+            {
+                gameView.Focus();
+                int w = (int)gameView.position.width;
+                int h = (int)gameView.position.height;
+                var colors = UnityEditorInternal.InternalEditorUtility.ReadScreenPixel(
+                    gameView.position.position, w, h);
+                var tex = new Texture2D(w, h, TextureFormat.RGB24, false);
+                tex.SetPixels(colors);
+                tex.Apply();
+                System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+                Object.DestroyImmediate(tex);
+                Debug.Log($"[Screenshot] Editor capture saved to: {path}");
+            }
         }
     }
 }

@@ -150,13 +150,15 @@ namespace Match3.Unity.Pools
             _tileMeshCache.Clear();
             _fallbackMesh = null;
             _litShader = null;
+            _complexLitShader = null;
         }
+
+        private static Shader _complexLitShader;
 
         private static Shader GetLitShader()
         {
             if (_litShader != null) return _litShader;
 
-            // Try URP Lit first, then built-in Standard
             _litShader = Shader.Find("Universal Render Pipeline/Lit");
             if (_litShader == null)
                 _litShader = Shader.Find("Standard");
@@ -164,13 +166,22 @@ namespace Match3.Unity.Pools
             return _litShader;
         }
 
+        private static Shader GetComplexLitShader()
+        {
+            if (_complexLitShader != null) return _complexLitShader;
+
+            _complexLitShader = Shader.Find("Universal Render Pipeline/Complex Lit");
+            return _complexLitShader;
+        }
+
         /// <summary>
-        /// Create ceramic material with colored specular (no white highlights).
-        /// Matches Blender ceramic recipe: Specular Tint = Base Color, Coat Tint = Base Color.
+        /// Create ceramic material with glossy highlights and clear coat glaze.
+        /// URP: Complex Lit (supports clear coat). Fallback: Standard.
         /// </summary>
         private static Material CreateCeramicMaterial(Color color)
         {
-            var shader = GetLitShader();
+            // Prefer Complex Lit for clear coat, fallback to Lit, then Standard
+            var shader = GetComplexLitShader() ?? GetLitShader();
             var mat = new Material(shader);
 
             // Base color
@@ -179,36 +190,23 @@ namespace Match3.Unity.Pools
             else
                 mat.SetColor("_Color", color);
 
-            // Switch to Specular workflow for colored highlights
-            if (mat.HasProperty("_WorkflowMode"))
-            {
-                mat.SetFloat("_WorkflowMode", 0f); // 0 = Specular
-                mat.EnableKeyword("_SPECULAR_SETUP");
+            // Metallic workflow: low metallic = white specular highlights (candy/ceramic look)
+            if (mat.HasProperty("_Metallic"))
+                mat.SetFloat("_Metallic", 0.05f);
 
-                // Specular color = base color -> colored highlights, not white!
-                if (mat.HasProperty("_SpecColor"))
-                    mat.SetColor("_SpecColor", color);
-            }
-            else
-            {
-                // Standard shader fallback: slight metallic to tint specular
-                if (mat.HasProperty("_Metallic"))
-                    mat.SetFloat("_Metallic", 0.15f);
-            }
-
-            // Ceramic glaze: smooth but not mirror-like
-            // Blender Roughness 0.35 ≈ Unity Smoothness 0.65
+            // Glossy ceramic: high enough for highlights, not so high that
+            // flat-shading normal seams show harsh dark lines
             if (mat.HasProperty("_Smoothness"))
-                mat.SetFloat("_Smoothness", 0.65f);
+                mat.SetFloat("_Smoothness", 0.72f);
 
-            // Clear coat for glaze layer (URP 14+)
+            // Clear coat glaze layer (Complex Lit only)
             if (mat.HasProperty("_ClearCoatMask"))
             {
-                mat.SetFloat("_ClearCoatMask", 0.5f);
+                mat.SetFloat("_ClearCoatMask", 0.6f);
                 mat.EnableKeyword("_CLEARCOAT");
             }
             if (mat.HasProperty("_ClearCoatSmoothness"))
-                mat.SetFloat("_ClearCoatSmoothness", 0.88f);
+                mat.SetFloat("_ClearCoatSmoothness", 0.9f);
 
             // Enable emission keyword (default black = no glow)
             // Tile3DView sets emission color via PropertyBlock when selected

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Match3.Unity.Controllers
 {
@@ -72,6 +73,27 @@ namespace Match3.Unity.Controllers
             mainCamera.orthographic = true;
             mainCamera.backgroundColor = new Color(0.15f, 0.15f, 0.2f);
             mainCamera.clearFlags = CameraClearFlags.SolidColor;
+
+            // Ensure URP MSAA 4x via render pipeline asset
+            var rpAsset = GraphicsSettings.currentRenderPipeline;
+            if (rpAsset != null)
+            {
+                var msaaProp = rpAsset.GetType().GetProperty("msaaSampleCount");
+                if (msaaProp != null)
+                    msaaProp.SetValue(rpAsset, 4);
+            }
+
+            // Add SMAA for specular/shader aliasing (MSAA only handles geometry edges)
+            var camData = mainCamera.GetComponent("UniversalAdditionalCameraData");
+            if (camData != null)
+            {
+                var aaMode = camData.GetType().GetProperty("antialiasing");
+                var aaQuality = camData.GetType().GetProperty("antialiasingQuality");
+                if (aaMode != null)
+                    aaMode.SetValue(camData, 2); // 2 = SMAA
+                if (aaQuality != null)
+                    aaQuality.SetValue(camData, 2); // 2 = High
+            }
         }
     }
 }

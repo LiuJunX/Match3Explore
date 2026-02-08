@@ -81,7 +81,7 @@ namespace Match3.Unity.Views
             transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
 
             // Scale (uniform 3D, Z tracks min of X/Y for natural shrink)
-            var scaleFactor = cellSize * 0.8f;
+            var scaleFactor = cellSize;
             var zScale = Mathf.Min(visual.Scale.X, visual.Scale.Y);
             _baseScale = new Vector3(
                 visual.Scale.X * scaleFactor,
