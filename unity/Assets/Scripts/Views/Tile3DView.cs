@@ -19,6 +19,14 @@ namespace Match3.Unity.Views
         private MaterialPropertyBlock _propBlock;
         private MeshRenderer _shadowRenderer;
         private MaterialPropertyBlock _shadowPropBlock;
+        private Transform _shadowTransform;
+
+        // Cached shadow state so blob tweaks can refresh instantly
+        private bool _hasLastShadowState;
+        private Vector3 _lastShadowWorldPos;
+        private float _lastShadowCellSize;
+        private Vector3 _lastShadowTileScale;
+        private float _lastShadowTileZ;
 
         public int TileId { get; private set; }
         public TileType TileType { get; private set; }
@@ -29,7 +37,6 @@ namespace Match3.Unity.Views
         private bool _wasAnimated;
         private float _bounceTime = -1f;
         private float _highlightTime;
-        private float _idleTime;
 
         private static readonly int ColorProp = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorPropFallback = Shader.PropertyToID("_Color");
@@ -39,16 +46,38 @@ namespace Match3.Unity.Views
 
         private const float BounceEndTime = 0.15f;
 
-        // Scale multiplier: makes tiles fill more of the cell (~85% instead of ~70%)
+        // Scale multiplier: makes tiles fill more of the cell
         private const float TileScaleMultiplier = 1.05f;
 
         // Blob shadow constants
-        private const float BlobShadowZ = 0.08f; // Between tile (Z=0) and board (Z=0.1)
-        private const float BlobShadowSize = 0.72f; // Shadow disc size relative to cellSize
-        private const float BlobShadowBaseAlpha = 0.22f; // Final alpha is per-tile via PropertyBlock
-        private const float BlobShadowOffset = 0.06f; // In cellSize units, along sun direction
+        private const float BlobShadowZ = 0.08f;
 
-        private Transform _shadowTransform;
+        // Runtime-tweakable blob shadow params (defaults tuned for ceramic look).
+        private static float s_blobShadowSize = 0.54f;
+        private static float s_blobShadowBaseAlpha = 0.11f;
+        private static float s_blobShadowOffset = 0.025f;
+        private static float s_blobShadowLiftAlphaReduce = 0.55f;
+        private static float s_blobShadowLiftSizeIncrease = 0.18f;
+
+        public static void ApplyRenderTuning(RenderTuningSettings settings)
+        {
+            if (settings == null) return;
+            s_blobShadowSize = settings.BlobSize;
+            s_blobShadowBaseAlpha = settings.BlobBaseAlpha;
+            s_blobShadowOffset = settings.BlobOffset;
+            s_blobShadowLiftAlphaReduce = settings.BlobLiftAlphaReduce;
+            s_blobShadowLiftSizeIncrease = settings.BlobLiftSizeIncrease;
+
+            // Apply immediately to existing tiles (so blob shadow tweaks feel "live").
+            RefreshAllBlobShadows();
+        }
+
+        private static void RefreshAllBlobShadows()
+        {
+            var tiles = Object.FindObjectsOfType<Tile3DView>();
+            foreach (var t in tiles)
+                t.RefreshBlobShadowNow();
+        }
 
         private void Awake()
         {
@@ -58,10 +87,6 @@ namespace Match3.Unity.Views
             CreateBlobShadow();
         }
 
-        /// <summary>
-        /// Create a blob shadow child: flat semi-transparent circle under the tile.
-        /// Gives the illusion of contact shadow on the board surface.
-        /// </summary>
         private void CreateBlobShadow()
         {
             var shadowGo = new GameObject("BlobShadow");
@@ -119,17 +144,7 @@ namespace Match3.Unity.Views
             // Position (with Y-flip)
             var worldPos = CoordinateConverter.GridToWorld(visual.Position, cellSize, origin, height);
             var pos = new Vector3(worldPos.x, worldPos.y, 0f);
-
-            // Idle breathing: gentle Z-axis float when not animated (matches 2D TileView behavior)
-            if (!isAnimated && !_isHighlighted)
-            {
-                _idleTime = (_idleTime + Time.deltaTime) % 628f;
-                pos.z += Mathf.Sin(_idleTime * 2f + TileId * 0.5f) * 0.015f * cellSize;
-            }
-            else if (isAnimated)
-            {
-                _idleTime = 0f;
-            }
+            // NOTE: Idle breathing intentionally disabled (keep tiles perfectly still when idle).
 
             if (_isHighlighted)
             {
@@ -149,13 +164,6 @@ namespace Match3.Unity.Views
                 zScale * scaleFactor);
 
             var finalScale = _baseScale;
-
-            // Idle breathing scale pulse (matches 2D TileView)
-            if (!isAnimated && !_isHighlighted)
-            {
-                var breathe = 1f + Mathf.Sin(_idleTime * 1.5f + TileId) * 0.012f;
-                finalScale *= breathe;
-            }
 
             // Landing bounce
             if (_bounceTime >= 0f && _bounceTime < BounceEndTime)
@@ -186,7 +194,7 @@ namespace Match3.Unity.Views
 
             transform.localScale = finalScale;
 
-            // Update blob shadow: pinned to board surface, constant size
+            // Update blob shadow
             UpdateBlobShadow(worldPos, cellSize, finalScale, pos.z);
 
             // Alpha via MaterialPropertyBlock
@@ -248,47 +256,45 @@ namespace Match3.Unity.Views
             _meshRenderer.SetPropertyBlock(_propBlock);
         }
 
-        /// <summary>
-        /// Update blob shadow transform: fixed on board surface, constant world size,
-        /// unaffected by tile's rotation or scale animation.
-        /// </summary>
         private void UpdateBlobShadow(Vector3 worldPos, float cellSize, Vector3 tileScale, float tileZ)
         {
             if (_shadowTransform == null) return;
 
-            // Directional offset (stylized): shift shadow slightly along sun direction.
-            // This gives a more "lit" and less "stamped" look.
+            _hasLastShadowState = true;
+            _lastShadowWorldPos = worldPos;
+            _lastShadowCellSize = cellSize;
+            _lastShadowTileScale = tileScale;
+            _lastShadowTileZ = tileZ;
+
+            // Directional offset along sun direction
             Vector2 dir2 = new Vector2(-0.35f, -0.70f).normalized;
             var sun = RenderSettings.sun;
             if (sun != null)
             {
-                var d = sun.transform.forward; // direction of light rays in world space
+                var d = sun.transform.forward;
                 var v = new Vector2(d.x, d.y);
                 if (v.sqrMagnitude > 0.0001f)
                     dir2 = v.normalized;
             }
 
-            // Lift factor: when tile floats a bit (selection pulse), shadow softens.
+            // Lift factor: floating tile → softer, larger shadow
             float lift01 = Mathf.Clamp01(Mathf.Abs(tileZ) / Mathf.Max(cellSize * 0.06f, 0.0001f));
-            float alpha = BlobShadowBaseAlpha * (1f - lift01 * 0.55f);
-            float sizeMul = 1f + lift01 * 0.28f;
+            float alpha = s_blobShadowBaseAlpha * (1f - lift01 * s_blobShadowLiftAlphaReduce);
+            float sizeMul = 1f + lift01 * s_blobShadowLiftSizeIncrease;
 
-            // Pin shadow to board surface (between tile Z=0 and board Z=0.1)
-            float off = BlobShadowOffset * cellSize;
+            float off = s_blobShadowOffset * cellSize;
             _shadowTransform.position = new Vector3(
                 worldPos.x + dir2.x * off,
                 worldPos.y + dir2.y * off,
                 BlobShadowZ);
             _shadowTransform.rotation = Quaternion.identity;
 
-            // Compensate parent scale so shadow has constant world size
-            float shadowWorldSize = cellSize * BlobShadowSize * sizeMul;
+            float shadowWorldSize = cellSize * s_blobShadowSize * sizeMul;
             _shadowTransform.localScale = new Vector3(
                 shadowWorldSize / Mathf.Max(Mathf.Abs(tileScale.x), 0.001f),
                 shadowWorldSize / Mathf.Max(Mathf.Abs(tileScale.y), 0.001f),
                 1f / Mathf.Max(Mathf.Abs(tileScale.z), 0.001f));
 
-            // Per-tile alpha via PropertyBlock (keeps shared material)
             if (_shadowRenderer != null && _shadowPropBlock != null)
             {
                 var c = new Color(1f, 1f, 1f, alpha);
@@ -297,6 +303,12 @@ namespace Match3.Unity.Views
                 _shadowPropBlock.SetColor(ShadowColorPropFallback, c);
                 _shadowRenderer.SetPropertyBlock(_shadowPropBlock);
             }
+        }
+
+        private void RefreshBlobShadowNow()
+        {
+            if (!_hasLastShadowState) return;
+            UpdateBlobShadow(_lastShadowWorldPos, _lastShadowCellSize, _lastShadowTileScale, _lastShadowTileZ);
         }
 
         #region IPoolable
@@ -311,7 +323,6 @@ namespace Match3.Unity.Views
             _wasAnimated = false;
             _bounceTime = -1f;
             _highlightTime = 0f;
-            _idleTime = 0f;
             transform.localScale = Vector3.one;
             transform.localEulerAngles = Vector3.zero;
             _meshRenderer.SetPropertyBlock(null);

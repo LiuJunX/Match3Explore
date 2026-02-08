@@ -38,6 +38,8 @@ namespace Match3.Unity.Views
         private bool _viewInitialized;
         private int _highlightedTileId = -1;
 
+        private static Cubemap _reflectionCubemap;
+
         public int ActiveTileCount => _activeTiles.Count;
 
         public void Initialize(Match3Bridge bridge)
@@ -45,6 +47,10 @@ namespace Match3.Unity.Views
             _bridge = bridge;
 
             if (_viewInitialized) return;
+
+            // Auto-boot render tuning (no manual scene wiring required).
+            // If a RenderTuningSettings asset exists, it will be applied immediately.
+            RenderTuningRuntime.EnsureController();
 
             // Setup 3D lighting
             SetupLighting();
@@ -140,6 +146,7 @@ namespace Match3.Unity.Views
             _keyLight.color = Color.white;
             _keyLight.intensity = 1.0f;
             _keyLight.shadows = LightShadows.Soft; // 主光源投射阴影，棋子在棋盘上有投影
+            _keyLight.shadowStrength = 0.8f; // Slightly lighter overall shadowing
             RenderSettings.sun = _keyLight;
 
             // Fill Light: softer, opposite side
@@ -149,8 +156,10 @@ namespace Match3.Unity.Views
             _fillLight = fillGo.AddComponent<Light>();
             _fillLight.type = LightType.Directional;
             _fillLight.color = new Color(0.95f, 0.93f, 0.90f);
-            _fillLight.intensity = 0.6f;
+            // Keep fill mostly diffuse; too much intensity adds extra specular hotspots ("oily" look).
+            _fillLight.intensity = 0.18f;
             _fillLight.shadows = LightShadows.None;
+            _fillLight.renderMode = LightRenderMode.ForceVertex;
 
             // Rim Light: from behind, subtle edge highlight
             var rimGo = new GameObject("BoardLight_Rim");
@@ -159,14 +168,22 @@ namespace Match3.Unity.Views
             _rimLight = rimGo.AddComponent<Light>();
             _rimLight.type = LightType.Directional;
             _rimLight.color = new Color(1.0f, 0.95f, 0.88f);
-            _rimLight.intensity = 0.26f;
+            // Prefer Fresnel (reflections) over an explicit rim light to avoid the "plastic outline" look.
+            // Keep the rim light effectively off by default.
+            _rimLight.intensity = 0.0f;
             _rimLight.shadows = LightShadows.None;
+            _rimLight.renderMode = LightRenderMode.ForceVertex;
+            _rimLight.enabled = false;
 
-            // Ambient Light: warm neutral (not cool gray)
+            // Ambient Light: bright warm, casual game style
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.60f, 0.58f, 0.55f);
-            RenderSettings.ambientEquatorColor = new Color(0.42f, 0.40f, 0.38f);
-            RenderSettings.ambientGroundColor = new Color(0.22f, 0.20f, 0.18f);
+            RenderSettings.ambientSkyColor = new Color(0.78f, 0.75f, 0.70f);
+            RenderSettings.ambientEquatorColor = new Color(0.62f, 0.59f, 0.55f);
+            RenderSettings.ambientGroundColor = new Color(0.45f, 0.42f, 0.38f);
+
+            // Reflection source: solid warm-white cubemap for clean Fresnel highlights.
+            // No real skybox needed — camera still uses solid color background.
+            SetupReflectionCubemap();
 
             // Background: garden green (confirmed from mockup)
             var cam = Camera.main;
@@ -175,6 +192,77 @@ namespace Match3.Unity.Views
                 cam.clearFlags = CameraClearFlags.SolidColor;
                 cam.backgroundColor = new Color(120f / 255f, 160f / 255f, 90f / 255f);
             }
+        }
+
+        /// <summary>
+        /// Create a tiny solid-color cubemap as the reflection source.
+        /// This gives Fresnel highlights a warm tint instead of reflecting black.
+        /// </summary>
+        private static void SetupReflectionCubemap()
+        {
+            const int size = 16; // Minimal — just simple gradients, no detail needed
+            _reflectionCubemap ??= new Cubemap(size, TextureFormat.RGBA32, false);
+
+            ApplyReflectionCubemapColors(
+                sky: new Color(0.42f, 0.40f, 0.37f),
+                side: new Color(0.30f, 0.29f, 0.27f),
+                ground: new Color(0.18f, 0.17f, 0.16f));
+
+            _reflectionCubemap.Apply();
+
+            RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Custom;
+            RenderSettings.customReflectionTexture = _reflectionCubemap;
+            RenderSettings.reflectionIntensity = 1.08f;
+        }
+
+        private static void Fill(Color[] pixels, Color c)
+        {
+            for (int i = 0; i < pixels.Length; i++)
+                pixels[i] = c;
+        }
+
+        private static void ApplyReflectionCubemapColors(Color sky, Color side, Color ground)
+        {
+            if (_reflectionCubemap == null) return;
+
+            int size = _reflectionCubemap.width;
+            var facePixels = new Color[size * size];
+
+            Fill(facePixels, side);
+            _reflectionCubemap.SetPixels(facePixels, CubemapFace.PositiveX);
+            _reflectionCubemap.SetPixels(facePixels, CubemapFace.NegativeX);
+            _reflectionCubemap.SetPixels(facePixels, CubemapFace.PositiveZ);
+            _reflectionCubemap.SetPixels(facePixels, CubemapFace.NegativeZ);
+
+            Fill(facePixels, sky);
+            _reflectionCubemap.SetPixels(facePixels, CubemapFace.PositiveY);
+
+            Fill(facePixels, ground);
+            _reflectionCubemap.SetPixels(facePixels, CubemapFace.NegativeY);
+        }
+
+        public void ApplyRenderTuning(RenderTuningSettings settings)
+        {
+            if (settings == null) return;
+
+            if (_keyLight != null)
+            {
+                _keyLight.intensity = settings.KeyIntensity;
+                _keyLight.shadowStrength = settings.KeyShadowStrength;
+            }
+            if (_fillLight != null)
+                _fillLight.intensity = settings.FillIntensity;
+
+            // Reflections (Fresnel)
+            if (_reflectionCubemap == null)
+                SetupReflectionCubemap();
+
+            ApplyReflectionCubemapColors(settings.ReflectionSky, settings.ReflectionSide, settings.ReflectionGround);
+            _reflectionCubemap.Apply();
+
+            RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Custom;
+            RenderSettings.customReflectionTexture = _reflectionCubemap;
+            RenderSettings.reflectionIntensity = settings.ReflectionIntensity;
         }
 
         // Board vignette (subtle inner shadow) caches
@@ -376,7 +464,7 @@ namespace Match3.Unity.Views
                     && _activeTiles.TryGetValue(selectedTileId, out var current))
                 {
                     var pos = current.transform.position;
-                    _selectionLight.transform.position = new Vector3(pos.x, pos.y, -1f);
+                    _selectionLight.transform.position = new Vector3(pos.x, pos.y, pos.z - 1f);
                 }
                 return;
             }
@@ -392,7 +480,7 @@ namespace Match3.Unity.Views
                 if (_selectionLight != null)
                 {
                     var tilePos = next.transform.position;
-                    _selectionLight.transform.position = new Vector3(tilePos.x, tilePos.y, -1f);
+                    _selectionLight.transform.position = new Vector3(tilePos.x, tilePos.y, tilePos.z - 1f);
 
                     if (selectedTileId != _highlightedTileId)
                     {

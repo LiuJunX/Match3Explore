@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Match3.Core.Models.Enums;
 using Match3.Unity.Services;
+using Match3.Unity.Views;
 using UnityEngine;
 
 namespace Match3.Unity.Pools
@@ -16,6 +17,8 @@ namespace Match3.Unity.Pools
         private static readonly Dictionary<TileType, Material> _materialCache = new();
         private static readonly Dictionary<BombType, Mesh> _bombMeshCache = new();
         private static Shader _litShader;
+
+        private static RenderTuningSettings _tuning;
 
         // Blob shadow resources
         private static Mesh _blobShadowMesh;
@@ -103,6 +106,7 @@ namespace Match3.Unity.Pools
 
             var color = GetCeramicColor(type);
             var mat = CreateCeramicMaterial(color);
+            ApplyRenderTuningToMaterial(mat, _tuning);
             mat.name = $"Tile3D_{GetTileTypeName(type)}";
             _materialCache[type] = mat;
             return mat;
@@ -131,6 +135,21 @@ namespace Match3.Unity.Pools
         public static Material GetFallbackMaterial()
         {
             return GetOrCreateFallbackMaterial();
+        }
+
+        /// <summary>
+        /// Apply runtime render tuning (material + shadow texture) to cached resources.
+        /// Safe to call repeatedly; call only when settings change.
+        /// </summary>
+        public static void ApplyRenderTuning(RenderTuningSettings settings)
+        {
+            _tuning = settings;
+
+            foreach (var mat in _materialCache.Values)
+                ApplyRenderTuningToMaterial(mat, settings);
+
+            if (_fallbackMaterial != null)
+                ApplyRenderTuningToMaterial(_fallbackMaterial, settings);
         }
 
         /// <summary>
@@ -204,7 +223,7 @@ namespace Match3.Unity.Pools
             if (_blobShadowTexture != null) return _blobShadowTexture;
 
             // Slightly higher resolution makes edges noticeably softer on screen.
-            const int size = 128;
+            const int size = 256;
             _blobShadowTexture = new Texture2D(size, size, TextureFormat.RGBA32, false)
             {
                 name = "BlobShadowTex",
@@ -315,21 +334,25 @@ namespace Match3.Unity.Pools
             // Glossy ceramic: high enough for highlights, not so high that
             // flat-shading normal seams show harsh dark lines
             if (mat.HasProperty("_Smoothness"))
-                mat.SetFloat("_Smoothness", 0.72f);
+                // Slightly higher smoothness = tighter/cleaner key-light highlight.
+                mat.SetFloat("_Smoothness", 0.62f);
 
-            // Clear coat glaze layer (Complex Lit only)
+            // Clear coat glaze layer (Complex Lit only).
+            // Keep it subtle: adds "ceramic glaze" without turning into multiple oily hotspots.
             if (mat.HasProperty("_ClearCoatMask"))
             {
-                mat.SetFloat("_ClearCoatMask", 0.6f);
-                mat.EnableKeyword("_CLEARCOAT");
+                // Slightly stronger glaze, keep it subtle to avoid "oily" hotspots.
+                mat.SetFloat("_ClearCoatMask", 0.07f);
+                if (mat.GetFloat("_ClearCoatMask") > 0.001f)
+                    mat.EnableKeyword("_CLEARCOAT");
+                else
+                    mat.DisableKeyword("_CLEARCOAT");
             }
             if (mat.HasProperty("_ClearCoatSmoothness"))
-                mat.SetFloat("_ClearCoatSmoothness", 0.9f);
+                mat.SetFloat("_ClearCoatSmoothness", 0.75f);
 
-            // Disable environment reflections: no skybox → Fresnel reflects black → dark edges
-            mat.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
-            if (mat.HasProperty("_EnvironmentReflections"))
-                mat.SetFloat("_EnvironmentReflections", 0f);
+            // Environment reflections: enabled, uses the warm-white cubemap set by Board3DView.
+            // This gives clean Fresnel highlights on tile edges instead of black.
 
             // Enable emission keyword (default black = no glow)
             // Tile3DView sets emission color via PropertyBlock when selected
@@ -338,6 +361,27 @@ namespace Match3.Unity.Pools
                 mat.SetColor("_EmissionColor", Color.black);
 
             return mat;
+        }
+
+        private static void ApplyRenderTuningToMaterial(Material mat, RenderTuningSettings settings)
+        {
+            if (mat == null || settings == null) return;
+
+            if (mat.HasProperty("_Metallic"))
+                mat.SetFloat("_Metallic", settings.Metallic);
+            if (mat.HasProperty("_Smoothness"))
+                mat.SetFloat("_Smoothness", settings.Smoothness);
+
+            if (mat.HasProperty("_ClearCoatMask"))
+            {
+                mat.SetFloat("_ClearCoatMask", settings.ClearCoatMask);
+                if (settings.ClearCoatMask > 0.001f)
+                    mat.EnableKeyword("_CLEARCOAT");
+                else
+                    mat.DisableKeyword("_CLEARCOAT");
+            }
+            if (mat.HasProperty("_ClearCoatSmoothness"))
+                mat.SetFloat("_ClearCoatSmoothness", settings.ClearCoatSmoothness);
         }
 
         private static Material _fallbackMaterial;

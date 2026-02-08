@@ -9,7 +9,7 @@ namespace Match3.Unity.Views
     /// Vertex-based corner detection + boundary-run edge placement.
     /// Modules (5 FBX from Board_Tile_v2.blend):
     ///   Floor, Edge, CornerOuter, CornerInner, CornerInnerFloor.
-    /// Uses 2 submeshes: submesh 0 = floor, submesh 1 = walls.
+    /// Uses 3 submeshes: submesh 0 = base floor, submesh 1 = cell insets (rounded rect), submesh 2 = walls.
     /// </summary>
     public static class BoardMeshBuilder
     {
@@ -20,11 +20,17 @@ namespace Match3.Unity.Views
         private static Mesh _cornerOuterMesh;
         private static Mesh _cornerInnerMesh;
         private static Mesh _cornerInnerFloorMesh;
+        private static Mesh _cellInsetMesh;
 
         private static Material[] _boardMaterials;
 
         // Must match Blender module geometry (Board_Tile_v2.blend)
         private const float WallThickness = 0.12f;
+
+        // Cell inset (rounded rect) parameters
+        private const float CellInsetMargin = 0.015f; // gap between adjacent cells (per side)
+        private const float CellInsetRadius = 0.07f;  // corner radius
+        private const int CellInsetCornerSegs = 4;     // arc segments per corner
 
         /// <summary>
         /// Build a board mesh from a layout mask.
@@ -45,22 +51,25 @@ namespace Match3.Unity.Views
                 for (int c = 0; c < cols; c++)
                     if (layout[r, c]) cellCount++;
 
-            int estimatedVerts = cellCount * 40;
+            int estimatedVerts = cellCount * 60;
             var vertices = new List<Vector3>(estimatedVerts);
-            var floorLightTris = new List<int>(estimatedVerts);
-            var floorDarkTris = new List<int>(estimatedVerts);
+            var floorTris = new List<int>(estimatedVerts);
+            var cellInsetTris = new List<int>(estimatedVerts);
             var wallTris = new List<int>(estimatedVerts);
             var normals = new List<Vector3>(estimatedVerts);
             var uvs = new List<Vector2>(estimatedVerts);
 
-            // 1. Floor per cell (alternating light/dark for checkerboard)
+            // 1. Base floor per cell + rounded rect inset overlay
+            var insetMesh = GetCellInsetMesh();
             for (int r = 0; r < rows; r++)
                 for (int c = 0; c < cols; c++)
                     if (layout[r, c])
                     {
-                        var tris = (r + c) % 2 == 0 ? floorLightTris : floorDarkTris;
-                        AppendMesh(vertices, tris, normals, uvs,
-                            _floorMesh, CellCenter(r, c, cellSize, origin, height), 0f, cellSize);
+                        var center = CellCenter(r, c, cellSize, origin, height);
+                        AppendMesh(vertices, floorTris, normals, uvs,
+                            _floorMesh, center, 0f, cellSize);
+                        AppendMesh(vertices, cellInsetTris, normals, uvs,
+                            insetMesh, center, 0f, cellSize);
                     }
 
             // 2. Vertex-based corners
@@ -108,7 +117,7 @@ namespace Match3.Unity.Views
 
                         AppendMesh(vertices, wallTris, normals, uvs,
                             _cornerInnerMesh, vertPos, angle, cellSize);
-                        AppendMesh(vertices, floorLightTris, normals, uvs,
+                        AppendMesh(vertices, floorTris, normals, uvs,
                             _cornerInnerFloorMesh, vertPos, angle, cellSize);
                     }
                 }
@@ -126,8 +135,8 @@ namespace Match3.Unity.Views
             mesh.SetNormals(normals);
             mesh.SetUVs(0, uvs);
             mesh.subMeshCount = 3;
-            mesh.SetTriangles(floorLightTris, 0);
-            mesh.SetTriangles(floorDarkTris, 1);
+            mesh.SetTriangles(floorTris, 0);
+            mesh.SetTriangles(cellInsetTris, 1);
             mesh.SetTriangles(wallTris, 2);
             mesh.RecalculateBounds();
 
@@ -331,11 +340,12 @@ namespace Match3.Unity.Views
             _cornerOuterMesh = null;
             _cornerInnerMesh = null;
             _cornerInnerFloorMesh = null;
+            _cellInsetMesh = null;
             _boardMaterials = null;
         }
 
         /// <summary>
-        /// Get board materials: [0] = light floor, [1] = dark floor, [2] = wall. Cached after first call.
+        /// Get board materials: [0] = base floor (groove), [1] = cell inset (rounded rect), [2] = wall.
         /// </summary>
         public static Material[] GetBoardMaterials()
         {
@@ -344,21 +354,21 @@ namespace Match3.Unity.Views
             var shader = Shader.Find("Universal Render Pipeline/Lit")
                          ?? Shader.Find("Standard");
 
-            // Light floor: bright warm cream
-            var floorLightMat = new Material(shader);
-            floorLightMat.name = "BoardFloor_Light";
-            InitUrpSurface(floorLightMat);
-            SetBaseColor(floorLightMat, new Color(0.92f, 0.88f, 0.82f));
-            if (floorLightMat.HasProperty("_Smoothness"))
-                floorLightMat.SetFloat("_Smoothness", 0.35f);
+            // Base floor: visible as thin grooves between rounded rect insets
+            var baseMat = new Material(shader);
+            baseMat.name = "BoardFloor_Base";
+            InitUrpSurface(baseMat);
+            SetBaseColor(baseMat, new Color(0.84f, 0.80f, 0.74f));
+            if (baseMat.HasProperty("_Smoothness"))
+                baseMat.SetFloat("_Smoothness", 0.30f);
 
-            // Dark floor: slightly deeper for checkerboard
-            var floorDarkMat = new Material(shader);
-            floorDarkMat.name = "BoardFloor_Dark";
-            InitUrpSurface(floorDarkMat);
-            SetBaseColor(floorDarkMat, new Color(0.87f, 0.83f, 0.77f));
-            if (floorDarkMat.HasProperty("_Smoothness"))
-                floorDarkMat.SetFloat("_Smoothness", 0.35f);
+            // Cell inset: the main visible cell surface (clean warm white)
+            var insetMat = new Material(shader);
+            insetMat.name = "BoardFloor_CellInset";
+            InitUrpSurface(insetMat);
+            SetBaseColor(insetMat, new Color(0.94f, 0.91f, 0.86f));
+            if (insetMat.HasProperty("_Smoothness"))
+                insetMat.SetFloat("_Smoothness", 0.35f);
 
             // Wall: slightly deeper warm tone
             var wallMat = new Material(shader);
@@ -368,8 +378,79 @@ namespace Match3.Unity.Views
             if (wallMat.HasProperty("_Smoothness"))
                 wallMat.SetFloat("_Smoothness", 0.30f);
 
-            _boardMaterials = new[] { floorLightMat, floorDarkMat, wallMat };
+            _boardMaterials = new[] { baseMat, insetMat, wallMat };
             return _boardMaterials;
+        }
+
+        /// <summary>
+        /// Get or generate the rounded rectangle cell inset mesh.
+        /// Unit-sized (1x1), will be scaled by cellSize in AppendMesh.
+        /// Vertices offset Z=-0.005 to sit slightly in front of the base floor.
+        /// </summary>
+        private static Mesh GetCellInsetMesh()
+        {
+            if (_cellInsetMesh != null) return _cellInsetMesh;
+
+            float hw = 0.5f - CellInsetMargin;
+            float hh = 0.5f - CellInsetMargin;
+            float r = Mathf.Min(CellInsetRadius, Mathf.Min(hw, hh));
+            float cx = hw - r;
+            float cy = hh - r;
+            const float zOff = -0.005f; // slightly in front of base floor
+
+            // Build perimeter vertices (CCW)
+            var perim = new List<Vector3>();
+
+            // Corner centers and start angles (CCW: TR → TL → BL → BR)
+            float[] centerX = { cx, -cx, -cx, cx };
+            float[] centerY = { cy, cy, -cy, -cy };
+            float[] startAngle = { 0f, Mathf.PI * 0.5f, Mathf.PI, Mathf.PI * 1.5f };
+
+            for (int corner = 0; corner < 4; corner++)
+            {
+                for (int i = 0; i < CellInsetCornerSegs; i++)
+                {
+                    float t = (float)i / CellInsetCornerSegs;
+                    float angle = startAngle[corner] + t * Mathf.PI * 0.5f;
+                    perim.Add(new Vector3(
+                        centerX[corner] + r * Mathf.Cos(angle),
+                        centerY[corner] + r * Mathf.Sin(angle),
+                        zOff));
+                }
+            }
+
+            // Build mesh: triangle fan from center
+            int count = perim.Count;
+            var vertices = new Vector3[count + 1];
+            var meshNormals = new Vector3[count + 1];
+            var meshUvs = new Vector2[count + 1];
+
+            vertices[0] = new Vector3(0f, 0f, zOff);
+            meshNormals[0] = Vector3.back;
+            meshUvs[0] = new Vector2(0.5f, 0.5f);
+
+            for (int i = 0; i < count; i++)
+            {
+                vertices[i + 1] = perim[i];
+                meshNormals[i + 1] = Vector3.back;
+                meshUvs[i + 1] = new Vector2(perim[i].x + 0.5f, perim[i].y + 0.5f);
+            }
+
+            var triangles = new int[count * 3];
+            for (int i = 0; i < count; i++)
+            {
+                triangles[i * 3] = 0;
+                triangles[i * 3 + 1] = 1 + (i + 1) % count;
+                triangles[i * 3 + 2] = 1 + i;
+            }
+
+            _cellInsetMesh = new Mesh { name = "CellInset" };
+            _cellInsetMesh.vertices = vertices;
+            _cellInsetMesh.normals = meshNormals;
+            _cellInsetMesh.uv = meshUvs;
+            _cellInsetMesh.triangles = triangles;
+
+            return _cellInsetMesh;
         }
 
         /// <summary>
