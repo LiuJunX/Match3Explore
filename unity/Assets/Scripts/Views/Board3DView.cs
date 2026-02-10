@@ -29,12 +29,9 @@ namespace Match3.Unity.Views
         private Match3Bridge _bridge;
         private Transform _tileContainer;
         private Transform _projectileContainer;
-        private Light _keyLight;
-        private Light _fillLight;
-        private Light _rimLight;
+        private BoardLightingController _lightingController;
         private GameObject _boardFloor;
         private GameObject _boardVignette;
-        private Light _selectionLight;
         private bool _viewInitialized;
         private int _highlightedTileId = -1;
 
@@ -52,8 +49,14 @@ namespace Match3.Unity.Views
             // If a RenderTuningSettings asset exists, it will be applied immediately.
             RenderTuningRuntime.EnsureController();
 
-            // Setup 3D lighting
-            SetupLighting();
+            // Setup lighting controller (owns key/fill/rim/selection lights)
+            var lightingGo = new GameObject("BoardLighting");
+            lightingGo.transform.SetParent(transform, false);
+            _lightingController = lightingGo.AddComponent<BoardLightingController>();
+            _lightingController.Initialize();
+
+            // Setup environment (ambient, reflections, camera background)
+            SetupEnvironment();
 
             _tileContainer = new GameObject("TileContainer3D").transform;
             _tileContainer.SetParent(transform, false);
@@ -81,17 +84,6 @@ namespace Match3.Unity.Views
             // Build board floor mesh
             BuildBoardFloor();
             BuildBoardVignette();
-
-            // Selection point light (single shared instance)
-            var selLightGo = new GameObject("SelectionLight");
-            selLightGo.transform.SetParent(transform, false);
-            _selectionLight = selLightGo.AddComponent<Light>();
-            _selectionLight.type = LightType.Point;
-            _selectionLight.range = 1.5f;
-            _selectionLight.intensity = 4f;
-            _selectionLight.shadows = LightShadows.None;
-            _selectionLight.renderMode = LightRenderMode.ForcePixel;
-            _selectionLight.enabled = false;
 
             _viewInitialized = true;
         }
@@ -134,47 +126,8 @@ namespace Match3.Unity.Views
             return BoardMeshBuilder.BuildRectangular(width, height, cellSize, origin);
         }
 
-        private void SetupLighting()
+        private void SetupEnvironment()
         {
-            // Key Light: neutral white, main illumination
-            var keyGo = new GameObject("BoardLight_Key");
-            keyGo.transform.SetParent(transform, false);
-            keyGo.transform.localPosition = new Vector3(-0.03f, 1.02f, 0.41f);
-            keyGo.transform.rotation = Quaternion.Euler(42.73f, 18.97f, 33.92f);
-            _keyLight = keyGo.AddComponent<Light>();
-            _keyLight.type = LightType.Directional;
-            _keyLight.color = Color.white;
-            _keyLight.intensity = 1.0f;
-            _keyLight.shadows = LightShadows.Soft; // 主光源投射阴影，棋子在棋盘上有投影
-            _keyLight.shadowStrength = 0.8f; // Slightly lighter overall shadowing
-            RenderSettings.sun = _keyLight;
-
-            // Fill Light: softer, opposite side
-            var fillGo = new GameObject("BoardLight_Fill");
-            fillGo.transform.SetParent(transform, false);
-            fillGo.transform.rotation = Quaternion.Euler(322.86f, 336.94f, 350.83f);
-            _fillLight = fillGo.AddComponent<Light>();
-            _fillLight.type = LightType.Directional;
-            _fillLight.color = new Color(0.95f, 0.93f, 0.90f);
-            // Keep fill mostly diffuse; too much intensity adds extra specular hotspots ("oily" look).
-            _fillLight.intensity = 0.18f;
-            _fillLight.shadows = LightShadows.None;
-            _fillLight.renderMode = LightRenderMode.ForceVertex;
-
-            // Rim Light: from behind, subtle edge highlight
-            var rimGo = new GameObject("BoardLight_Rim");
-            rimGo.transform.SetParent(transform, false);
-            rimGo.transform.rotation = Quaternion.Euler(340.89f, 209.44f, 4.03f);
-            _rimLight = rimGo.AddComponent<Light>();
-            _rimLight.type = LightType.Directional;
-            _rimLight.color = new Color(1.0f, 0.95f, 0.88f);
-            // Prefer Fresnel (reflections) over an explicit rim light to avoid the "plastic outline" look.
-            // Keep the rim light effectively off by default.
-            _rimLight.intensity = 0.0f;
-            _rimLight.shadows = LightShadows.None;
-            _rimLight.renderMode = LightRenderMode.ForceVertex;
-            _rimLight.enabled = false;
-
             // Ambient Light: bright warm, casual game style
             RenderSettings.ambientMode = AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = new Color(0.78f, 0.75f, 0.70f);
@@ -245,13 +198,8 @@ namespace Match3.Unity.Views
         {
             if (settings == null) return;
 
-            if (_keyLight != null)
-            {
-                _keyLight.intensity = settings.KeyIntensity;
-                _keyLight.shadowStrength = settings.KeyShadowStrength;
-            }
-            if (_fillLight != null)
-                _fillLight.intensity = settings.FillIntensity;
+            if (_lightingController != null)
+                _lightingController.SetBaseIntensities(settings.KeyIntensity, settings.KeyShadowStrength, settings.FillIntensity);
 
             // Reflections (Fresnel)
             if (_reflectionCubemap == null)
@@ -457,14 +405,16 @@ namespace Match3.Unity.Views
                 ? _bridge.GetTileIdAt(selectedPos)
                 : -1;
 
+            var selectionLight = _lightingController != null ? _lightingController.SelectionLight : null;
+
             // Update light position every frame (tile may be falling)
             if (selectedTileId == _highlightedTileId)
             {
-                if (selectedTileId >= 0 && _selectionLight != null
+                if (selectedTileId >= 0 && selectionLight != null
                     && _activeTiles.TryGetValue(selectedTileId, out var current))
                 {
                     var pos = current.transform.position;
-                    _selectionLight.transform.position = new Vector3(pos.x, pos.y, pos.z - 1f);
+                    selectionLight.transform.position = new Vector3(pos.x, pos.y, pos.z - 1f);
                 }
                 return;
             }
@@ -477,25 +427,25 @@ namespace Match3.Unity.Views
                 next.SetHighlighted(true);
 
                 // Move selection light to tile and match its color
-                if (_selectionLight != null)
+                if (selectionLight != null)
                 {
                     var tilePos = next.transform.position;
-                    _selectionLight.transform.position = new Vector3(tilePos.x, tilePos.y, tilePos.z - 1f);
+                    selectionLight.transform.position = new Vector3(tilePos.x, tilePos.y, tilePos.z - 1f);
 
                     if (selectedTileId != _highlightedTileId)
                     {
                         // Only re-read material color on tile change (not every frame)
                         var mat = next.GetComponent<MeshRenderer>().sharedMaterial;
-                        _selectionLight.color = mat.HasProperty(LightColorProp)
+                        selectionLight.color = mat.HasProperty(LightColorProp)
                             ? mat.GetColor(LightColorProp)
                             : mat.GetColor(LightColorPropFallback);
                     }
-                    _selectionLight.enabled = true;
+                    selectionLight.enabled = true;
                 }
             }
-            else if (_selectionLight != null)
+            else if (selectionLight != null)
             {
-                _selectionLight.enabled = false;
+                selectionLight.enabled = false;
             }
 
             _highlightedTileId = selectedTileId;
@@ -546,8 +496,8 @@ namespace Match3.Unity.Views
         public void Clear()
         {
             _highlightedTileId = -1;
-            if (_selectionLight != null)
-                _selectionLight.enabled = false;
+            if (_lightingController != null && _lightingController.SelectionLight != null)
+                _lightingController.SelectionLight.enabled = false;
 
             foreach (var kvp in _activeTiles)
             {
@@ -605,25 +555,11 @@ namespace Match3.Unity.Views
             _tilePool?.Clear();
             _projectilePool?.Clear();
 
-            if (_keyLight != null)
+            // Lighting controller cleans up its own lights via its own OnDestroy
+            if (_lightingController != null)
             {
-                Destroy(_keyLight.gameObject);
-                _keyLight = null;
-            }
-            if (_fillLight != null)
-            {
-                Destroy(_fillLight.gameObject);
-                _fillLight = null;
-            }
-            if (_rimLight != null)
-            {
-                Destroy(_rimLight.gameObject);
-                _rimLight = null;
-            }
-            if (_selectionLight != null)
-            {
-                Destroy(_selectionLight.gameObject);
-                _selectionLight = null;
+                Destroy(_lightingController.gameObject);
+                _lightingController = null;
             }
             if (_boardFloor != null)
             {
